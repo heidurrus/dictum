@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.5 (2026-10-07): Speaker separation on the Apple GPU, and re-runs
+
+- **Transcription with speaker separation failed on the GPU** after the first channel with "Inference tensors cannot be saved for backward". The second channel's model run had autograd on; it now runs in inference mode like every other transcription.
+- **Pressing Transcribe again replaces a request that is still waiting** instead of queueing behind it. A transcription that is already running cannot be stopped; the app says so, and quitting the app stops it.
+- Failed jobs write their full traceback to `logs/jobs.log` in the app's data folder.
+
 ## 4.0.4 (2026-10-06): A transcription cut off by a restart no longer looks like it is still running
 
 - Jobs do not survive quitting the app. A source that was being transcribed at that moment stayed marked "in progress" forever, with no way to start it again. On start the app now puts such a source back to "not transcribed" (or "failed" if its audio was never saved), so the Transcribe button is there.

@@ -46,6 +46,12 @@ class JobStore:
                 job.update(status="done", progress=100, progress_msg="Done.", result=result,
                            finished_at=self._clock())
 
+    def cancel(self, job_id):
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is not None:
+                job.update(status="cancelled", progress_msg="Replaced by a newer request", finished_at=self._clock())
+
     def fail(self, job_id, error):
         with self._lock:
             job = self._jobs.get(job_id)
@@ -73,18 +79,37 @@ class JobStore:
             return len(self._jobs)
 
 
+class JobCancelled(Exception):
+    """Raised inside run() for a job that was dropped from the queue before it started."""
+
+
 class SerialQueue:
     """Lets one job run at a time; waiting jobs learn their position."""
 
     def __init__(self):
         self._cond = threading.Condition()
         self._waiting = []
+        self._cancelled = set()
         self._running = False
+
+    def cancel(self, job_id):
+        """Drop a job that has not started. Returns False if it is running (or unknown): that one cannot be stopped."""
+        with self._cond:
+            if job_id not in self._waiting:
+                return False
+            self._cancelled.add(job_id)
+            self._cond.notify_all()
+            return True
 
     def run(self, job_id, fn, on_wait=None):
         with self._cond:
             self._waiting.append(job_id)
-            while self._running or self._waiting[0] != job_id:
+            while self._running or self._waiting[0] != job_id or job_id in self._cancelled:
+                if job_id in self._cancelled:
+                    self._cancelled.discard(job_id)
+                    self._waiting.remove(job_id)
+                    self._cond.notify_all()
+                    raise JobCancelled(job_id)
                 if on_wait:
                     on_wait(self._waiting.index(job_id) + (1 if self._running else 0))
                 self._cond.wait()

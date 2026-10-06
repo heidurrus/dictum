@@ -41,3 +41,24 @@ def models_dir(kind):
 def use_app_model_cache():
     """Point Hugging Face downloads (pyannote) at the app's model folder, unless the user chose one."""
     os.environ.setdefault("HF_HOME", models_dir("huggingface"))
+
+
+def make_job_log():
+    """A logger for long jobs: the full traceback of a failure goes to <app data>/logs/jobs.log,
+    where the one line shown in the interface is not enough to see what went wrong."""
+    import logging
+    import logging.handlers
+    log = logging.getLogger("workbench.jobs")
+    if log.handlers:
+        return log
+    log.setLevel(logging.INFO)
+    try:
+        folder = os.path.join(app_data_dir(), "logs")
+        os.makedirs(folder, exist_ok=True)
+        handler = logging.handlers.RotatingFileHandler(os.path.join(folder, "jobs.log"), maxBytes=2_000_000,
+                                                       backupCount=2, encoding="utf-8")
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+        log.addHandler(handler)
+    except OSError:
+        log.addHandler(logging.NullHandler())
+    return log
