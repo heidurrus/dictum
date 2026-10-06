@@ -7,6 +7,7 @@
   import { explain } from "../lib/errors.js";
   import { api, pollJob } from "../lib/api.js";
   import { extractAtoms } from "../lib/atoms.js";
+  import { transcribeSaved } from "../lib/capture.svelte.js";
   import { fmtTime, fmtDate, fmtDuration, renderMarkdown, speakerClass, speakerDisplay } from "../lib/format.js";
   import { saveText } from "../lib/save.js";
   import { app, t, go, loadSources, toast, rememberSource } from "../lib/state.svelte.js";
@@ -158,14 +159,10 @@
     }
   }
 
+  // Through the shared tracker, so the job shows in the sidebar card and in this screen's banner.
   async function retranscribe() {
-    const o = app.options;
-    try {
-      const res = await api(`/api/sources/${id}/transcribe`, { method: "POST", body: {
-        model: o.model, device: o.device, diarize: String(o.diarize), word_timestamps: String(!o.diarize && o.word_timestamps) } });
-      await load();
-      pollJob(res.job_id).finally(() => { load(); loadSources(); });
-    } catch (err) { toast(err.message, { kind: "danger" }); }
+    await transcribeSaved(id);
+    await load();
   }
 
   async function copyText() {

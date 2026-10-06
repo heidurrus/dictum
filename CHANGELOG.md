@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.6 (2026-10-07): Progress for a transcription started from the Source screen
+
+- "Распознать" on the Source screen started the job without the progress card in the sidebar or the percentage on the screen. It now goes through the same tracker as the Sources screen.
+
 ## 4.0.5 (2026-10-07): Speaker separation on the Apple GPU, and re-runs
 
 - **Transcription with speaker separation failed on the GPU** after the first channel with "Inference tensors cannot be saved for backward". The second channel's model run had autograd on; it now runs in inference mode like every other transcription.
