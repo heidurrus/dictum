@@ -16,6 +16,8 @@ warnings.filterwarnings("ignore", message=".*torchcodec.*")
 import torch
 import gigaam
 from gigaam.preprocess import load_audio, SAMPLE_RATE
+from core import longform
+longform.install()                  # long recordings: decode with our ffmpeg, not torchcodec
 from gigaam.utils import AudioDataset
 from torch.utils.data import DataLoader
 from flask import Flask, request, jsonify, send_file, send_from_directory

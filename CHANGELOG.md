@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.3 (2026-10-06): Long recordings failed with "torchcodec is not available"
+
+- Recordings and audio files longer than about 25 seconds are split by voice activity detection before transcription. GigaAM handed the audio *file* to pyannote for that, and since torchaudio 2.9 that needs torchcodec, which fails without FFmpeg's shared libraries. The app now decodes the audio with its own ffmpeg and hands pyannote the waveform, as it already did for speaker separation.
+
 ## 4.0.2 (2026-09-30): Source screen opened empty
 
 - **Source:** when a requirement had two quotes on the same transcript line, the screen failed to render and showed neither the transcript nor the summary. A line now lists each requirement once, and the page no longer depends on the IDs being unique.
