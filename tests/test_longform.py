@@ -59,3 +59,23 @@ def test_install_replaces_gigaams_function(monkeypatch):
     monkeypatch.setitem(sys.modules, "gigaam.vad_utils", fake)
     assert longform.install()
     assert fake.segment_audio_file is longform.segment_audio_file
+
+
+def test_failed_jobs_leave_a_traceback_in_the_log(tmp_path, monkeypatch):
+    import logging
+    from core import paths
+    monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path))
+    shared = logging.getLogger("workbench.jobs")
+    for h in list(shared.handlers):          # the app module may already have attached its own file
+        shared.removeHandler(h); h.close()
+    log = paths.make_job_log()
+    try:
+        raise RuntimeError("Inference tensors cannot be saved for backward")
+    except RuntimeError:
+        log.exception("Transcription job %s failed", "j1")
+    for h in log.handlers:
+        h.flush()
+    text = (tmp_path / "logs" / "jobs.log").read_text(encoding="utf-8")
+    assert "job j1 failed" in text and "RuntimeError: Inference tensors" in text and "Traceback" in text
+    for h in list(log.handlers):            # leave no handler on the shared logger for other tests
+        log.removeHandler(h); h.close()

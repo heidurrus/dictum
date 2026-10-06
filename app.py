@@ -32,7 +32,7 @@ from core.mcp_client import McpError, McpSession
 from core import local_llm
 from core.llm import for_project, language_rule, model_name
 from core.jobs import JobStore, SerialQueue
-from core.paths import models_dir, recordings_dir, use_app_model_cache
+from core.paths import make_job_log, models_dir, recordings_dir, use_app_model_cache
 from core.macos_permissions import microphone_access
 from core.realtime import realtime
 from core.recorder import (SAMPLE_RATE as REC_SAMPLE_RATE, DualChannelRecorder, mix_wavs, speech_bounds,
@@ -72,6 +72,7 @@ _diarization_pipeline = None
 _diarization_lock = threading.Lock()
 
 jobs = JobStore()
+job_log = make_job_log()                 # tracebacks of failed jobs: <app data>/logs/jobs.log
 library = Store()  # projects, sources, transcripts, summaries (spec increment 1)
 library.reset_stale_processing()      # jobs do not survive a restart; let those sources be transcribed again
 transcription_queue = SerialQueue()  # one transcription at a time (spec D-12)
@@ -238,6 +239,7 @@ def run_job(job_id, upload_path, audio_path, model_name, diarize, word_timestamp
         result = transcription_queue.run(job_id, work, on_wait=on_wait)
     except Exception as e:
         error = e
+        job_log.exception("Transcription job %s failed", job_id)
     finally:
         if source_id is None:
             for path in {upload_path, audio_path}:
