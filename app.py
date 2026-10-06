@@ -31,7 +31,7 @@ from core.atlassian_auth import MCP_URL, AtlassianAuth, AuthError, AuthRequired
 from core.mcp_client import McpError, McpSession
 from core import local_llm
 from core.llm import for_project, language_rule, model_name
-from core.jobs import JobStore, SerialQueue
+from core.jobs import JobCancelled, JobStore, SerialQueue
 from core.paths import make_job_log, models_dir, recordings_dir, use_app_model_cache
 from core.macos_permissions import microphone_access
 from core.realtime import realtime
@@ -184,21 +184,24 @@ def transcribe_with_diarization(job_id, model, audio_path, device):
 
     result_segments = []
     idx = 0
-    for wav_pad, wav_lens in dl:
-        wav_pad = wav_pad.to(model._device).to(model._dtype)
-        wav_lens = wav_lens.to(model._device)
-        encoded, encoded_len = model.forward(wav_pad, wav_lens)
-        for text, _ in model._decode(encoded, encoded_len, wav_lens, False):
-            start, end = boundaries[idx]
-            result_segments.append({
-                "speaker": speakers[idx],
-                "start": round(start, 3),
-                "end": round(end, 3),
-                "text": text,
-            })
-            idx += 1
-        pct = 55 + int((idx / total) * 40)
-        set_progress(job_id, pct, f"Transcribing segments… {idx}/{total}")
+    # Inference mode, as GigaAM's own transcribe methods run: with autograd on, the encoder on the Apple GPU
+    # fails with "Inference tensors cannot be saved for backward" partway through a long call.
+    with torch.inference_mode():
+        for wav_pad, wav_lens in dl:
+            wav_pad = wav_pad.to(model._device).to(model._dtype)
+            wav_lens = wav_lens.to(model._device)
+            encoded, encoded_len = model.forward(wav_pad, wav_lens)
+            for text, _ in model._decode(encoded, encoded_len, wav_lens, False):
+                start, end = boundaries[idx]
+                result_segments.append({
+                    "speaker": speakers[idx],
+                    "start": round(start, 3),
+                    "end": round(end, 3),
+                    "text": text,
+                })
+                idx += 1
+            pct = 55 + int((idx / total) * 40)
+            set_progress(job_id, pct, f"Transcribing segments… {idx}/{total}")
 
     return result_segments, None
 
@@ -237,6 +240,9 @@ def run_job(job_id, upload_path, audio_path, model_name, diarize, word_timestamp
         work = ((lambda: _transcribe_channels(job_id, *channels, model_name, diarize, device)) if channels
                 else (lambda: _transcribe(job_id, audio_path, model_name, diarize, word_timestamps, device)))
         result = transcription_queue.run(job_id, work, on_wait=on_wait)
+    except JobCancelled:
+        jobs.cancel(job_id)             # replaced by a newer request for the same source; it owns the source now
+        return
     except Exception as e:
         error = e
         job_log.exception("Transcription job %s failed", job_id)
@@ -744,8 +750,23 @@ def _recorded_channels(source):
     return (mic, sys_) if os.path.exists(mic) and os.path.exists(sys_) else None
 
 
+_transcribing = {}        # source_id → job_id of the transcription queued or running for it
+
+
+def _transcription_in_progress(source_id):
+    """The running job for this source, or None. A job still waiting in the queue is dropped,
+    so pressing Transcribe again with other settings does not line up behind the old request."""
+    old = _transcribing.get(source_id)
+    if old is None or (jobs.get(old) or {}).get("status") != "processing":
+        return None
+    if transcription_queue.cancel(old):
+        return None
+    return old
+
+
 def _start_transcription(source, audio_path, opts):
     job_id = jobs.create()
+    _transcribing[source["id"]] = job_id
     threading.Thread(target=run_job, daemon=True, args=(
         job_id, audio_path, audio_path, opts["model_name"], opts["diarize"], opts["word_timestamps"],
         opts["device"], source["id"], _recorded_channels(source))).start()
@@ -1162,6 +1183,9 @@ def api_transcribe_source(source_id):
     opts, error = _transcription_options(request.get_json(silent=True) or {})
     if error:
         return jsonify({"error": error}), 400
+    if _transcription_in_progress(source_id):
+        return jsonify({"error": "This source is being transcribed right now. Let it finish, or quit and "
+                                 "reopen the app to stop it; then transcribe again."}), 409
     library.update_source(source_id, status="processing", asr_model=opts["model_name"], error=None)
     job_id = _start_transcription(source, os.path.join(library.source_dir(source), source["audio_file"]), opts)
     return jsonify({"job_id": job_id, "source_id": source_id})

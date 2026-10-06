@@ -80,3 +80,39 @@ def test_serial_queue_releases_slot_when_job_raises():
     except ZeroDivisionError:
         pass
     assert queue.run("next", lambda: "ok") == "ok"
+
+
+def test_a_waiting_job_can_be_cancelled_but_a_running_one_cannot():
+    from core.jobs import JobCancelled
+    queue = SerialQueue()
+    release = threading.Event()
+    outcome = {}
+    first = threading.Thread(target=lambda: queue.run("first", lambda: release.wait(2)))
+    first.start()
+    time.sleep(0.05)
+
+    def second():
+        try:
+            queue.run("second", lambda: "ran")
+            outcome["second"] = "ran"
+        except JobCancelled:
+            outcome["second"] = "cancelled"
+    t = threading.Thread(target=second)
+    t.start()
+    time.sleep(0.05)
+    assert queue.cancel("first") is False, "the running job cannot be stopped"
+    assert queue.cancel("second") is True
+    t.join(2)
+    assert outcome["second"] == "cancelled"
+    assert queue.cancel("second") is False, "already gone"
+    release.set()
+    first.join(2)
+    third = queue.run("third", lambda: "ran")
+    assert third == "ran", "the slot is free after cancelling"
+
+
+def test_cancelled_job_is_marked_in_the_store():
+    store = JobStore()
+    job = store.create()
+    store.cancel(job)
+    assert store.get(job)["status"] == "cancelled"
