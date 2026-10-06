@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.0.4 (2026-10-06): A transcription cut off by a restart no longer looks like it is still running
+
+- Jobs do not survive quitting the app. A source that was being transcribed at that moment stayed marked "in progress" forever, with no way to start it again. On start the app now puts such a source back to "not transcribed" (or "failed" if its audio was never saved), so the Transcribe button is there.
+
 ## 4.0.3 (2026-10-06): Long recordings failed with "torchcodec is not available"
 
 - Recordings and audio files longer than about 25 seconds are split by voice activity detection before transcription. GigaAM handed the audio *file* to pyannote for that, and since torchaudio 2.9 that needs torchcodec, which fails without FFmpeg's shared libraries. The app now decodes the audio with its own ffmpeg and hands pyannote the waveform, as it already did for speaker separation.

@@ -484,6 +484,19 @@ class Store:
                                                          "statement": r["statement"], "quote": r["quote"]})
         return out
 
+    def reset_stale_processing(self):
+        """A source still marked "processing" when the app starts was cut off mid-job (quit, crash):
+        no job survives a restart. Put it back where the BA can transcribe it again."""
+        with self._write() as c:
+            rows = c.execute("SELECT id, audio_file FROM sources WHERE status = 'processing' AND deleted_at IS NULL").fetchall()
+            now, by = self._stamp()
+            for r in rows:
+                status, error = ("recorded", None) if r["audio_file"] else ("failed", "Interrupted before it finished")
+                c.execute("UPDATE sources SET status = ?, error = ?, updated_at = ?, updated_by = ? WHERE id = ?",
+                          (status, error, now, by, r["id"]))
+                self._audit(c, "source", r["id"], "interrupted", after={"status": status})
+        return len(rows)
+
     def fail_source(self, source_id, error):
         return self.update_source(source_id, status="failed", error=str(error)[:1000])
 

@@ -160,3 +160,18 @@ def test_attach_file(store, tmp_path):
     assert os.path.dirname(dest) == store.source_dir(s) and f.exists()
     dest2 = store.attach_file(s, str(f), "moved.wav", move=True)
     assert os.path.exists(dest2) and not f.exists()
+
+
+def test_sources_cut_off_by_a_restart_can_be_transcribed_again(store):
+    p = store.create_project("P")
+    rec = store.create_source(p["id"], "recording", "Звонок")
+    store.update_source(rec["id"], audio_file="mixed.wav")                        # the recording was saved
+    upload = store.create_source(p["id"], "audio", "Файл")                        # audio never saved
+    done = store.save_transcript(store.create_source(p["id"], "audio", "Готовый")["id"], {"text": "x", "segments": [{"text": "x"}]})
+    assert store.reset_stale_processing() == 2
+    assert store.get_source(rec["id"])["status"] == "recorded"
+    failed = store.get_source(upload["id"])
+    assert failed["status"] == "failed" and "Interrupted" in failed["error"]
+    assert store.get_source(done["id"])["status"] == "ready"
+    assert any(e["action"] == "interrupted" for e in store.audit("source", rec["id"]))
+    assert store.reset_stale_processing() == 0

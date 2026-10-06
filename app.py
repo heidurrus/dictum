@@ -73,6 +73,7 @@ _diarization_lock = threading.Lock()
 
 jobs = JobStore()
 library = Store()  # projects, sources, transcripts, summaries (spec increment 1)
+library.reset_stale_processing()      # jobs do not survive a restart; let those sources be transcribed again
 transcription_queue = SerialQueue()  # one transcription at a time (spec D-12)
 
 _recorder = None
