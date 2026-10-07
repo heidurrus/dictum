@@ -79,3 +79,10 @@ def test_failed_jobs_leave_a_traceback_in_the_log(tmp_path, monkeypatch):
     assert "job j1 failed" in text and "RuntimeError: Inference tensors" in text and "Traceback" in text
     for h in list(log.handlers):            # leave no handler on the shared logger for other tests
         log.removeHandler(h); h.close()
+
+
+def test_chunks_are_batched_by_length_and_results_come_back_in_order():
+    chunks = [[0] * 5, [0] * 50, [0] * 20, [0] * 40, [0] * 10]
+    batches = longform.batches_by_length(chunks, 2)
+    assert batches == [[1, 3], [2, 4], [0]], "longest first, so padding inside a batch is small"
+    assert sorted(i for b in batches for i in b) == [0, 1, 2, 3, 4]

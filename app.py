@@ -16,7 +16,7 @@ warnings.filterwarnings("ignore", message=".*torchcodec.*")
 import torch
 import gigaam
 from gigaam.preprocess import load_audio, SAMPLE_RATE
-from core import longform
+from core import asr_models, longform
 longform.install()                  # long recordings: decode with our ffmpeg, not torchcodec
 from gigaam.utils import AudioDataset
 from torch.utils.data import DataLoader
@@ -178,45 +178,22 @@ def transcribe_with_diarization(job_id, model, audio_path, device):
 
     total = len(chunks)
     set_progress(job_id, 55, f"Transcribing {total} segments…")
-
-    ds = AudioDataset(chunks, tokenizer=None)
-    dl = DataLoader(ds, batch_size=16, shuffle=False, collate_fn=AudioDataset.collate)
-
-    result_segments = []
-    idx = 0
-    # Inference mode, as GigaAM's own transcribe methods run: with autograd on, the encoder on the Apple GPU
-    # fails with "Inference tensors cannot be saved for backward" partway through a long call.
-    with torch.inference_mode():
-        for wav_pad, wav_lens in dl:
-            wav_pad = wav_pad.to(model._device).to(model._dtype)
-            wav_lens = wav_lens.to(model._device)
-            encoded, encoded_len = model.forward(wav_pad, wav_lens)
-            for text, _ in model._decode(encoded, encoded_len, wav_lens, False):
-                start, end = boundaries[idx]
-                result_segments.append({
-                    "speaker": speakers[idx],
-                    "start": round(start, 3),
-                    "end": round(end, 3),
-                    "text": text,
-                })
-                idx += 1
-            pct = 55 + int((idx / total) * 40)
-            set_progress(job_id, pct, f"Transcribing segments… {idx}/{total}")
-
+    decoded = longform.transcribe_chunks(model, chunks, progress=lambda done, n: set_progress(
+        job_id, 55 + int(40 * done / max(n, 1)), f"Transcribing segments… {done}/{n}"))
+    result_segments = [{"speaker": speakers[i], "start": round(boundaries[i][0], 3), "end": round(boundaries[i][1], 3), "text": text}
+                       for i, (text, _) in enumerate(decoded)]
     return result_segments, None
 
 
-def do_longform(model, audio_path):
+def do_longform(model, audio_path, job_id=None):
     if not hf_token:
         return None, (
             "Audio is too long for short-form transcription (max ~25s). "
             "Add HF_TOKEN to .env to enable longform mode. See README."
         )
-    segments = model.transcribe_longform(audio_path)
-    result_segments = [
-        {"start": round(seg.start, 3), "end": round(seg.end, 3), "text": seg.text}
-        for seg in segments
-    ]
+    progress = (lambda done, total: set_progress(job_id, 20 + int(75 * done / max(total, 1)), f"Transcribing segments… {done}/{total}")) if job_id else None
+    segments = longform.transcribe_longform(model, audio_path, progress=progress)
+    result_segments = [{"start": s["start"], "end": s["end"], "text": s["text"]} for s in segments]
     full_text = "\n".join(
         f"[{gigaam.format_time(seg['start'])} - {gigaam.format_time(seg['end'])}] {seg['text']}"
         for seg in result_segments
@@ -309,6 +286,16 @@ def _transcribe_channels(job_id, mic_path, sys_path, model_name, diarize, device
     return {"text": text, "segments": segments, "diarized": True, "channels": True}
 
 
+def _is_long(audio_path):
+    """Over GigaAM's short-form limit (25 s)? Read from the WAV header when it is one; otherwise let the model decide."""
+    if not audio_path.lower().endswith(".wav"):
+        return False
+    try:
+        return wav_duration(audio_path) > 25
+    except Exception:
+        return False
+
+
 def _transcribe(job_id, audio_path, model_name, diarize, word_timestamps, device):
     set_progress(job_id, 5, f"Loading model on {device.upper()}…")
     model = get_model(model_name, device)
@@ -331,7 +318,7 @@ def _transcribe(job_id, audio_path, model_name, diarize, word_timestamps, device
         except Exception as e:
             if "too long" in str(e).lower():
                 set_progress(job_id, 20, "Long file — running VAD segmentation…")
-                result, error = do_longform(model, audio_path)
+                result, error = do_longform(model, audio_path, job_id)
                 if error:
                     raise RuntimeError(error)
             else:
@@ -345,12 +332,18 @@ def _transcribe(job_id, audio_path, model_name, diarize, word_timestamps, device
 
     else:
         set_progress(job_id, 10, "Transcribing…")
+        if _is_long(audio_path):          # the short path would first load the whole file onto the GPU
+            set_progress(job_id, 20, "Long file — running VAD segmentation…")
+            result, error = do_longform(model, audio_path, job_id)
+            if error:
+                raise RuntimeError(error)
+            return result
         try:
             res = model.transcribe(audio_path)
         except Exception as e:
             if "too long" in str(e).lower():
                 set_progress(job_id, 20, "Long file — running VAD segmentation…")
-                result, error = do_longform(model, audio_path)
+                result, error = do_longform(model, audio_path, job_id)
                 if error:
                     raise RuntimeError(error)
             else:
@@ -379,6 +372,40 @@ def classic():
 @app.route("/models")
 def list_models():
     return jsonify(AVAILABLE_MODELS)
+
+
+asr_downloads = asr_models.Downloader(models_dir("gigaam"))
+
+
+@app.route("/api/asr/models")
+def api_asr_models():
+    return jsonify({"models": asr_models.list_models(models_dir("gigaam"), asr_downloads), "download": asr_downloads.status()})
+
+
+@app.route("/api/asr/models/<model_id>/download", methods=["POST"])
+def api_asr_download(model_id):
+    try:
+        asr_downloads.start(model_id)
+    except asr_models.AsrModelError as e:
+        return jsonify({"error": str(e)}), 400
+    return api_asr_models()
+
+
+@app.route("/api/asr/download/cancel", methods=["POST"])
+def api_asr_cancel():
+    asr_downloads.cancel()
+    return api_asr_models()
+
+
+@app.route("/api/asr/models/<model_id>", methods=["DELETE"])
+def api_asr_delete(model_id):
+    try:
+        asr_models.delete_model(model_id, models_dir("gigaam"))
+    except asr_models.AsrModelError as e:
+        return jsonify({"error": str(e)}), 400
+    with _model_lock:
+        _models.pop(model_id, None)       # a later transcription reloads from disk (or downloads)
+    return api_asr_models()
 
 
 @app.route("/device-info")

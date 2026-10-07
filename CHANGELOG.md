@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.1.0 (2026-10-07): Speech models in Settings, and long recordings no longer eat the Mac's memory
+
+- **Settings → Запись и распознавание lists every GigaAM model**: what is on disk (with its size), what is not, which one is recommended and which cover languages other than Russian. Download with a progress bar and cancel; delete to free disk space. Downloads are verified by checksum before they replace anything, so a cut-off download no longer leaves a damaged model and "model checksum failed" at the next transcription.
+- **Long recordings on the Apple GPU** used to grow the app to 19 GB on a 16 GB Mac, because PyTorch keeps every GPU block it has allocated and the chunks came in a thousand different lengths. The app now releases the GPU cache after every batch and groups chunks by length. The same applies to transcription with speaker separation.
+- The "is this file long?" check reads the WAV header instead of loading the whole recording onto the GPU first.
+- Progress during a long transcription now shows the segment count ("Transcribing segments… 120/365").
+
 ## 4.0.6 (2026-10-07): Progress for a transcription started from the Source screen
 
 - "Распознать" on the Source screen started the job without the progress card in the sidebar or the percentage on the screen. It now goes through the same tracker as the Sources screen.

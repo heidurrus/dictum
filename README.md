@@ -47,6 +47,7 @@ Your data lives in your user folder, not in the app, so updates keep it:
 | What | Where | Notes |
 |---|---|---|
 | **AI for requirements** | Settings → ИИ для требований | **Claude**: paste an [Anthropic API key](https://console.anthropic.com/settings/keys); only text is sent. **Built-in**: one click downloads a local model (2.6–6.5 GB) that works offline, less accurate than Claude. **Ollama** also works. |
+| **Speech model** | Settings → Запись и распознавание | `v3_e2e_rnnt` (installed by setup) is best for Russian. For English and other languages download `multilingual_ctc` or `multilingual_large_ctc` there; the list shows what is on disk. |
 | **Speaker separation** (optional) | Settings → Запись и распознавание | Needs a free [Hugging Face](https://huggingface.co/settings/tokens) token, and accepting the terms of [segmentation-3.0](https://huggingface.co/pyannote/segmentation-3.0), [speaker-diarization-3.1](https://huggingface.co/pyannote/speaker-diarization-3.1) and [speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1). |
 | **Jira** (optional) | Export → Задачи в Jira | Sign-in opens in a private browser window, so you choose the account. The sign-in is kept in a private file in the app's data folder. |
 
