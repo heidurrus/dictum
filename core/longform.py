@@ -61,3 +61,57 @@ def install():
         return False
     vu.segment_audio_file = segment_audio_file
     return True
+
+
+def release_device_memory(device):
+    """Give the GPU's cached blocks back. PyTorch's Apple-GPU allocator keeps every block it ever
+    handed out; over a thousand batches of different lengths that cache outgrew a 16 GB Mac."""
+    import torch
+    kind = getattr(device, "type", str(device))
+    if kind == "mps" and hasattr(torch, "mps"):
+        torch.mps.empty_cache()
+    elif kind == "cuda":
+        torch.cuda.empty_cache()
+
+
+def batches_by_length(chunks, batch_size):
+    """Indices of the chunks grouped into batches of similar length, longest first: less padding,
+    fewer distinct buffer sizes for the allocator. The caller restores the original order."""
+    order = sorted(range(len(chunks)), key=lambda i: len(chunks[i]), reverse=True)
+    return [order[i:i + batch_size] for i in range(0, len(order), batch_size)]
+
+
+def transcribe_chunks(model, chunks, batch_size=16, progress=None, word_timestamps=False):
+    """Run the model over waveform chunks and return [(text, words)] in the chunks' order."""
+    import torch
+    from gigaam.utils import AudioDataset
+    results = [None] * len(chunks)
+    done = 0
+    with torch.inference_mode():
+        for batch in batches_by_length(chunks, batch_size):
+            wav_pad, wav_lens = AudioDataset.collate([chunks[i] for i in batch])
+            wav_pad = wav_pad.to(model._device).to(model._dtype)
+            wav_lens = wav_lens.to(model._device)
+            encoded, encoded_len = model.forward(wav_pad, wav_lens)
+            for i, decoded in zip(batch, model._decode(encoded, encoded_len, wav_lens, word_timestamps)):
+                results[i] = decoded
+            del wav_pad, wav_lens, encoded, encoded_len
+            release_device_memory(model._device)
+            done += len(batch)
+            if progress:
+                progress(done, len(chunks))
+    return results
+
+
+def transcribe_longform(model, wav_file, progress=None, word_timestamps=False):
+    """GigaAM's transcribe_longform with the VAD fed a waveform and the device cache released
+    after every batch. Returns [{start, end, text, words}]."""
+    from gigaam.preprocess import SAMPLE_RATE
+    chunks, bounds = segment_audio_file(wav_file, SAMPLE_RATE, device=model._device)
+    if not chunks:
+        return []
+    out = []
+    for (start, end), (text, words) in zip(bounds, transcribe_chunks(model, chunks, progress=progress, word_timestamps=word_timestamps)):
+        out.append({"start": round(start, 3), "end": round(end, 3), "text": text,
+                    "words": [{"text": w.text, "start": round(w.start + start, 3), "end": round(w.end + start, 3)} for w in (words or [])]})
+    return out
