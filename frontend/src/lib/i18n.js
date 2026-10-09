@@ -1150,6 +1150,14 @@ const ru = {
   "asr.m.multilingual_ctc": "Английский и другие языки, 220M параметров",
   "asr.m.multilingual_large_ctc": "Английский и другие языки, 600M параметров: точнее, но медленнее и тяжелее",
   "asr.download": "Скачать {size}",
+  "tr.save_audio": "Сохранить аудио…",
+  "tr.save_audio_mixed": "Сохранить аудио (обе стороны)…",
+  "tr.save_audio_mic": "Сохранить мой микрофон…",
+  "tr.save_audio_sys": "Сохранить собеседников…",
+  "tr.save_audio_original": "Сохранить исходный файл…",
+  "tr.audio_suffix_mic": "микрофон",
+  "tr.audio_suffix_sys": "собеседники",
+  "tr.kb": "КБ",
 };
 
 const en = {
@@ -2301,6 +2309,14 @@ const en = {
   "asr.m.multilingual_ctc": "English and other languages, 220M parameters",
   "asr.m.multilingual_large_ctc": "English and other languages, 600M parameters: more accurate, slower and heavier",
   "asr.download": "Download {size}",
+  "tr.save_audio": "Save audio…",
+  "tr.save_audio_mixed": "Save audio (both sides)…",
+  "tr.save_audio_mic": "Save my microphone…",
+  "tr.save_audio_sys": "Save the other side…",
+  "tr.save_audio_original": "Save the original file…",
+  "tr.audio_suffix_mic": "microphone",
+  "tr.audio_suffix_sys": "other side",
+  "tr.kb": "KB",
 };
 
 export const DICTS = { ru, en };

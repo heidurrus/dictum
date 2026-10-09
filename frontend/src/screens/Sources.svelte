@@ -11,6 +11,7 @@
   import { cap, importFiles, transcribeSaved, loadMics, askThenRecord, confirmConsent, stopRecording } from "../lib/capture.svelte.js";
   import { extractAtoms } from "../lib/atoms.js";
   import { fmtDate, fmtDuration, renderMarkdown } from "../lib/format.js";
+  import { saveAudio } from "../lib/audio.js";
   import { app, t, go, loadSources, toast, rememberSource } from "../lib/state.svelte.js";
 
   let selectedId = $state(null);
@@ -26,6 +27,13 @@
   $effect(() => { app.currentProjectId; selectedId = null; });
   const rows = $derived([...app.sources].sort((a, b) => (b.created_at || 0) - (a.created_at || 0)));
   const selected = $derived(rows.find(s => s.id === selectedId) || null);
+  // The list saves the main file (both sides of a recording, or the imported file); the transcript offers each channel.
+  async function saveMainAudio(source) {
+    try {
+      const { files } = await api(`/api/sources/${source.id}/audio/files`);
+      if (files?.length) await saveAudio(source, files[0]);
+    } catch (e) { toast(String(e?.message || e), { kind: "danger" }); }
+  }
   $effect(() => { if (!selected && rows.length) selectedId = rows[0].id; });
   $effect(() => {
     const id = selectedId;
@@ -240,6 +248,9 @@
                 </div>
               {/if}
               <div class="insp-sec manage">
+                {#if selected.audio_file}
+                  <button class="btn sm ghost" onclick={() => saveMainAudio(selected)}><Icon name="download" size={14} /> {t("tr.save_audio")}</button>
+                {/if}
                 <button class="btn sm ghost" onclick={() => startRename(selected)}><Icon name="pencil" size={14} /> {t("sources.rename")}</button>
                 <button class="btn sm ghost danger" onclick={() => remove(selected)}><Icon name="trash" size={14} /> {t("src.delete")}</button>
               </div>

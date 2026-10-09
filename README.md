@@ -20,7 +20,7 @@ for Windows 10/11 (x64) or macOS 13+ (Apple Silicon). Release notes are in
 
 | Step | What you get |
 |---|---|
-| **Sources** | Record a call (microphone and the other side as separate channels), or drop in audio, video, transcripts (`.vtt`, `.srt`, Teams `.docx`), emails (`.eml`, `.msg`) and documents (`.docx`, `.pdf`, `.txt`, `.md`). Speaker separation, summaries, search. |
+| **Sources** | Record a call (microphone and the other side as separate channels), or drop in audio, video, transcripts (`.vtt`, `.srt`, Teams `.docx`), emails (`.eml`, `.msg`) and documents (`.docx`, `.pdf`, `.txt`, `.md`). Speaker separation, summaries, search. Save the audio back out, each channel separately. |
 | **Requirements** | The AI extracts small, testable statements, each with a quote checked against the source. Six types: business (BR), functional (FR), non-functional (NFR), risk (RSK), current state (AS), question (Q). Review with the keyboard or in bulk, with undo. Duplicates are merged, conflicts are shown side by side. |
 | **Documents** | BRD, SRS, Vision & Scope, risk register with its matrix, As-Is / To-Be, a GOST 34 specification, or your own type. Each takes the requirement types it needs. Stable IDs, versions, quality check with suggested fixes, sign-off, export to Word. |
 | **Backlog** | Epics, user stories with Given / When / Then criteria, sub-tasks, an INVEST check. Your edits survive rebuilds. |

@@ -2,6 +2,7 @@ import functools
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -1143,7 +1144,8 @@ def api_source(source_id):
                     "text": library.transcript_text(source_id) if segments else "",
                     "summary": library.latest_summary(source_id),
                     "atom_marks": library.atom_marks(source_id),
-                    "audio_url": f"/api/sources/{source_id}/audio" if source.get("audio_file") else None})
+                    "audio_url": f"/api/sources/{source_id}/audio" if source.get("audio_file") else None,
+                    "audio_files": _audio_files(source)})
 
 
 @app.route("/api/sources/<source_id>/segments/<int:idx>", methods=["PATCH"])
@@ -1184,6 +1186,56 @@ def api_rename_speaker(source_id, label):
     data = request.get_json(silent=True) or {}
     return _store_call(lambda: (library.rename_speaker(source_id, label, data.get("name")),
                                 {"ok": True, "speaker_names": library.transcript(source_id)[1]})[1])
+
+
+AUDIO_FILES = (("mixed", "mixed.wav"), ("mic", "mic.wav"), ("sys", "sys.wav"))
+
+
+def _audio_files(source):
+    """What the user can save from a source: the recording's channels, or the file they imported."""
+    folder = library.source_dir(source)
+    out = []
+    if source.get("kind") == "recording":
+        for which, name in AUDIO_FILES:
+            path = os.path.join(folder, name)
+            if os.path.exists(path):
+                out.append({"id": which, "name": name, "size": os.path.getsize(path)})
+    originals = [n for n in os.listdir(folder) if n.startswith("original.")] if os.path.isdir(folder) else []
+    for name in originals:
+        out.append({"id": "original", "name": name, "size": os.path.getsize(os.path.join(folder, name)),
+                    "filename": source.get("original_filename") or name})
+    if not out and source.get("audio_file") and os.path.exists(os.path.join(folder, source["audio_file"])):
+        out.append({"id": "audio", "name": source["audio_file"],
+                    "size": os.path.getsize(os.path.join(folder, source["audio_file"]))})
+    return out
+
+
+@app.route("/api/sources/<source_id>/audio/files")
+def api_source_audio_files(source_id):
+    try:
+        source = library.get_source(source_id)
+    except StoreError as e:
+        return jsonify({"error": str(e)}), 404
+    return jsonify({"files": _audio_files(source)})
+
+
+@app.route("/api/sources/<source_id>/audio/download/<which>")
+def api_source_audio_download(source_id, which):
+    """The audio as a file to save (the player streams from /audio instead)."""
+    try:
+        source = library.get_source(source_id)
+    except StoreError as e:
+        return jsonify({"error": str(e)}), 404
+    entry = next((f for f in _audio_files(source) if f["id"] == which), None)
+    if not entry:
+        return jsonify({"error": "no such audio file"}), 404
+    ext = os.path.splitext(entry["name"])[1]
+    # The page names the file (title + channel in the user's language); the browser follows the header, not the link.
+    asked = re.sub(r'[\\/:*?"<>|]+', " ", os.path.basename(request.args.get("name") or "")).strip()
+    name = asked if asked.lower().endswith(ext.lower()) else (
+        entry.get("filename") or (re.sub(r'[\\/:*?"<>|]+', " ", source["title"]).strip() or "audio") + ext)
+    return send_file(os.path.join(library.source_dir(source), entry["name"]), as_attachment=True,
+                     download_name=name, conditional=True)
 
 
 @app.route("/api/sources/<source_id>/audio")
