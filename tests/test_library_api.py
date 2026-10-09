@@ -196,3 +196,40 @@ def test_project_status_counts_for_the_sidebar(client, lib):
     import_vtt(client, project_id=pid)
     assert client.get(f"/api/projects/{pid}/status").get_json()["sources"] == 1
     assert client.get("/api/projects/nope/status").status_code == 404
+
+
+def test_audio_files_are_listed_and_downloadable(client, lib):
+    src, path = _wav_source(lib)
+    with open(path, "rb") as f, open(os.path.join(lib.source_dir(src), "mic.wav"), "wb") as m:
+        m.write(f.read())
+    files = client.get(f"/api/sources/{src['id']}").get_json()["audio_files"]
+    assert [f["id"] for f in files] == ["mixed", "mic"], "a recording lists each channel it kept"
+    assert all(f["size"] == os.path.getsize(path) for f in files)
+    r = client.get(f"/api/sources/{src['id']}/audio/download/mic")
+    assert r.status_code == 200 and len(r.data) == os.path.getsize(path)
+    assert "attachment" in r.headers["Content-Disposition"] and "Recording.wav" in r.headers["Content-Disposition"]
+    assert client.get(f"/api/sources/{src['id']}/audio/download/sys").status_code == 404
+    assert client.get(f"/api/sources/{src['id']}/audio/download/../../x").status_code == 404
+
+
+def test_imported_audio_downloads_as_the_original_file(client, lib):
+    src = lib.create_source(lib.current_project()["id"], "audio", "Call", original_filename="call recording.m4a")
+    os.makedirs(lib.source_dir(src), exist_ok=True)
+    with open(os.path.join(lib.source_dir(src), "original.m4a"), "wb") as f:
+        f.write(b"m4a-bytes")
+    with open(os.path.join(lib.source_dir(src), "audio.wav"), "wb") as f:
+        f.write(b"wav-bytes")
+    lib.update_source(src["id"], audio_file="audio.wav")
+    files = client.get(f"/api/sources/{src['id']}").get_json()["audio_files"]
+    assert files == [{"id": "original", "name": "original.m4a", "size": 9, "filename": "call recording.m4a"}]
+    r = client.get(f"/api/sources/{src['id']}/audio/download/original")
+    assert r.data == b"m4a-bytes" and "call recording.m4a" in r.headers["Content-Disposition"]
+
+
+def test_audio_download_uses_the_name_the_page_asks_for(client, lib):
+    src, path = _wav_source(lib)
+    r = client.get(f"/api/sources/{src['id']}/audio/download/mixed?name=Звонок — микрофон.wav")
+    from urllib.parse import unquote
+    assert "Звонок — микрофон.wav" in unquote(r.headers["Content-Disposition"])
+    r = client.get(f"/api/sources/{src['id']}/audio/download/mixed?name=../evil.exe")
+    assert "Recording.wav" in r.headers["Content-Disposition"], "wrong extension or path → the default name"

@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.1.1 (2026-10-09): Save a source's audio
+
+- **Save audio…** on the Source screen's "Ещё" menu and in the Sources list inspector. A recording offers both sides mixed, your microphone and the other side as separate files; an import offers the file you dropped in, under its original name. Works for recordings that are not transcribed yet.
+
 ## 4.1.0 (2026-10-07): Speech models in Settings, and long recordings no longer eat the Mac's memory
 
 - **Settings → Запись и распознавание lists every GigaAM model**: what is on disk (with its size), what is not, which one is recommended and which cover languages other than Russian. Download with a progress bar and cancel; delete to free disk space. Downloads are verified by checksum before they replace anything, so a cut-off download no longer leaves a damaged model and "model checksum failed" at the next transcription.

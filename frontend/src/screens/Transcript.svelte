@@ -10,6 +10,7 @@
   import { transcribeSaved } from "../lib/capture.svelte.js";
   import { fmtTime, fmtDate, fmtDuration, renderMarkdown, speakerClass, speakerDisplay } from "../lib/format.js";
   import { saveText } from "../lib/save.js";
+  import { audioLabel, fmtBytes, saveAudio } from "../lib/audio.js";
   import { app, t, go, loadSources, toast, rememberSource } from "../lib/state.svelte.js";
 
   let { id, autoSummarize = false, focusSeg = null } = $props();
@@ -240,11 +241,16 @@
     else if (key === "/") { e.preventDefault(); document.getElementById("tr-find")?.focus(); }
     else if (key === "Escape" && refine) refine = null;
   }
+  // One "Save audio…" item per file the source keeps: a recording has both sides mixed plus each channel,
+  // an import has the file the user dropped in.
+  const audioItems = $derived((source?.audio_files || []).map((f, _, all) =>
+    ({ value: "audio:" + f.id, label: audioLabel(f, all.length), icon: "download", hint: fmtBytes(f.size) })));
   function more(v) {
     if (v === "copy") copyText();
     else if (v === "txt") saveText(`${source.title}.txt`, source.text);
     else if (v === "asr") retranscribe();
     else if (v === "extract") refine = { note: "" };
+    else if (v.startsWith("audio:")) { const f = source.audio_files.find(x => x.id === v.slice(6)); if (f) saveAudio(source, f); }
   }
   function runRefine() {
     const note = refine.note.trim();
@@ -269,10 +275,14 @@
   {/snippet}
   {#snippet actions()}
     {#if source}
+      {#if source.status !== "ready" && audioItems.length}
+        <PopMenu cls="btn ghost" text={t("tr.more")} ariaLabel={t("tr.more")} align="right" onpick={more} items={audioItems} />
+      {/if}
       {#if source.status === "ready"}
         <PopMenu cls="btn ghost" text={t("tr.more")} ariaLabel={t("tr.more")} align="right" onpick={more}
                  items={[{ value: "copy", label: copied ? t("tr.copied") : t("tr.copy_text"), icon: "copy" },
                          { value: "txt", label: t("tr.save_txt"), icon: "download" },
+                         ...(audioItems.length ? [{ sep: true }, ...audioItems] : []),
                          ...(atomCount ? [{ sep: true }, { value: "extract", label: t("tr.extract_again"), icon: "refresh", disabled: !!app.extracting[id] }] : []),
                          ...(source.audio_url ? [{ sep: true }, { value: "asr", label: t("tr.asr_again"), icon: "wave" }] : [])]} />
         <button class="btn" class:primary={!summaryText && !atomCount} onclick={summarize} disabled={summarizing}>
