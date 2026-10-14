@@ -35,7 +35,7 @@ from core import backlog, discover, exports, frd, jira, materials, permissions, 
 from core import index as local_index
 from core.atlassian_auth import MCP_URL, AtlassianAuth, AuthError, AuthRequired
 from core.mcp_client import McpError, McpSession
-from core import local_llm
+from core import local_llm, paths as paths_mod, usage as usage_mod
 from core.llm import for_project, language_rule, model_name
 from core.jobs import JobCancelled, JobStore, SerialQueue
 from core.paths import make_job_log, models_dir, recordings_dir, use_app_model_cache
@@ -83,6 +83,19 @@ job_log = make_job_log()                 # tracebacks of failed jobs: <app data>
 library = Store()  # projects, sources, transcripts, summaries (spec increment 1)
 library.reset_stale_processing()      # jobs do not survive a restart; let those sources be transcribed again
 library.recover_interrupted_recordings()   # a recording cut off by a quit or crash: its WAVs stay, offer Расшифровать
+
+
+def _usage_sink(kind, tokens_in, tokens_out, seconds, project_id):
+    """Settings → stats (5.0 C9): every model call, embedding batch and transcription, against the current project."""
+    if project_id is None:
+        try:
+            project_id = library.current_project()["id"]
+        except Exception:
+            project_id = None
+    library.add_usage(kind, tokens_in, tokens_out, seconds, project_id)
+
+
+usage_mod.set_sink(_usage_sink)
 transcription_queue = SerialQueue()  # one transcription at a time (spec D-12)
 index_queue = SerialQueue()          # one index pass at a time (5.0 C5)
 
@@ -1156,6 +1169,10 @@ def _settings_payload():
         "live_window_atoms": prefs["live_window_atoms"],
         "silence_stop_minutes": prefs["silence_stop_minutes"],
         "menubar": prefs["menubar"],
+        "embed_model": prefs["embed_model"],
+        "recap_style": prefs["recap_style"],
+        "notes_style": prefs["notes_style"],
+        "tuning": prefs["tuning"],
         "claude_models": [{"id": m, "label": label} for m, label in settings.CLAUDE_MODELS],
     }
 
@@ -1172,7 +1189,8 @@ def save_settings():
     data = request.get_json(silent=True) or {}
     prefs = {k: data[k] for k in ("llm_provider", "claude_model", "ollama_model", "local_model", "hotkeys",
                                  "live_transcription", "live_requirements", "live_questions", "live_window_atoms",
-                                 "silence_stop_minutes", "menubar") if k in data}
+                                 "silence_stop_minutes", "menubar", "embed_model", "recap_style", "notes_style",
+                                 "tuning") if k in data}
     try:
         if prefs:
             settings.save_settings(prefs)
@@ -1189,6 +1207,80 @@ def save_settings():
         settings.set_secret("ANTHROPIC_API_KEY", data.get("anthropic_api_key"))
 
     return jsonify({"ok": True, **_settings_payload()})
+
+
+STATS_PERIODS = {"7d": 7 * 86400, "30d": 30 * 86400, "all": None}
+
+
+@app.route("/api/stats")
+def api_stats():
+    """Settings → Модели, the stats row (5.0 C9): what this computer processed in the period (7d | 30d | all)."""
+    period = request.args.get("period") or "7d"
+    if period not in STATS_PERIODS:
+        return jsonify({"error": f"period must be one of {sorted(STATS_PERIODS)}"}), 400
+    span = STATS_PERIODS[period]
+    return jsonify({"period": period, **library.usage_stats(time.time() - span if span else None)})
+
+
+@app.route("/api/storage")
+def api_storage():
+    """Settings → Хранилище: the data folder, what it holds and its size on disk."""
+    path = paths_mod.app_data_dir()
+    return jsonify({"path": path, "counts": library.storage_counts(), "bytes": paths_mod.tree_bytes(path),
+                    "default": os.path.realpath(path) == os.path.realpath(paths_mod.default_data_dir()),
+                    "movable": not paths_mod._override(), "moved_to": _data_move.get("moved_to")})
+
+
+_data_move = {"job": None, "moved_to": None}
+
+
+def _data_move_busy():
+    """Why the data folder cannot move right now, or None: something is writing into it."""
+    rec = _recorder
+    if (rec is not None and rec.recording) or _whisper_listening():
+        return "recording"
+    if asr_downloads.busy() or (local_llm.installer.status() or {}).get("status") in ("downloading", "verifying"):
+        return "downloading"
+    if _data_move["job"] and (jobs.get(_data_move["job"]) or {}).get("status") == "processing":
+        return "moving"
+    return None
+
+
+def _run_data_move(job_id, current, target):
+    try:
+        library.checkpoint()
+        new = paths_mod.move_data_dir(target, current=current)
+    except paths_mod.DataDirError as e:
+        jobs.fail(job_id, e)
+    except OSError as e:
+        job_log.exception("Data folder move failed")
+        jobs.fail(job_id, f"The data folder could not be moved: {e}")
+    else:
+        _data_move["moved_to"] = new
+        jobs.finish(job_id, {"path": new, "restart": True})
+
+
+@app.route("/api/data-dir/move", methods=["POST"])
+def api_data_dir_move():
+    """Settings → Хранилище → "Сменить папку…" (5.0 C9): move the data folder as a job, then ask for a restart.
+    Refused (409 / 400 with a `code`) while a recording, a download or another move runs, when the folder is set by
+    DICTUM_DATA_DIR, or when the target is the same folder, inside it, not empty or not writable."""
+    target = (request.get_json(silent=True) or {}).get("path")
+    if paths_mod._override():
+        return jsonify({"error": "The data folder is set by DICTUM_DATA_DIR.", "code": "override"}), 400
+    busy = _data_move_busy()
+    if busy:
+        return jsonify({"error": f"The data folder cannot move while {busy} is in progress.", "code": busy}), 409
+    current = paths_mod.app_data_dir()
+    try:
+        target = paths_mod.check_move_target(current, target)
+    except paths_mod.DataDirError as e:
+        return jsonify({"error": str(e), "code": e.code}), 400
+    job_id = jobs.create("data_move", target)
+    _data_move["job"] = job_id
+    jobs.set_progress(job_id, 0, "Moving the data folder…")
+    threading.Thread(target=_run_data_move, args=(job_id, current, target), daemon=True).start()
+    return jsonify({"job_id": job_id, "path": target})
 
 
 @app.route("/api/local-llm")
@@ -1935,7 +2027,8 @@ def _run_recap(job_id, source_id, style, incremental, prefs, api_key, project):
     try:
         row = meeting_notes.recap(library, source_id, style, incremental, _recap_generate(prefs, api_key),
                                   _skillset(project["id"]), prefs["llm_provider"], model_name(prefs),
-                                  language_rule(project), on_delta=lambda piece: jobs.append_partial(job_id, piece))
+                                  language_rule(project), on_delta=lambda piece: jobs.append_partial(job_id, piece),
+                                  concise=prefs.get("notes_style") == "concise")
     except (SummaryError, ValueError, StoreError) as e:
         jobs.fail(job_id, e)
     except Exception as e:  # unexpected: keep the message, don't crash the worker
