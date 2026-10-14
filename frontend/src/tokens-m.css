@@ -1,0 +1,44 @@
+/* Dictum 5: tonal tokens, copied from docs/design/prototype-v5.html (light, system dark, forced dark).
+   Old screens reach them through the alias block in app.css; tokens.css goes away once they are restyled. */
+:root {
+  color-scheme: light;
+  --bg: #F3F2F8; --surface: #FFFFFF; --surface-2: #ECEAF2; --surface-3: #E2E0EA; --surface-4: #D8D6E0;
+  --text: #1B1B21; --text-2: #45464F; --text-3: #75767F;
+  --primary: #0B57D0; --on-primary: #FFFFFF; --primary-c: #D3E3FD; --on-primary-c: #041E49;
+  --secondary-c: #DEE3F5; --on-secondary-c: #171B2C;
+  --outline: #C4C6D0; --outline-2: #E1E2EC;
+  --ok: #1E8E3E; --ok-c: #DCF3E2; --warn: #9A5A00; --warn-c: #FFEBCC; --danger: #B3261E; --danger-c: #F9DEDC; --rec: #D93025;
+  --mark: #FFF1B8; --mic: #0B57D0; --sys: #1E8E3E;
+  --hud: #1F1F24; --hud-2: #2B2B31; --hud-text: #F2F1F7; --hud-text-2: #B6B5BF;
+  --shadow-1: 0 1px 2px rgba(27,27,33,.06), 0 1px 1px rgba(27,27,33,.03);
+  --shadow-2: 0 2px 6px rgba(27,27,33,.08), 0 8px 24px rgba(27,27,33,.08);
+  --shadow-3: 0 8px 28px rgba(27,27,33,.16), 0 24px 64px rgba(27,27,33,.18);
+  --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --r-s: 10px; --r-m: 16px; --r-l: 24px; --r-xl: 28px;
+  --rail: 88px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  color-scheme: dark;
+  --bg: #121216; --surface: #1C1C21; --surface-2: #26262C; --surface-3: #30303A; --surface-4: #3B3B46;
+  --text: #E5E2EC; --text-2: #C5C4CF; --text-3: #8F8F9A;
+  --primary: #A8C7FA; --on-primary: #062E6F; --primary-c: #0842A0; --on-primary-c: #D3E3FD;
+  --secondary-c: #3A3F52; --on-secondary-c: #DCE2F5;
+  --outline: #8E9099; --outline-2: #3A3A44;
+  --ok: #6DD58C; --ok-c: #0F3D20; --warn: #F0B548; --warn-c: #4A3000; --danger: #F2B8B5; --danger-c: #5C1A14; --rec: #FF6B5E;
+  --mark: #4D4218; --mic: #A8C7FA; --sys: #6DD58C;
+  --hud: #2A2A31; --hud-2: #35353D;
+  --shadow-1: 0 1px 2px rgba(0,0,0,.4); --shadow-2: 0 4px 16px rgba(0,0,0,.45); --shadow-3: 0 16px 48px rgba(0,0,0,.6);
+} }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121216; --surface: #1C1C21; --surface-2: #26262C; --surface-3: #30303A; --surface-4: #3B3B46;
+  --text: #E5E2EC; --text-2: #C5C4CF; --text-3: #8F8F9A;
+  --primary: #A8C7FA; --on-primary: #062E6F; --primary-c: #0842A0; --on-primary-c: #D3E3FD;
+  --secondary-c: #3A3F52; --on-secondary-c: #DCE2F5;
+  --outline: #8E9099; --outline-2: #3A3A44;
+  --ok: #6DD58C; --ok-c: #0F3D20; --warn: #F0B548; --warn-c: #4A3000; --danger: #F2B8B5; --danger-c: #5C1A14; --rec: #FF6B5E;
+  --mark: #4D4218; --mic: #A8C7FA; --sys: #6DD58C;
+  --hud: #2A2A31; --hud-2: #35353D;
+  --shadow-1: 0 1px 2px rgba(0,0,0,.4); --shadow-2: 0 4px 16px rgba(0,0,0,.45); --shadow-3: 0 16px 48px rgba(0,0,0,.6);
+}
