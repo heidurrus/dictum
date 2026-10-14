@@ -1,6 +1,6 @@
-# Requirements Workbench
+# Dictum
 
-A desktop app for business analysts. It turns client calls, emails and documents into
+A desktop app for business analysts (called Requirements Workbench up to 4.2). It turns client calls, emails and documents into
 reviewed requirements, specification documents and a Jira backlog, and keeps every
 requirement linked to the exact quote it came from.
 
@@ -34,13 +34,14 @@ The interface is in Russian and English, light and dark.
 Nothing needs to be installed first. On first launch the app sets up PyTorch, GigaAM, ffmpeg
 and the speech model by itself (a few minutes, once).
 
-- **Windows:** run `RequirementsWorkbench-<version>-Setup.exe`. No admin rights needed.
+- **Windows:** run `Dictum-<version>-Setup.exe`. No admin rights needed.
 - **macOS:** open the `.dmg` and drag the app to Applications. Builds are not notarized, so
   the first time right-click the app → **Open** → **Open**. On the first recording, allow
   the microphone and system audio prompts (system audio needs macOS 14.2+).
 
 Your data lives in your user folder, not in the app, so updates keep it:
-`%LOCALAPPDATA%\RequirementsWorkbench` or `~/Library/Application Support/RequirementsWorkbench`.
+`%LOCALAPPDATA%\Dictum` or `~/Library/Application Support/Dictum`. A `RequirementsWorkbench`
+folder from 4.x is moved there on the first start.
 
 ### Set up
 
