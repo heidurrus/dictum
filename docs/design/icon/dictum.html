@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Dictum Icon</title>
+<style>
+  body { margin: 0; background: #ECEAF2; font: 500 14px/1.4 -apple-system, Inter, sans-serif; color: #45464F; }
+  .row { display: flex; gap: 48px; padding: 40px; flex-wrap: wrap; align-items: flex-start; }
+  .cand { display: grid; gap: 14px; justify-items: center; }
+  .cand > svg { width: 256px; height: 256px; filter: drop-shadow(0 12px 28px rgba(27,27,33,.22)); }
+  .sizes { display: flex; gap: 12px; align-items: end; }
+  .sizes svg { filter: drop-shadow(0 2px 6px rgba(27,27,33,.18)); }
+  .dock { background: rgba(255,255,255,.55); border-radius: 24px; padding: 14px 18px; display: flex; gap: 16px; align-items: center; }
+  .dock.dark { background: rgba(30,30,36,.85); color: #ddd; }
+  .dock svg { width: 72px; height: 72px; }
+  .menubar { display: flex; gap: 14px; align-items: center; padding: 6px 12px; border-radius: 8px; background: rgba(255,255,255,.7); font-size: 12px; }
+  .menubar.dark { background: #1e1e24; color: #ddd; }
+</style></head><body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <path id="sq" d="M0 512C0 116 116 0 512 0s512 116 512 512-116 512-512 512S0 908 0 512Z"/>
+    <clipPath id="clip"><use href="#sq"/></clipPath>
+    <linearGradient id="blue" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3B8BF0"/><stop offset=".55" stop-color="#0B57D0"/><stop offset="1" stop-color="#073A8C"/></linearGradient>
+    <linearGradient id="ink" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2B2B33"/><stop offset="1" stop-color="#121216"/></linearGradient>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#E6E9F4"/></linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".20"/><stop offset=".55" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <linearGradient id="sky" gradientUnits="userSpaceOnUse" x1="0" y1="300" x2="0" y2="740"><stop offset="0" stop-color="#8FC0FF"/><stop offset="1" stop-color="#3B8BF0"/></linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="20"/></filter>
+
+    <!-- The mark. Three bars of sound (vertical) and the same three bars as text (horizontal).
+         Same stroke, same pitch (96), same lengths (176 / 320 / 248): the text is the sound turned on its side. -->
+    <g id="sound" stroke-width="60" stroke-linecap="round" fill="none">
+      <line x1="224" y1="424" x2="224" y2="600"/>
+      <line x1="320" y1="352" x2="320" y2="672"/>
+      <line x1="416" y1="388" x2="416" y2="636"/>
+    </g>
+    <g id="text" stroke-width="60" stroke-linecap="round" fill="none">
+      <line x1="512" y1="416" x2="688" y2="416"/>
+      <line x1="512" y1="512" x2="832" y2="512"/>
+      <line x1="512" y1="608" x2="760" y2="608"/>
+    </g>
+  </defs>
+</svg>
+
+<div class="row">
+
+  <div class="cand">
+    <svg id="v1" viewBox="0 0 1024 1024">
+      <use href="#sq" fill="url(#blue)"/><use href="#sq" fill="url(#sheen)"/>
+      <g clip-path="url(#clip)"><circle cx="512" cy="1080" r="520" fill="#fff" opacity=".08" filter="url(#soft)"/></g>
+      <use href="#sound" stroke="#fff"/>
+      <use href="#text" stroke="#fff"/>
+    </svg>
+    <div>1 · Blue, all white</div>
+  </div>
+
+  <div class="cand">
+    <svg id="v2" viewBox="0 0 1024 1024">
+      <use href="#sq" fill="url(#blue)"/><use href="#sq" fill="url(#sheen)"/>
+      <g clip-path="url(#clip)"><circle cx="512" cy="1080" r="520" fill="#fff" opacity=".08" filter="url(#soft)"/></g>
+      <use href="#sound" stroke="#A9CCFF"/>
+      <use href="#text" stroke="#fff"/>
+    </svg>
+    <div>2 · Blue: sound pale, text white</div>
+  </div>
+
+  <div class="cand">
+    <svg id="v3" viewBox="0 0 1024 1024">
+      <use href="#sq" fill="url(#ink)"/><use href="#sq" fill="url(#sheen)"/>
+      <g clip-path="url(#clip)"><circle cx="330" cy="540" r="260" fill="#0B57D0" opacity=".45" filter="url(#soft)"/></g>
+      <use href="#sound" stroke="url(#sky)"/>
+      <use href="#text" stroke="#F2F1F7"/>
+    </svg>
+    <div>3 · Ink: sound blue, text white</div>
+  </div>
+
+  <div class="cand">
+    <svg id="v4" viewBox="0 0 1024 1024">
+      <use href="#sq" fill="url(#paper)"/>
+      <use href="#sound" stroke="#3B8BF0"/>
+      <use href="#text" stroke="#1B1B21"/>
+    </svg>
+    <div>4 · Paper: sound blue, text ink</div>
+  </div>
+
+</div>
+
+<div class="row">
+  <div class="dock"><svg viewBox="0 0 1024 1024"><use href="#v1"/></svg><svg viewBox="0 0 1024 1024"><use href="#v2"/></svg><svg viewBox="0 0 1024 1024"><use href="#v3"/></svg><svg viewBox="0 0 1024 1024"><use href="#v4"/></svg><span>Dock, light</span></div>
+  <div class="dock dark"><svg viewBox="0 0 1024 1024"><use href="#v1"/></svg><svg viewBox="0 0 1024 1024"><use href="#v2"/></svg><svg viewBox="0 0 1024 1024"><use href="#v3"/></svg><svg viewBox="0 0 1024 1024"><use href="#v4"/></svg><span>Dock, dark</span></div>
+</div>
+<div class="row">
+  <div class="sizes">
+    <svg width="64" height="64" viewBox="0 0 1024 1024"><use href="#v1"/></svg><svg width="32" height="32" viewBox="0 0 1024 1024"><use href="#v1"/></svg><svg width="16" height="16" viewBox="0 0 1024 1024"><use href="#v1"/></svg>
+    <span style="width:16px"></span>
+    <svg width="64" height="64" viewBox="0 0 1024 1024"><use href="#v2"/></svg><svg width="32" height="32" viewBox="0 0 1024 1024"><use href="#v2"/></svg><svg width="16" height="16" viewBox="0 0 1024 1024"><use href="#v2"/></svg>
+    <span style="width:16px"></span>
+    <svg width="64" height="64" viewBox="0 0 1024 1024"><use href="#v3"/></svg><svg width="32" height="32" viewBox="0 0 1024 1024"><use href="#v3"/></svg><svg width="16" height="16" viewBox="0 0 1024 1024"><use href="#v3"/></svg>
+    <span style="width:16px"></span>
+    <svg width="64" height="64" viewBox="0 0 1024 1024"><use href="#v4"/></svg><svg width="32" height="32" viewBox="0 0 1024 1024"><use href="#v4"/></svg><svg width="16" height="16" viewBox="0 0 1024 1024"><use href="#v4"/></svg>
+    <span>64 / 32 / 16 px</span>
+  </div>
+  <!-- menu bar template glyph: the mark alone, monochrome -->
+  <div class="menubar"><svg width="18" height="18" viewBox="160 300 720 420"><use href="#sound" stroke="#1B1B21" stroke-width="84"/><use href="#text" stroke="#1B1B21" stroke-width="84"/></svg> 22:41 &nbsp;·&nbsp; menu bar glyph</div>
+  <div class="menubar dark"><svg width="18" height="18" viewBox="160 300 720 420"><use href="#sound" stroke="#fff" stroke-width="84"/><use href="#text" stroke="#fff" stroke-width="84"/></svg> 22:41</div>
+</div>
+</body></html>

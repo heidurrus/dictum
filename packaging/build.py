@@ -150,6 +150,7 @@ def build_macos(skip_dmg=False):
     install_base_layer(runtime_python(runtime, "macos"))
     trim_runtime(runtime)
     copy_app(os.path.join(resources, "app"))
+    shutil.copy2(os.path.join(PKG, "macos", "AppIcon.icns"), os.path.join(resources, "AppIcon.icns"))
 
     log("Compiling native launcher")
     run(["clang", "-O2", "-Wall", "-arch", "arm64", "-mmacosx-version-min=13.0",
