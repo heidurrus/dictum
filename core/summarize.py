@@ -30,11 +30,11 @@ def _user_content(transcript, title=None):
 
 # ── Claude ───────────────────────────────────────────────────────────────────
 
-def summarize_with_claude(transcript, model, api_key, on_delta, title=None, client=None, system=None):
+def summarize_with_claude(transcript, model, api_key, on_delta, title=None, client=None, system=None, user=None):
     if not api_key:
         raise SummaryError("Add your Anthropic API key in Settings to create summaries with Claude.")
     client = client or anthropic.Anthropic(api_key=api_key)
-    params = claude_params(model, system or default_prompt(), [{"role": "user", "content": _user_content(transcript, title)}])
+    params = claude_params(model, system or default_prompt(), [{"role": "user", "content": user or _user_content(transcript, title)}])
     with claude_errors(model):
         with client.beta.messages.stream(**params) as stream:
             for text in stream.text_stream:
@@ -78,13 +78,13 @@ class _ThinkFilter:
         return "".join(out)
 
 
-def summarize_with_ollama(transcript, model, on_delta, url, title=None, opener=urllib.request.urlopen, system=None):
+def summarize_with_ollama(transcript, model, on_delta, url, title=None, opener=urllib.request.urlopen, system=None, user=None):
     body = json.dumps({
         "model": model,
         "stream": True,
         "think": False,
         "messages": [{"role": "system", "content": system or default_prompt()},
-                     {"role": "user", "content": _user_content(transcript, title)}],
+                     {"role": "user", "content": user or _user_content(transcript, title)}],
     }).encode()
     req = urllib.request.Request(url.rstrip("/") + "/api/chat", data=body,
                                  headers={"Content-Type": "application/json"})
@@ -115,10 +115,10 @@ def summarize_with_ollama(transcript, model, on_delta, url, title=None, opener=u
 
 # ── built-in local model ─────────────────────────────────────────────────────
 
-def summarize_with_local(transcript, model_id, on_delta, title=None, opener=None, system=None):
+def summarize_with_local(transcript, model_id, on_delta, title=None, opener=None, system=None, user=None):
     body = {"stream": True, "temperature": 0.3,
             "messages": [{"role": "system", "content": system or default_prompt()},
-                         {"role": "user", "content": _user_content(transcript, title)}]}
+                         {"role": "user", "content": user or _user_content(transcript, title)}]}
     parts, think = [], _ThinkFilter()
     kwargs = {"opener": opener} if opener else {}
     try:
@@ -157,3 +157,12 @@ def summarize(transcript, settings, api_key, ollama_url, on_delta, title=None, s
     if settings["llm_provider"] == "ollama":
         return summarize_with_ollama(transcript, settings["ollama_model"], on_delta, ollama_url, title, system=system)
     return summarize_with_claude(transcript, settings["claude_model"], api_key, on_delta, title, system=system)
+
+
+def generate(system, user, settings, api_key, ollama_url, on_delta):
+    """One streamed completion with a ready system prompt and user message (recaps, core/notes.py)."""
+    if settings["llm_provider"] == "local":
+        return summarize_with_local(None, local_model_id(settings), on_delta, system=system, user=user)
+    if settings["llm_provider"] == "ollama":
+        return summarize_with_ollama(None, settings["ollama_model"], on_delta, ollama_url, system=system, user=user)
+    return summarize_with_claude(None, settings["claude_model"], api_key, on_delta, system=system, user=user)
