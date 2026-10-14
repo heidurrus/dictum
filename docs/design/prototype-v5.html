@@ -486,7 +486,7 @@ const S = {
   sel: 1, tab: "summary", q: "", sort: "new",
   file: 1, view: "list", folder: "Все", fq: "",
   paused: false, secs: 1935, qcard: true, notes: "- Дубли заявок: VIN + телефон\n- SLA 2 часа (!)\n- Кто утверждает статус? → уточнить у Олега\n- История изменений",
-  perms: { mic: true, sys: false, notif: false }, model: "e4b", dl: 0, disc: { 1: true, 2: true, 3: false },
+  perms: { mic: true, sys: false, notif: false }, model: "35b", dl: 0, disc: { 1: true, 2: true, 3: false },
   setsec: "models", ctxOnly: true, toast: "",
   wstate: "idle", wtext: "", wkind: "task", wfilter: "all",
 };
@@ -793,7 +793,7 @@ function pageSettings() {
     <div class="card setcard"><h3>Распознавание речи</h3><div class="d">Работает на этом компьютере, без интернета</div>
       <div class="models"><div class="model on"><b>GigaAM v3 e2e</b><small>Русский · 1,1 ГБ · установлена</small><span class="tag ok">активна</span></div><div class="model"><b>GigaAM v3 CTC</b><small>Быстрее, менее точная · 0,9 ГБ</small></div></div></div>
     <div class="card setcard"><h3>Языковая модель</h3><div class="d">Резюме, требования и ответы. Выберите размер под память этого Mac (32 ГБ)</div>
-      <div class="models">${[["e2b", "Gemma 4 E2B", "4 ГБ RAM · быстрая", ""], ["e4b", "Gemma 4 E4B", "8 ГБ RAM · рекомендуем", "ok"], ["12b", "Gemma 4 12B", "16 ГБ RAM · лучшее качество", ""], ["claude", "Claude (облако)", "Ключ API · отправляет текст наружу", "warn"]].map(([k, n, d, c]) => `<div class="model ${S.model === k ? "on" : ""}" onclick="S.model='${k}';render()"><b>${n}</b><small>${d}</small>${c ? `<span class="tag ${c}">${c === "ok" ? "рекомендуем" : "облако"}</span>` : ""}</div>`).join("")}</div>
+      <div class="models">${[["4b", "Qwen3.5 4B", "8 ГБ RAM · 2,7 ГБ · быстрая", ""], ["9b", "Qwen3.5 9B", "16 ГБ RAM · 5,7 ГБ", ""], ["12b", "Gemma 4 12B", "16 ГБ RAM · 7 ГБ", ""], ["35b", "Qwen3.6 35B-A3B", "32 ГБ RAM · 17,7 ГБ · быстрая, рекомендуем", "ok"], ["27b", "Qwen3.8 27B", "32 ГБ RAM · 16,5 ГБ · сильнее, медленнее", ""], ["claude", "Claude (облако)", "Ключ API · отправляет текст наружу", "warn"]].map(([k, n, d, c]) => `<div class="model ${S.model === k ? "on" : ""}" onclick="S.model='${k}';render()"><b>${n}</b><small>${d}</small>${c ? `<span class="tag ${c}">${c === "ok" ? "рекомендуем" : "облако"}</span>` : ""}</div>`).join("")}</div>
       <div class="row" style="margin-top:12px"><div class="l"><b>Статистика</b><small>За неделю на этом компьютере обработано 184 тыс. токенов · 6 встреч · 0 отправлено в облако</small></div></div></div>`
   : S.setsec === "storage" ? html`
     <div class="card setcard"><h3>Хранилище проекта</h3><div class="d">Папка, которую можно открыть в Finder или Obsidian. Приложение пишет в неё каждое изменение и подхватывает правки извне</div>
@@ -842,14 +842,14 @@ function onboarding() {
     body = html`<h1>Модели</h1><p class="lead">На этом Mac 32 ГБ памяти и чип M3 Pro. Отметили то, что подойдёт лучше всего. Всё можно поменять в настройках.</p>
     <div class="card setcard" style="margin-top:24px"><h3>Распознавание речи</h3><div class="d">GigaAM v3, русский язык, работает без интернета</div><div class="models"><div class="model on"><b>GigaAM v3 e2e</b><small>1,1 ГБ · точнее</small><span class="tag ok">рекомендуем</span></div><div class="model"><b>GigaAM v3 CTC</b><small>0,9 ГБ · быстрее</small></div></div></div>
     <div class="card setcard" style="margin-top:14px"><h3>Языковая модель для резюме и требований</h3><div class="d">Локальная модель бесплатна и приватна. Облако — по вашему ключу и только если нужно</div>
-      <div class="models">${[["e2b", "Gemma 4 E2B", "4 ГБ RAM · 1,5 ГБ на диске", ""], ["e4b", "Gemma 4 E4B", "8 ГБ RAM · 2,6 ГБ на диске", "ok"], ["12b", "Gemma 4 12B", "16 ГБ RAM · 7 ГБ на диске", ""], ["claude", "Claude (облако)", "Нужен ключ API", "warn"]].map(([k, n, d, c]) => `<div class="model ${S.model === k ? "on" : ""}" onclick="S.model='${k}';render()"><b>${n}</b><small>${d}</small>${c ? `<span class="tag ${c}">${c === "ok" ? "рекомендуем" : "облако"}</span>` : ""}</div>`).join("")}</div></div>`;
+      <div class="models">${[["4b", "Qwen3.5 4B", "8 ГБ RAM · 2,7 ГБ на диске", ""], ["9b", "Qwen3.5 9B", "16 ГБ RAM · 5,7 ГБ на диске", ""], ["12b", "Gemma 4 12B", "16 ГБ RAM · 7 ГБ на диске", ""], ["35b", "Qwen3.6 35B-A3B", "32 ГБ RAM · 17,7 ГБ · быстрая", "ok"], ["27b", "Qwen3.8 27B", "32 ГБ RAM · 16,5 ГБ · медленнее", ""], ["claude", "Claude (облако)", "Нужен ключ API", "warn"]].map(([k, n, d, c]) => `<div class="model ${S.model === k ? "on" : ""}" onclick="S.model='${k}';render()"><b>${n}</b><small>${d}</small>${c ? `<span class="tag ${c}">${c === "ok" ? "рекомендуем" : "облако"}</span>` : ""}</div>`).join("")}</div></div>`;
     next = "Загрузить"; nextFn = "S.onb=4;S.dl=0;render();dlTick()";
   } else if (step === 4) {
     const done = S.dl >= 100;
     body = html`<h1>${done ? "Готово" : "Готовим Workbench…"}</h1><p class="lead">${done ? "Модели на месте. Дальше всё работает без интернета." : "Загружаем модели. Это один раз; можно свернуть окно — загрузка продолжится."}</p>
     <div class="card setcard" style="margin-top:24px;display:grid;gap:14px">
       <div><div style="display:flex;justify-content:space-between;margin-bottom:6px"><b>GigaAM v3 e2e</b><span class="t2 num">${Math.min(100, S.dl * 2)}% · 1,1 ГБ</span></div><div class="progress"><i style="width:${Math.min(100, S.dl * 2)}%"></i></div></div>
-      <div><div style="display:flex;justify-content:space-between;margin-bottom:6px"><b>Gemma 4 E4B</b><span class="t2 num">${S.dl}% · 2,6 ГБ</span></div><div class="progress"><i style="width:${S.dl}%"></i></div></div>
+      <div><div style="display:flex;justify-content:space-between;margin-bottom:6px"><b>Qwen3.6 35B-A3B</b><span class="t2 num">${S.dl}% · 17,7 ГБ</span></div><div class="progress"><i style="width:${S.dl}%"></i></div></div>
       <div class="t3" style="font-size:13px">${done ? ic("check", 14) + " Проверка моделей пройдена" : `<span class="spinner" style="vertical-align:-3px"></span> Осталось около ${Math.max(1, Math.round((100 - S.dl) / 12))} мин · 24 МБ/с`}</div></div>`;
     next = done ? "Далее" : "В фоне";
   } else if (step === 5) {
