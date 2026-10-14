@@ -151,6 +151,8 @@ def build_macos(skip_dmg=False):
     trim_runtime(runtime)
     copy_app(os.path.join(resources, "app"))
     shutil.copy2(os.path.join(PKG, "macos", "AppIcon.icns"), os.path.join(resources, "AppIcon.icns"))
+    for name in ("dictumTemplate.png", "dictumTemplate@2x.png"):      # the menu-bar glyph (core/hotkeys.py)
+        shutil.copy2(os.path.join(PKG, "macos", name), os.path.join(resources, name))
 
     log("Compiling native launcher")
     run(["clang", "-O2", "-Wall", "-arch", "arm64", "-mmacosx-version-min=13.0",

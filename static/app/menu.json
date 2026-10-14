@@ -1,0 +1,18 @@
+{
+ "ru": {
+  "menu.whisper": "Шепнуть",
+  "menu.record": "Записать встречу",
+  "menu.stop_whisper": "Остановить",
+  "menu.stop_record": "Остановить запись",
+  "menu.show": "Показать Dictum",
+  "menu.quit": "Выйти"
+ },
+ "en": {
+  "menu.whisper": "Whisper",
+  "menu.record": "Record a meeting",
+  "menu.stop_whisper": "Stop",
+  "menu.stop_record": "Stop recording",
+  "menu.show": "Show Dictum",
+  "menu.quit": "Quit"
+ }
+}

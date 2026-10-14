@@ -16,3 +16,4 @@ pyyaml>=6         # skill headers (SKILL.md frontmatter)
 # macOS: system-audio capture in the desktop app (Core Audio process taps)
 pyobjc-framework-CoreAudio>=11; sys_platform == "darwin"
 pyobjc-framework-AVFoundation>=11; sys_platform == "darwin"   # microphone permission prompt
+pyobjc-framework-Cocoa>=11; sys_platform == "darwin"   # menu-bar item (AppKit); global hot keys use Carbon via ctypes

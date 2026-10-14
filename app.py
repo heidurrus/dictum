@@ -28,6 +28,7 @@ from core import live as live_mod, live_atoms as live_atoms_mod, macos_audio, se
 from core.summarize import SummaryError, summarize
 from core import notes as meeting_notes, summarize as summarize_mod
 from core import ask as ask_mod, live_questions as live_questions_mod, whisper as whisper_mod
+from core import hotkeys as hotkeys_mod
 from core.atoms import extract_atoms
 from core import backlog, exports, frd, jira, materials, skills, suggest
 from core import index as local_index
@@ -1030,6 +1031,40 @@ def api_whisper_to_question(whisper_id):
     return jsonify({**out, "project_name": project["name"], "whisper": _whisper_payload(out["whisper"])})
 
 
+def _busy_state():
+    """For the menu-bar item (core/hotkeys.py): is a meeting or a whisper being recorded."""
+    rec = _recorder
+    return {"recording": bool(rec is not None and rec.recording), "whisper": _whisper_listening()}
+
+
+hotkeys_mod.set_state_source(_busy_state)
+
+
+@app.route("/api/ui-lang", methods=["POST"])
+def api_ui_lang():
+    """The page's language, sent on boot and on switch: the menu-bar titles follow it."""
+    lang = (request.get_json(silent=True) or {}).get("lang")
+    try:
+        hotkeys_mod.set_ui_lang(lang)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify({"ok": True, "lang": lang})
+
+
+@app.route("/api/hotkeys/status")
+def api_hotkeys_status():
+    """Whether the global hot keys are registered: "ok", "taken" (by the system or another app), "window" (⌘ plus one
+    key stays a window-level key), "invalid", or "off" (not macOS, browser mode)."""
+    return jsonify(hotkeys_mod.status())
+
+
+@app.route("/api/i18n/menu")
+def api_i18n_menu():
+    """The menu-bar titles (menu.* from i18n.js, exported by the build into static/app/menu.json)."""
+    lang = request.args.get("lang") or "en"
+    return jsonify({"lang": lang if lang in ("ru", "en") else "en", "strings": hotkeys_mod.menu_strings(lang)})
+
+
 def start_background():
     """Started with the app (launcher), not on import: the reminder check every 30 s (spec C7, A6: only while the
     app runs)."""
@@ -1105,6 +1140,7 @@ def _settings_payload():
         "live_questions": prefs["live_questions"],
         "live_window_atoms": prefs["live_window_atoms"],
         "silence_stop_minutes": prefs["silence_stop_minutes"],
+        "menubar": prefs["menubar"],
         "claude_models": [{"id": m, "label": label} for m, label in settings.CLAUDE_MODELS],
     }
 
@@ -1121,7 +1157,7 @@ def save_settings():
     data = request.get_json(silent=True) or {}
     prefs = {k: data[k] for k in ("llm_provider", "claude_model", "ollama_model", "local_model", "hotkeys",
                                  "live_transcription", "live_requirements", "live_questions", "live_window_atoms",
-                                 "silence_stop_minutes") if k in data}
+                                 "silence_stop_minutes", "menubar") if k in data}
     try:
         if prefs:
             settings.save_settings(prefs)

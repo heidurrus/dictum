@@ -24,6 +24,9 @@
   let saving = $state(false);
 
   const key = $derived(comboLabel(app.settings?.hotkeys?.whisper || DEFAULT_HOTKEYS.whisper));
+  // macOS desktop: ⌥Space works from any window when core/hotkeys.py registered it, or another app holds it.
+  let globalKey = $state("off");
+  api("/api/hotkeys/status").then(s => (globalKey = s.whisper)).catch(() => {});
   const projectName = id => app.projects.find(p => p.id === id)?.name || app.archivedProjects.find(p => p.id === id)?.name || "";
 
   async function load() {
@@ -163,7 +166,9 @@
         <button class="wbtn" onclick={toggleWhisper} title={t("wh.speak", { key })} aria-label={t("wh.speak", { key })}>
           <Icon name="mic" size={44} /></button>
         <h2>{t("wh.idle_title")}</h2>
-        <p class="hint">{t("wh.idle_hint")}<br>{t("wh.idle_keys")} <span class="kbd">{key}</span></p>
+        <p class="hint">{t("wh.idle_hint")}<br>
+          {#if globalKey === "taken"}{t("wh.keys_taken", { key })}
+          {:else}{t(globalKey === "ok" ? "wh.idle_keys_global" : "wh.idle_keys")} <span class="kbd">{key}</span>{/if}</p>
       {:else if wh.state === "listening" || wh.state === "processing"}
         <button class="wbtn live" class:busy={wh.state === "processing"} onclick={toggleWhisper} disabled={wh.state === "processing"}
                 title={t("wh.done")} aria-label={t("wh.done")}><Icon name="stop" size={40} /></button>

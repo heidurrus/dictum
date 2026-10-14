@@ -133,6 +133,7 @@ export function setLang(lang) {
   app.lang = lang;
   writePref("lang", lang);
   document.documentElement.lang = lang;
+  api("/api/ui-lang", { method: "POST", body: { lang } }).catch(() => {});   // the macOS menu-bar titles follow it
 }
 
 export function saveOptions() { writePref("asrOptions", app.options); }
