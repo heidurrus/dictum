@@ -47,7 +47,7 @@ await page.locator(".seg-row .spk", { hasText: "Иван Петров" }).first(
 step("speaker rename shows in the transcript");
 
 // Back to the list, the import is there; delete it and undo.
-await page.locator(".screen-head").getByRole("button", { name: "Источники", exact: true }).click();
+await page.locator(".screen-head").getByRole("button", { name: "Назад: Источники", exact: true }).click();
 await page.locator(".workspace").getByRole("button", { name: "Встреча с заказчиком", exact: true }).waitFor();
 await page.locator(".item", { hasText: "Встреча с заказчиком" }).locator(".kind").click();
 await page.locator(".inspector").getByRole("button", { name: "Удалить источник" }).click();
@@ -66,7 +66,7 @@ await page.getByText("От: Ivan Petrov").waitFor();
 await page.locator(".block-title", { hasText: "Письмо" }).waitFor();
 if (await page.locator(".seg-meta").count()) throw new Error("an email must render as paragraphs, not timed segments");
 step("email import opens as a letter with sender and paragraphs");
-await page.locator(".screen-head").getByRole("button", { name: "Источники", exact: true }).click();
+await page.locator(".screen-head").getByRole("button", { name: "Назад: Источники", exact: true }).click();
 
 // Create a project and switch to it: the list is empty there.
 await page.locator(".proj").click();
@@ -74,6 +74,20 @@ await page.getByPlaceholder("Название проекта").fill("E2E про�
 await page.getByRole("button", { name: "Создать" }).click();
 await page.getByText("С чего начать").waitFor();
 step("new project is created and empty");
+
+// Status chip: "Готово" when idle, the job while a transcription runs (the fake server takes ~3 s), then "Готово" again.
+const chip = page.locator(".topbar .status-chip");
+await chip.filter({ hasText: "Готово" }).waitFor();
+const wavPath = join(mkdtempSync(join(tmpdir(), "wb-")), "Созвон.wav");
+const samples = 16000, wav = Buffer.alloc(44 + samples * 2);
+wav.write("RIFF", 0); wav.writeUInt32LE(36 + samples * 2, 4); wav.write("WAVEfmt ", 8); wav.writeUInt32LE(16, 16);
+wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22); wav.writeUInt32LE(16000, 24); wav.writeUInt32LE(32000, 28);
+wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34); wav.write("data", 36); wav.writeUInt32LE(samples * 2, 40);
+writeFileSync(wavPath, wav);
+await page.locator('input[type=file]').setInputFiles(wavPath);
+await chip.filter({ hasText: /задач/ }).waitFor({ timeout: 10000 });
+await chip.filter({ hasText: "Готово" }).waitFor({ timeout: 30000 });
+step("status chip shows the transcription job, then Готово");
 
 // Language switch.
 await page.locator(".rail").getByRole("button", { name: "Настройки" }).click();

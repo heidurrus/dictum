@@ -111,7 +111,7 @@
 <input type="file" multiple class="hidden" bind:this={fileInput} aria-label={t("src.import")}
        onchange={e => { importFiles(e.currentTarget.files); e.currentTarget.value = ""; }} />
 
-<Page title={t("sources.title")} inspector={rows.length ? "sources" : ""}
+<Page title={t("sources.title")} inspector={rows.length ? "sources" : ""} record={false}
         sub={t("sources.count", { n: app.sources.length }) + (busy ? " · " + t("sources.busy", { busy }) : "")}>
   {#snippet actions()}
     <span class="rec-wrap" bind:this={recWrap}>

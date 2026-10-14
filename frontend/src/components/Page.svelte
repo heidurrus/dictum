@@ -5,7 +5,7 @@
   import { app, t, go, toggleInspector, inspectorOn } from "../lib/state.svelte.js";
   import { recordFromShell } from "../lib/capture.svelte.js";
 
-  let { title = "", crumb = "", crumbPath = "", sub = "", inspector = "", heading, actions, children } = $props();
+  let { title = "", crumb = "", crumbPath = "", sub = "", inspector = "", record = true, heading, actions, children } = $props();
 </script>
 
 <header class="page-head toolbar screen-head">
@@ -22,8 +22,10 @@
   </div>
   <div class="tb-actions">
     {@render actions?.()}
-    <!-- Phone width: the rail's record button moves here. -->
-    <button class="ph-rec" onclick={recordFromShell} aria-label={t("shell.record")} title={t("shell.record_tip")}><span class="dot"></span></button>
+    <!-- Phone width: the rail's record button moves here, unless the screen has its own (Sources: `record={false}`). -->
+    {#if record}
+      <button class="ph-rec" onclick={recordFromShell} aria-label={t("shell.record")} title={t("shell.record_tip")}><span class="dot"></span></button>
+    {/if}
     {#if inspector}
       <button class="btn ghost icon" class:on={inspectorOn(inspector) || app.inspectorOverlay} onclick={() => toggleInspector(inspector)}
               aria-label={t("shell.inspector")} aria-pressed={inspectorOn(inspector)} title={`${t("shell.inspector")} · ⌥⌘I`}>

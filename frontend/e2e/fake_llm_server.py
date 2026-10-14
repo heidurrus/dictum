@@ -1,16 +1,23 @@
 """Run the app with a deterministic stand-in for the AI model (for e2e/atoms.mjs).
 
-Usage: WORKBENCH_DATA_DIR=<tmp> python frontend/e2e/fake_llm_server.py [port]
+Usage: WORKBENCH_DATA_DIR=<tmp> .venv/bin/python frontend/e2e/fake_llm_server.py [port]
 Extraction turns every transcript line into an atom quoting that line; the
-duplicate check reports the first two new atoms as conflicting.
+duplicate check reports the first two new atoms as conflicting. torch and GigaAM
+are stubbed (tests/conftest.py); speech recognition returns one fixed line after ~3 s.
 """
 import functools
 import json
 import os
 import re
 import sys
+import time
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+
+_data_dir = os.environ.get("WORKBENCH_DATA_DIR")
+import tests.conftest  # noqa: E402,F401  stubs torch and gigaam (it also points the data dir at a temp folder)
+if _data_dir:
+    os.environ["WORKBENCH_DATA_DIR"] = _data_dir                  # keep the folder the caller chose
 
 import app as app_module  # noqa: E402
 from core import atoms  # noqa: E402
@@ -59,6 +66,17 @@ app_module.backlog.build = functools.partial(app_module.backlog.build, complete=
 app_module.backlog.invest = functools.partial(app_module.backlog.invest, complete=fake_complete)
 app_module.frd.suggest_fix = functools.partial(app_module.frd.suggest_fix, complete=fake_complete)
 app_module.settings.secret = lambda name: "fake-key"
+
+
+def fake_transcribe(job_id, audio_path, model_name, diarize, word_timestamps, device):
+    for pct in (20, 40, 60, 80):
+        app_module.set_progress(job_id, pct, "Transcribing…")
+        time.sleep(0.75)
+    return {"text": "[00:00.00 - 00:03.00] Нужна выгрузка отчёта в Excel",
+            "segments": [{"start": 0.0, "end": 3.0, "text": "Нужна выгрузка отчёта в Excel"}]}
+
+
+app_module._transcribe = fake_transcribe
 
 # Jira: a fake Atlassian sign-in and an in-memory Jira project "SBX". Nothing real is ever contacted.
 from core.fake_jira import FakeJira  # noqa: E402

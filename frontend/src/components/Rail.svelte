@@ -1,9 +1,25 @@
+<script module>
+  // In rail order; the hotkeys nav1…nav8 (⌘1…⌘8 by default) follow it. `opt` items are left out of the phone bar.
+  export const RAIL_ITEMS = [
+    { route: "sources", path: "/sources", icon: "meet", key: "nav.meetings" },
+    { route: "library", path: "/library", icon: "lib", key: "nav.library" },
+    { route: "atoms", path: "/atoms", icon: "req", key: "nav.atoms" },
+    { route: "document", path: "/document", icon: "doc", key: "nav.document", opt: true },
+    { route: "backlog", path: "/backlog", icon: "tree", key: "nav.decomposition", opt: true },
+    { route: "ask", path: "/ask", icon: "chat", key: "nav.ask", opt: true },
+    { route: "whisper", path: "/whisper", icon: "mic", key: "nav.whisper" },
+  ];
+  export const RAIL_SETTINGS = { route: "settings", path: "/settings", icon: "set", key: "nav.settings" };
+  export const RAIL_PATHS = [...RAIL_ITEMS, RAIL_SETTINGS].map(i => i.path);
+</script>
+
 <script>
   // Navigation rail (prototype-v5 .rail): the mark, the record button, the sections, Настройки at the bottom.
   // Phone width (≤ 760 px): a bottom bar with five items; the record button moves into the page head.
   import { keyOf } from "../lib/keys.js";
   import { app, t, go } from "../lib/state.svelte.js";
   import { recordFromShell } from "../lib/capture.svelte.js";
+  import { DEFAULT_HOTKEYS, comboLabel } from "../lib/hotkeys.js";
 
   // 24-px filled icons from the prototype.
   const I = {
@@ -18,17 +34,8 @@
     more: '<path d="M6 10a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm6 0a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm6 0a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z"/>',
   };
 
-  // In rail order; ⌘1…⌘8 follow it. `opt` items are left out of the phone bar.
-  const items = [
-    { route: "sources", path: "/sources", icon: "meet", key: "nav.meetings" },
-    { route: "library", path: "/library", icon: "lib", key: "nav.library" },
-    { route: "atoms", path: "/atoms", icon: "req", key: "nav.atoms" },
-    { route: "document", path: "/document", icon: "doc", key: "nav.document", opt: true },
-    { route: "backlog", path: "/backlog", icon: "tree", key: "nav.decomposition", opt: true },
-    { route: "ask", path: "/ask", icon: "chat", key: "nav.ask", opt: true },
-    { route: "whisper", path: "/whisper", icon: "mic", key: "nav.whisper" },
-  ];
-  const settings = { route: "settings", path: "/settings", icon: "set", key: "nav.settings" };
+  const items = RAIL_ITEMS;
+  const settings = RAIL_SETTINGS;
   const more = [{ route: "skills", path: "/skills", key: "nav.skills" }, { route: "export", path: "/export", key: "nav.export" }];
 
   // A transcript belongs to Встречи; Skills and Export light up Ещё.
@@ -39,7 +46,7 @@
 
   let moreOpen = $state(false);
   let moreWrap = $state(null);
-  const mod = typeof navigator !== "undefined" && /Mac/.test(navigator.platform) ? "⌘" : "Ctrl+";
+  const hk = n => comboLabel({ ...DEFAULT_HOTKEYS, ...(app.settings?.hotkeys || {}) }["nav" + n]);
 
   function onKey(e) {
     const key = keyOf(e);
@@ -47,11 +54,7 @@
     if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
     if (key === ",") { e.preventDefault(); go("/settings"); return; }
     if (key === "0") { e.preventDefault(); go("/overview"); return; }
-    // ⌘R records in the desktop window only; in a browser it stays the reload.
-    if ((key === "r" || key === "R") && app.device.desktop) { e.preventDefault(); recordFromShell(); return; }
-    const n = Number(key);
-    const all = [...items, settings];
-    if (n >= 1 && n <= all.length) { e.preventDefault(); go(all[n - 1].path); }
+    // ⌘1…⌘8 and ⌘R come from the hotkeys map, in App.svelte.
   }
   function onDoc(e) { if (moreOpen && moreWrap && !moreWrap.contains(e.target)) moreOpen = false; }
   function pickMore(path) { moreOpen = false; go(path); }
@@ -77,7 +80,7 @@
 
   {#each items as it, i (it.route)}
     <button class="nav-item" class:active={current === it.route} class:opt={it.opt} aria-current={current === it.route ? "page" : undefined}
-            onclick={() => go(it.path)} title={`${t(it.key)} · ${mod}${i + 1}`}>
+            onclick={() => go(it.path)} title={`${t(it.key)} · ${hk(i + 1)}`}>
       <span class="pill">{@render glyph(it.icon)}</span>{t(it.key)}
       {#if it.route === "atoms" && review}<span class="nbadge num" title={t("nav.badge_review", { n: review })}>{review}</span>{/if}
       {#if it.route === "document" && stale}<span class="dotb" title={t("nav.badge_stale")}></span>{/if}
@@ -101,7 +104,7 @@
 
   <span class="spacer"></span>
   <button class="nav-item" class:active={current === "settings"} aria-current={current === "settings" ? "page" : undefined}
-          onclick={() => go(settings.path)} title={`${t(settings.key)} · ${mod}${items.length + 1}`}>
+          onclick={() => go(settings.path)} title={`${t(settings.key)} · ${hk(items.length + 1)}`}>
     <span class="pill">{@render glyph(settings.icon)}</span>{t(settings.key)}
   </button>
 </nav>

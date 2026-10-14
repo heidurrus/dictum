@@ -4,6 +4,7 @@
   import Icon from "./Icon.svelte";
   import { api } from "../lib/api.js";
   import { app, t, go, setTheme, isDark, switchProject } from "../lib/state.svelte.js";
+  import { DEFAULT_HOTKEYS, comboLabel } from "../lib/hotkeys.js";
 
   let query = $state("");
   let index = $state(0);
@@ -20,21 +21,22 @@
   });
 
   // In rail order, with the rail's shortcuts; Skills, Export and Overview are reached from here.
+  const hk = $derived({ ...DEFAULT_HOTKEYS, ...(app.settings?.hotkeys || {}) });
   const screens = $derived([
-    { icon: "sources", label: t("nav.meetings"), keys: [mod + "1"], run: () => go("/sources") },
-    { icon: "file", label: t("nav.library"), keys: [mod + "2"], run: () => go("/library") },
-    { icon: "atoms", label: t("nav.atoms"), keys: [mod + "3"], run: () => go("/atoms") },
-    { icon: "doc", label: t("nav.document"), keys: [mod + "4"], run: () => go("/document") },
-    { icon: "tree", label: t("nav.decomposition"), keys: [mod + "5"], run: () => go("/backlog") },
-    { icon: "search", label: t("nav.ask"), keys: [mod + "6"], run: () => go("/ask") },
-    { icon: "mic", label: t("nav.whisper"), keys: [mod + "7"], run: () => go("/whisper") },
-    { icon: "gear", label: t("nav.settings"), keys: [mod + "8"], run: () => go("/settings") },
+    { icon: "sources", label: t("nav.meetings"), keys: [comboLabel(hk.nav1)], run: () => go("/sources") },
+    { icon: "file", label: t("nav.library"), keys: [comboLabel(hk.nav2)], run: () => go("/library") },
+    { icon: "atoms", label: t("nav.atoms"), keys: [comboLabel(hk.nav3)], run: () => go("/atoms") },
+    { icon: "doc", label: t("nav.document"), keys: [comboLabel(hk.nav4)], run: () => go("/document") },
+    { icon: "tree", label: t("nav.decomposition"), keys: [comboLabel(hk.nav5)], run: () => go("/backlog") },
+    { icon: "search", label: t("nav.ask"), keys: [comboLabel(hk.nav6)], run: () => go("/ask") },
+    { icon: "mic", label: t("nav.whisper"), keys: [comboLabel(hk.nav7)], run: () => go("/whisper") },
+    { icon: "gear", label: t("nav.settings"), keys: [comboLabel(hk.nav8)], run: () => go("/settings") },
     { icon: "skills", label: t("nav.skills"), run: () => go("/skills") },
     { icon: "export", label: t("nav.export"), run: () => go("/export") },
     { icon: "home", label: t("nav.overview"), keys: [mod + "0"], run: () => go("/overview") },
   ]);
   const commands = $derived([
-    { icon: isDark() ? "sun" : "moon", label: t(isDark() ? "cmd.light" : "cmd.dark"), keys: [mod + "⇧L"], run: () => setTheme(isDark() ? "light" : "dark") },
+    { icon: isDark() ? "sun" : "moon", label: t(isDark() ? "cmd.light" : "cmd.dark"), keys: [comboLabel(hk.theme)], run: () => setTheme(isDark() ? "light" : "dark") },
   ]);
 
   const groups = $derived.by(() => {
@@ -60,9 +62,6 @@
   function run(item) { app.palette = false; item?.run(); }
   function onKey(e) {
     const key = keyOf(e);
-    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && (key === "k" || key === "K")) {
-      e.preventDefault(); app.palette = !app.palette; return;
-    }
     if (!app.palette) return;
     if (key === "Escape") { e.preventDefault(); e.stopPropagation(); app.palette = false; }
     else if (key === "ArrowDown") { e.preventDefault(); index = Math.min(flat.length - 1, index + 1); scroll(); }

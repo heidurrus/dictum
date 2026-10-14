@@ -102,7 +102,7 @@ End-to-end tests drive Chrome against the app with a stand-in for the AI and for
 Use a fresh data folder for each suite:
 
 ```bash
-WORKBENCH_DATA_DIR=$(mktemp -d) python3 frontend/e2e/fake_llm_server.py 5312 &
+WORKBENCH_DATA_DIR=$(mktemp -d) .venv/bin/python frontend/e2e/fake_llm_server.py 5312 &   # torch is stubbed, no ML stack needed
 node frontend/e2e/smoke.mjs http://127.0.0.1:5312   # also: atoms, bulk, document, skills, backlog, export
 ```
 
