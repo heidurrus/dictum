@@ -1,8 +1,10 @@
 <script>
-  // Материалы (spec 5.0 C5, first half; prototype-v5 pageLibrary): documents, links and pasted text of the project.
-  // Left: kinds and labels with counts. Middle: the add row, Список / Плитка (Граф comes with the index), the drop
-  // hint. Right: the selected material: preview, labels, the in-context switch, Открыть / Показать в Finder / Ещё.
-  // The header search runs the project-wide keyword search (meetings, notes, materials, requirements).
+  // Материалы (spec 5.0 C5; prototype-v5 pageLibrary): documents, links and pasted text of the project.
+  // Left: kinds and labels with counts. Middle: the add row, Граф (default) / Список / Плитка, the drop hint.
+  // Right: the selected material: preview, labels (auto ones marked), the in-context switch, "Похожие материалы",
+  // "Где используется", Открыть / Показать в Finder / Ещё. The header search runs the project-wide keyword search.
+  // The graph, related materials and labels by meaning need the local index model; without it they offer the download.
+  import Graph from "../components/Graph.svelte";
   import Icon from "../components/Icon.svelte";
   import Page from "../components/Page.svelte";
   import PopMenu from "../components/PopMenu.svelte";
@@ -28,10 +30,15 @@
   let folderJob = $state(null);           // {progress, message} while a folder is imported
   let newLabel = $state(null);            // null: the "Создать метку" row; a string: the inline form
   let newLabelEl = $state(null);
+  let graph = $state(null);               // GET /api/projects/<id>/materials/graph: nodes, edges, truncated, available
+  let related = $state(null);             // GET /api/materials/<id>/related
+  let usedIn = $state(null);              // GET /api/materials/<id>/used-in
+  let indexing = $state(false);           // an index pass started from here is running
+  let modelDl = $state(null);             // {done, total} while the index model downloads
 
   function readView() {
-    try { const v = JSON.parse(localStorage.getItem("wb.libraryView")); return v === "grid" ? "grid" : "list"; }
-    catch (_) { return "list"; }
+    try { const v = JSON.parse(localStorage.getItem("wb.libraryView")); return ["graph", "list", "grid"].includes(v) ? v : "graph"; }
+    catch (_) { return "graph"; }
   }
   function setView(v) { view = v; writePref("libraryView", v); }
 
@@ -46,7 +53,16 @@
       labels = l.labels;
       loaded = true;
     } catch (err) { toast(err.message, { kind: "danger" }); }
+    loadGraph();
   }
+  async function loadGraph() {
+    const pid = app.currentProjectId;
+    try { const g = await api(`/api/projects/${pid}/materials/graph`); if (pid === app.currentProjectId) graph = g; }
+    catch (_) { /* the list still works */ }
+  }
+  const indexReady = $derived(!!graph?.available);
+  const shownIds = $derived(new Set(rows.map(m => m.id)));       // the graph follows the kind and label filters
+  const graphNodes = $derived((graph?.nodes || []).filter(n => shownIds.has(n.id)));
   $effect(() => { app.currentProjectId; kind = "all"; labelFilter = null; query = ""; load(); });
   // #/library/<id> (a search hit, a requirement's evidence) selects that material.
   $effect(() => { if (app.route.name === "library" && app.route.id) selectedId = app.route.id; });
@@ -66,6 +82,18 @@
     api(`/api/materials/${id}`).then(b => { if (selectedId === id) detail = b; }).catch(() => {});
   });
   const cur = $derived(detail && detail.id === selectedId ? detail : null);
+  // "Похожие материалы" and "Где используется" of the selected material; again whenever the graph was reloaded
+  // (the index changed).
+  $effect(() => {
+    const id = selectedId;
+    graph;
+    if (!id) return;
+    api(`/api/materials/${id}/related`).then(b => { if (selectedId === id) related = { ...b, id }; }).catch(() => {});
+    api(`/api/materials/${id}/used-in`).then(b => { if (selectedId === id) usedIn = { ...b, id }; }).catch(() => {});
+  });
+  const rel = $derived(related?.id === selectedId ? related : null);
+  const uses = $derived(usedIn?.id === selectedId ? usedIn : null);
+  const pct = s => Math.round(s * 100) + "%";
 
   function patchRow(id, changes) {
     const row = list.find(m => m.id === id);
@@ -104,7 +132,42 @@
     if (done.length) { selectedId = done[0].id; kind = "all"; labelFilter = null; }
     const msg = t("lib.added_n", { n: done.length }) + (failed.length ? " · " + t("sources.failed_n", { n: failed.length }) : "");
     toast(failed.length ? msg + ": " + failed.join("; ") : msg, failed.length ? { kind: "danger" } : {});
+    if (body.index_job) followIndex(body.index_job);
   }
+
+  // ── the index ─────────────────────────────────────────────────────────────
+  // A pass runs as a job (the status chip shows it); when it ends, labels may have landed and the graph changed.
+  async function followIndex(jobId) {
+    indexing = true;
+    try { await pollJob(jobId); } catch (err) { toast(err.message, { kind: "danger" }); }
+    finally { indexing = false; }
+    await load();
+  }
+  async function reindex(materialId) {
+    try {
+      const b = await api(`/api/projects/${app.currentProjectId}/index`, { method: "POST", body: materialId ? { material_id: materialId } : {} });
+      if (b.job_id) await followIndex(b.job_id);
+      else await loadGraph();
+    } catch (err) { toast(err.message, { kind: "danger" }); }
+  }
+  // "Скачайте модель индекса": the same download as the chat models (Settings → AI), then a first index pass.
+  async function downloadModel() {
+    if (modelDl) return;
+    modelDl = { done: 0, total: graph?.size || 0 };
+    try {
+      let st = await api("/api/local-llm/download", { method: "POST", body: { model: graph?.model } });
+      while (["downloading", "verifying"].includes(st.download?.status)) {
+        modelDl = { done: st.download.done || 0, total: st.download.total || modelDl.total };
+        await new Promise(r => setTimeout(r, 1000));
+        st = await api("/api/local-llm");
+      }
+      if (st.download?.status === "error") throw new Error(st.download.error);
+      modelDl = null;
+      await reindex();
+    } catch (err) { toast(err.message, { kind: "danger" }); }
+    finally { modelDl = null; }
+  }
+  const dlPct = $derived(modelDl && modelDl.total ? Math.round(100 * modelDl.done / modelDl.total) : 0);
   async function uploadFiles(files) {
     files = [...(files || [])];
     if (!files.length || busy) return;
@@ -131,6 +194,7 @@
       const job = await pollJob(jobId, j => { folderJob = { progress: j.progress || 0, message: j.progress_msg || "" }; });
       await added({ materials: job.result.imported.map(id => ({ id })), failed: job.result.failed });
       if (job.result.truncated) toast(t("lib.folder_limit", { n: job.result.limit }));
+      if (job.result.imported.length && indexReady) reindex();
     } catch (err) { toast(err.message, { kind: "danger" }); }
     finally { folderJob = null; }
   }
@@ -194,6 +258,7 @@
   const moreItems = $derived(!selected ? [] : [
     { value: "extract", label: t("at.extract"), icon: "spark", disabled: !selected.chars || !!app.extracting[selected.id] },
     ...(selected.material_kind === "url" ? [{ value: "resync", label: t("lib.resync"), icon: "refresh" }] : []),
+    { value: "reindex", label: t("lib.reindex"), icon: "refresh", disabled: !indexReady || indexing },
     { sep: true },
     { value: "delete", label: t("sources.delete"), icon: "trash", danger: true },
   ]);
@@ -201,26 +266,27 @@
     if (!selected) return;
     if (v === "extract") extractAtoms(selected.id);
     else if (v === "resync") resync();
+    else if (v === "reindex") reindex(selected.id);
     else if (v === "delete") remove(selected);
   }
 
   // ── labels ────────────────────────────────────────────────────────────────
-  async function reloadLabels() {
-    const b = await api(`/api/projects/${app.currentProjectId}/labels`);
-    labels = b.labels;
-  }
   async function assign(m, labelId) {
     try {
       const b = await api(`/api/materials/${m.id}/labels/${labelId}`, { method: "POST" });
       patchRow(m.id, { labels: b.labels });
+      loadGraph();
     } catch (err) { toast(err.message, { kind: "danger" }); }
   }
   async function unassign(m, l) {
     try {
       const b = await api(`/api/materials/${m.id}/labels/${l.id}`, { method: "DELETE" });
       patchRow(m.id, { labels: b.labels });
+      loadGraph();
     } catch (err) { toast(err.message, { kind: "danger" }); }
   }
+  // "Создать и назначить": the label goes on the selected material and, with the index, on every material close to
+  // it in meaning; the toast counts them.
   async function createLabel(e) {
     e.preventDefault();
     const name = (newLabel || "").trim();
@@ -229,12 +295,11 @@
       const b = await api(`/api/projects/${app.currentProjectId}/labels`, { method: "POST",
         body: { name, ...(selected ? { seed_material_id: selected.id } : {}) } });
       newLabel = null;
-      await reloadLabels();
-      if (selected && b.assigned.includes(selected.id))
-        patchRow(selected.id, { labels: [...selected.labels, { ...b.label, assigned_by: "user", score: null }] });
-      toast(t("lib.label_created", { name: b.label.name }));
+      await load();
+      toast(b.index ? t("lib.label_assigned", { name: b.label.name, n: b.assigned.length }) : t("lib.label_created", { name: b.label.name }));
     } catch (err) { toast(err.message, { kind: "danger" }); }
   }
+  const autoTip = l => t("lib.label_auto_tip", { p: pct(l.score || 0) });
   function startLabel() {
     newLabel = "";
     requestAnimationFrame(() => newLabelEl?.focus());
@@ -348,7 +413,7 @@
                  onkeydown={e => { if (e.key === "Escape") newLabel = null; }} />
           <button class="btn sm primary" type="submit" disabled={!newLabel.trim()}>{selected ? t("lib.label_create_assign") : t("lib.label_create")}</button>
         </form>
-        <p class="lhint">{t("lib.label_hint")}</p>
+        <p class="lhint">{indexReady ? t("lib.label_hint") : t("lib.label_hint_noindex")}</p>
       {/if}
     </nav>
 
@@ -360,16 +425,37 @@
         <button class="btn sm" onclick={() => add("folder")} disabled={busy || !!folderJob}><Icon name="folder" size={14} /> {t("lib.add.folder")}</button>
         <span class="grow"></span>
         <div class="vseg" role="group" aria-label={t("lib.view")}>
+          <button class:on={view === "graph"} aria-pressed={view === "graph"} onclick={() => setView("graph")} title={t("lib.view.graph")}
+                  aria-label={t("lib.view.graph")}><Icon name="tree" size={16} /></button>
           <button class:on={view === "list"} aria-pressed={view === "list"} onclick={() => setView("list")} title={t("lib.view.list")}
                   aria-label={t("lib.view.list")}><Icon name="transcript" size={16} /></button>
           <button class:on={view === "grid"} aria-pressed={view === "grid"} onclick={() => setView("grid")} title={t("lib.view.grid")}
                   aria-label={t("lib.view.grid")}><Icon name="atoms" size={16} /></button>
-          <span class="soon-wrap" title="{t('lib.view.graph')} · {t('lib.soon')}"><button disabled aria-label="{t('lib.view.graph')} · {t('lib.soon')}"><Icon name="tree" size={16} /></button></span>
         </div>
       </div>
       {#if folderJob}
         <div class="banner info fjob"><span class="spinner"></span><span class="grow">{t("lib.folder_run", { p: folderJob.progress })} {folderJob.message}</span></div>
       {/if}
+      {#snippet needModel(compact)}
+        <div class="needmodel" class:compact class:empty={!compact}>
+          {#if !compact}<span class="glyph" aria-hidden="true"><Icon name="tree" size={24} /></span>{/if}
+          <b>{t("lib.index.need")}</b>
+          <p>{t("lib.index.need_hint", { size: fmtBytes(graph?.size || 0) })}</p>
+          {#if modelDl}
+            <div class="dlbar"><i style:width={dlPct + "%"}></i></div>
+            <span class="t3 small">{t("lib.index.downloading", { p: dlPct })}</span>
+          {:else}
+            <button class="btn sm primary" onclick={downloadModel}><Icon name="download" size={14} /> {t("lib.index.download")}</button>
+          {/if}
+        </div>
+      {/snippet}
+      {#if view === "graph" && !(loaded && !list.length)}
+        {#if indexReady}
+          <Graph nodes={graphNodes} edges={graph.edges} selected={selectedId} truncated={graph.truncated} onselect={id => (selectedId = id)} />
+        {:else if graph}
+          <div class="grow gwait">{@render needModel(false)}</div>
+        {/if}
+      {:else}
       <div class="scroll grow">
         {#if loaded && !list.length}
           <div class="empty">
@@ -413,6 +499,7 @@
         {/if}
         <div class="drop">{t("lib.drop")}</div>
       </div>
+      {/if}
     </section>
 
     {#if selected}
@@ -432,7 +519,8 @@
             <dt>{t("lib.col.labels")}</dt>
             <dd class="tags">
               {#each selected.labels as l (l.id)}
-                <span class="ltag chipx" style={tagStyle(l)}>{l.name}<button aria-label={t("lib.label_remove", { name: l.name })}
+                <span class="ltag chipx" style={tagStyle(l)} data-label={l.name}>{l.name}{#if l.assigned_by === "auto"}<small class="auto"
+                  title={autoTip(l)}>{t("lib.label_auto")}</small>{/if}<button aria-label={t("lib.label_remove", { name: l.name })}
                   title={t("lib.label_remove", { name: l.name })} onclick={() => unassign(selected, l)}><Icon name="close" size={10} /></button></span>
               {/each}
               <PopMenu cls="chip sm addlbl" label={t("lib.label_add")} chevron="" items={labelItems} onpick={pickLabel} />
@@ -444,8 +532,33 @@
             <span class="l"><b>{t("lib.context_on")}</b><small>{t("lib.context_hint")}</small></span>
             <input type="checkbox" class="switch" checked={selected.in_context} onchange={e => setContext(selected, e.currentTarget.checked)} />
           </label>
-          <div class="links"><h4>{t("lib.related")}</h4><p class="t3 small">{t("lib.soon")}</p></div>
-          <div class="links"><h4>{t("lib.used_in")}</h4><p class="t3 small">{t("lib.soon")}</p></div>
+          <div class="links related">
+            <h4>{t("lib.related")}{#if rel?.related.length}{" · " + rel.related.length}{/if}</h4>
+            {#if graph && !indexReady}
+              {@render needModel(true)}
+            {:else if rel}
+              {#each rel.related as r (r.id)}
+                <button class="r" onclick={() => (selectedId = r.id)}><span class="fico sm {r.ext}">{(r.ext || "txt").slice(0, 4).toUpperCase()}</span>
+                  <span class="trunc">{r.title}</span><span class="pct">{pct(r.score)}</span></button>
+              {:else}
+                <p class="t3 small">{t("lib.related_none")}</p>
+              {/each}
+            {/if}
+          </div>
+          <div class="links uses">
+            <h4>{t("lib.used_in")}{#if uses && uses.atoms.length + uses.documents.length}{" · " + (uses.atoms.length + uses.documents.length)}{/if}</h4>
+            {#if uses}
+              {#each uses.atoms as a (a.id)}
+                <button class="r" onclick={() => go(`/atoms/atom/${a.id}`)}><Icon name="atoms" size={14} />
+                  <span class="type plain">{a.rid || PREFIX[a.type]}</span><span class="trunc" title={a.statement}>{a.statement}</span></button>
+              {/each}
+              {#each uses.documents as d (d.id)}
+                <button class="r" onclick={() => go(`/document/${d.id}`)}><Icon name="doc" size={14} />
+                  <span class="trunc">{d.title}</span><span class="pct">v{d.version}</span></button>
+              {/each}
+              {#if !uses.atoms.length && !uses.documents.length}<p class="t3 small">{t("lib.used_none")}</p>{/if}
+            {/if}
+          </div>
         </div>
         <div class="panel-foot">
           <button class="btn lg tonal" onclick={openMaterial}><Icon name="pencil" size={14} /> {t("lib.open")}</button>
@@ -524,7 +637,6 @@
   .vseg { display: inline-flex; background: var(--surface-2); border-radius: 20px; padding: 3px; gap: 2px; }
   .addrow .btn { height: 36px; padding: 0 14px; border-radius: 18px; background: var(--surface-2); box-shadow: none; font-weight: 600; font-size: 13px; }
   .addrow .btn:hover:not(:disabled) { background: var(--surface-3); }
-  .soon-wrap { display: inline-flex; }
   .vseg button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 30px; width: 44px; border: 0; border-radius: 16px; background: none;
     font: 500 13px/1 var(--font); color: var(--text-2); cursor: pointer; }
   .vseg button.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow-1); }
@@ -571,6 +683,20 @@
   .crow .l { flex: 1; display: grid; gap: 2px; }
   .crow small { color: var(--text-3); font-size: 12px; }
   .links h4 { font-size: 12px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: .04em; margin: 6px 0 4px; }
+  .links { display: grid; gap: 2px; }
+  .links .r { display: flex; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 10px; cursor: pointer; font: inherit; font-size: 13px;
+    border: 0; background: none; color: var(--text); text-align: left; width: 100%; min-width: 0; }
+  .links .r:hover { background: var(--surface-2); }
+  .links .r .pct { margin-left: auto; color: var(--text-3); font-size: 12px; flex: none; }
+  .links .r .type { flex: none; font: 600 11px var(--mono); color: var(--text-2); }
+  .ltag .auto { font-size: 10px; font-weight: 600; opacity: .75; text-transform: lowercase; cursor: help; }
+  .needmodel { display: grid; justify-items: center; gap: 8px; text-align: center; padding: 24px; max-width: 360px; }
+  .needmodel.compact { justify-items: start; text-align: left; padding: 4px 0; gap: 6px; }
+  .needmodel b { font-weight: 600; } .needmodel p { color: var(--text-3); font-size: 13px; line-height: 18px; }
+  .needmodel.compact p { font-size: 12px; }
+  .gwait { display: grid; place-items: center; min-height: 360px; }
+  .dlbar { width: 200px; height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
+  .dlbar i { display: block; height: 100%; background: var(--primary); }
   .small { font-size: 12px; }
   .panel-foot { display: flex; gap: 8px; padding: 12px 20px 16px; flex-wrap: wrap; align-items: center; flex: none; }
   .panel-foot .up :global(.menu) { top: auto; bottom: calc(100% + 6px); }
