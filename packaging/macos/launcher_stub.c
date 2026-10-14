@@ -6,7 +6,7 @@
  * by the code it is running: after an exec the process was "python3.12" with
  * no Info.plist, so microphone access was silently denied without a prompt.
  * Embedded, the process stays the signed app with its usage descriptions, and
- * prompts show "Requirements Workbench".
+ * prompts show "Dictum".
  *
  * Layout:  X.app/Contents/MacOS/<this>
  *          X.app/Contents/Resources/python/lib/libpython3.12.dylib

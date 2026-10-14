@@ -25,7 +25,7 @@ jobs:
       - name: Self-test the bundle
         run: |
           MNT=$(hdiutil attach -nobrowse -readonly dist/*.dmg | tail -1 | cut -f3)
-          "$MNT/Requirements Workbench.app/Contents/MacOS/Requirements Workbench" --self-test
+          "$MNT/Dictum.app/Contents/MacOS/Dictum" --self-test
           hdiutil detach "$MNT"
       - uses: actions/upload-artifact@v4
         with:

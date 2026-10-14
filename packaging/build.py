@@ -7,7 +7,7 @@ Steps: download the pinned standalone CPython (checksum-verified), install the
 base layer into it, copy the app, then
 - macOS: assemble the .app (native launcher stub, Info.plist), ad-hoc sign it
   (or sign with $MACOS_SIGN_IDENTITY), wrap it in a .dmg;
-- Windows: stage the files and compile installer/RequirementsWorkbench.iss with
+- Windows: stage the files and compile installer/Dictum.iss with
   Inno Setup.
 
 Stdlib only; runs on the build machine's Python 3.9+.
@@ -30,12 +30,12 @@ DIST = os.path.join(ROOT, "dist")
 # Assemble outside the repo on macOS: synced folders (iCloud "Documents") keep
 # adding file-provider attributes that codesign refuses. Override with BUILD_DIR.
 BUILD = os.getenv("BUILD_DIR") or (
-    os.path.expanduser("~/Library/Caches/RequirementsWorkbenchBuild") if sys.platform == "darwin"
+    os.path.expanduser("~/Library/Caches/DictumBuild") if sys.platform == "darwin"
     else os.path.join(ROOT, "build"))
 
-APP_NAME = "Requirements Workbench"
-BUNDLE_ID = "com.heidurrus.requirements-workbench"
-ARTIFACT = "RequirementsWorkbench"
+APP_NAME = "Dictum"
+BUNDLE_ID = "com.heidurrus.dictum"
+ARTIFACT = "Dictum"
 APP_FILES = ["app.py", "launcher.py", "boot.py", "requirements.txt", "VERSION", "core", "skills", "static"]
 
 
@@ -225,7 +225,7 @@ def build_windows(skip_installer=False):
     log("Compiling installer with Inno Setup")
     os.makedirs(DIST, exist_ok=True)
     run([iscc, f"/DStageDir={stage}", f"/DAppVersion={ver}", f"/O{DIST}",
-         os.path.join(ROOT, "installer", "RequirementsWorkbench.iss")])
+         os.path.join(ROOT, "installer", "Dictum.iss")])
     return os.path.join(DIST, f"{ARTIFACT}-{ver}-Setup.exe")
 
 
