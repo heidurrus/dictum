@@ -24,6 +24,9 @@ DEFAULTS = {
     "ollama_model": "qwen3:8b",
     "local_model": "",                 # built-in model id; empty = the downloaded one
     "live_transcription": True,        # transcript on the meeting page while recording (5.0 C4.1)
+    "live_requirements": True,         # requirements extracted while recording (5.0 C4.2)
+    "live_window_atoms": 90,           # seconds between two live extraction passes
+    "silence_stop_minutes": 10,        # stop the recording after this much silence; 0 = never (5.0 C4.3)
     "hotkeys": {                       # action → key combo, read by the UI's one key handler
         "record": "cmd+r", "palette": "cmd+k", "theme": "cmd+shift+l", "ask": "cmd+j", "whisper": "alt+space",
         **{f"nav{i}": f"cmd+{i}" for i in range(1, 9)},
@@ -126,8 +129,18 @@ def save_settings(updates):
         if key == "hotkeys":
             data[key] = _hotkeys(data[key], value)
             continue
-        if key == "live_transcription":
+        if key in ("live_transcription", "live_requirements"):
             data[key] = value is True or str(value).strip().lower() in ("true", "1", "yes", "on")
+            continue
+        if key in ("live_window_atoms", "silence_stop_minutes"):
+            try:
+                number = int(value)
+            except (TypeError, ValueError):
+                raise ValueError(f"{key} must be a whole number") from None
+            low, high = (30, 3600) if key == "live_window_atoms" else (0, 240)
+            if not low <= number <= high:
+                raise ValueError(f"{key} must be between {low} and {high}")
+            data[key] = number
             continue
         value = str(value).strip()
         if key == "llm_provider" and value not in PROVIDERS:
