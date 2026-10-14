@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.9.4 (2026-10-15): Meeting page with notes and recap styles
+
+- **The meeting page** (`#/meeting/<id>`; `#/source/<id>`, `…/seg/<idx>` and `…/summarize` still open it) is a header card (back to Встречи, the title renamed in place, date · kind · model, «Ещё» with the save-audio items) and two cards. **Транскрипт**: Микрофон / Собеседники chips for two-channel recordings (the speakers' names otherwise; renaming stays in Участники), a search that highlights hits and counts them («2 из 5»; Enter / ⇧Enter step through), Все реплики / С требованиями, lines with time · speaker · text, the quoted spans and requirement chips; a click on the time plays from there, double-click corrects the line, the player stays at the bottom.
+- **Заметки**: Markdown notes per meeting with a format bar (B, I, H, •, 1., ☐, ⌘B / ⌘I), saved by themselves a second after you stop typing («Сохранено в 14:02»), with a preview. Under them, «Требования из встречи»: the meeting's requirements with their type, statement and quote. The Встречи panel's Заметки tab shows the notes rendered, with «Редактировать».
+- **Recap styles**: Кратко / По пунктам / Действия, in the meeting's inspector and in the panel's Резюме tab. Each style is a built-in skill (Скиллы → Резюме: кратко / по пунктам / действия), editable like any other. «Обновить по новым репликам» sends the previous recap and only the lines said since, and asks the model to update it; it is enabled only when there are such lines. «Пересобрать» sends everything. A style with no recap yet gets one when you switch to it; the chosen style is remembered per meeting.
+- API: `PUT /api/sources/<id>/notes {text}` and `POST /api/sources/<id>/notes/append {line}` → `{saved_at, text}` (both in the audit log; autosaves within a minute share one entry); `POST /api/sources/<id>/recap {style, incremental}` → a summarize job; `GET /api/sources/<id>` returns `notes`, `recap_style` and `summaries` by style with `through_idx`, plus the old `summary` field for the current style. `/summarize` keeps working and writes the Кратко recap.
+- Schema v9: `sources.notes`, `sources.recap_style`, `summaries.style` (existing summaries become Кратко), `summaries.through_idx`; one summary row per style. Project export and import carry them; 4.9.3 project files still import.
+
 ## 4.9.3 (2026-10-15): Встречи
 
 - **Встречи is the home page.** It replaces the Sources and Overview screens; the old `#/sources` and `#/overview` addresses open it. The header says «<project> · n встреч · n требований», with «Импорт» (⌘O, or drop files anywhere on the window) and «Записать встречу» (the microphone and recognition options are behind the arrow next to it; the consent question and the stop button live here).

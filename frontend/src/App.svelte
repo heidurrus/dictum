@@ -6,7 +6,7 @@
   import RecordingHud from "./components/RecordingHud.svelte";
   import Toast from "./components/Toast.svelte";
   import Meetings from "./screens/Meetings.svelte";
-  import Transcript from "./screens/Transcript.svelte";
+  import Meeting from "./screens/Meeting.svelte";
   import Settings from "./screens/Settings.svelte";
   import Atoms from "./screens/Atoms.svelte";
   import DocumentScreen from "./screens/Document.svelte";
@@ -110,7 +110,7 @@
         {:else if app.route.name === "skills"}
           <Skills />
         {:else if app.route.name === "transcript"}
-          {#key app.route.id}<Transcript id={app.route.id} autoSummarize={app.route.summarize} focusSeg={app.route.seg} />{/key}
+          {#key app.route.id}<Meeting id={app.route.id} autoSummarize={app.route.summarize} focusSeg={app.route.seg} />{/key}
         {:else if app.route.name === "settings"}
           <Settings />
         {:else if app.route.name === "library"}

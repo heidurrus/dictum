@@ -8,8 +8,8 @@
   import PopMenu from "../components/PopMenu.svelte";
   import FirstRun from "../components/FirstRun.svelte";
   import AsrOptions from "../components/AsrOptions.svelte";
-  import { api, pollJob } from "../lib/api.js";
-  import { explain } from "../lib/errors.js";
+  import Recap from "../components/Recap.svelte";
+  import { api } from "../lib/api.js";
   import { cap, importFiles, transcribeSaved, loadMics, askThenRecord, confirmConsent, stopRecording } from "../lib/capture.svelte.js";
   import { extractAtoms } from "../lib/atoms.js";
   import { nextStep } from "../lib/next.js";
@@ -69,7 +69,7 @@
     return { cls: "ok", text: t("src.st.ready") };
   }
 
-  function open(id) { rememberSource(id); go(`/source/${id}`); }
+  function open(id) { rememberSource(id); go(`/meeting/${id}`); }
   function pick(id) { if (id !== selectedId) { selectedId = id; tab = "summary"; } }
 
   // ── header and strip ──────────────────────────────────────────────────────
@@ -177,34 +177,18 @@
     else if (v.startsWith("audio:") && cur) { const f = cur.audio_files.find(x => x.id === v.slice(6)); if (f) saveAudio(cur, f); }
   }
 
-  // Резюме: the latest summary; its [Name, mm:ss] references open the meeting at that line.
-  let summarizing = $state(null);        // source id while a summary is being written
-  let partial = $state("");
-  let summaryError = $state(null);
-  $effect(() => { selectedId; summaryError = null; });
-  async function summarize() {
+  // Резюме: the recap in the chosen style; its [Name, mm:ss] references open the meeting at that line.
+  async function reloadDetail() {
     const id = selectedId;
-    summarizing = id; partial = ""; summaryError = null;
-    try {
-      const { job_id } = await api("/summarize", { method: "POST", body: { source_id: id } });
-      await pollJob(job_id, j => { if (j.partial && selectedId === id) partial = j.partial; }, { interval: 600 });
-      await loadSources();
-      if (selectedId === id) detail = await api(`/api/sources/${id}`);
-    } catch (err) {
-      if (selectedId === id) summaryError = explain(err);
-    } finally { summarizing = null; partial = ""; }
+    if (id) { const b = await api(`/api/sources/${id}`).catch(() => null); if (b && selectedId === id) detail = b; }
   }
-  function onSummaryClick(e) {
-    const ref = e.target.closest?.(".ref");
-    if (!ref || !cur) return;
-    const m = /(?:(\d{1,2}):)?(\d{1,2}):(\d{2})/.exec(ref.textContent);
-    if (!m) return;
-    const at = (Number(m[1] || 0) * 3600) + Number(m[2]) * 60 + Number(m[3]);
+  function openAt(at) {
+    if (!cur) return;
     let idx = null;
     for (const seg of cur.segments) if (seg.start != null && seg.start <= at + 0.5) idx = seg.idx;
     if (idx == null && cur.segments.length) idx = cur.segments[0].idx;
     rememberSource(cur.id);
-    go(idx == null ? `/source/${cur.id}` : `/source/${cur.id}/seg/${idx}`);
+    go(idx == null ? `/meeting/${cur.id}` : `/meeting/${cur.id}/seg/${idx}`);
   }
 
   // Транскрипт: read-only lines with the quoted spans marked; a search highlights hits and counts them.
@@ -413,22 +397,7 @@
             {:else if selected.status === "failed"}
               <div class="banner danger"><Icon name="warn" /><span class="grow">{selected.error || t("src.st.failed")}</span></div>
             {:else if tab === "summary"}
-              {#if summaryError}
-                <div class="banner danger"><Icon name="warn" /><span class="grow">{summaryError.message}</span>
-                  {#if summaryError.setup}<button class="btn sm" onclick={() => go("/settings")}>{t("err.open_settings")}</button>{/if}</div>
-              {/if}
-              {#if summarizing === selected.id}
-                {#if partial}<div class="md summary">{@html renderMarkdown(partial)}</div>{/if}
-                <p class="hint"><span class="spinner"></span> {t("meet.writing")}</p>
-              {:else if cur?.summary?.text}
-                <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-                <div class="md summary" onclick={onSummaryClick}>{@html renderMarkdown(cur.summary.text)}</div>
-                <p class="hint">{t("meet.updated", { when: fmtDate(cur.summary.created_at, app.lang), model: cur.summary.model })}
-                  · <button class="link" onclick={summarize}>{t("meet.resummarize")}</button></p>
-              {:else if cur}
-                <div class="empty"><p>{t("tr.no_summary")}</p>
-                  <button class="btn" onclick={summarize}><Icon name="spark" size={14} /> {t("tr.summarize")}</button></div>
-              {/if}
+              {#if cur}<Recap source={cur} onref={openAt} onchange={reloadDetail} />{/if}
             {:else if tab === "transcript"}
               <div class="find-row">
                 <label class="msearch sm grow"><Icon name="search" size={14} />
@@ -454,7 +423,13 @@
                 {/each}
               {/if}
             {:else if tab === "notes"}
-              <div class="empty"><p>{t("meet.notes_soon")}</p></div>
+              {#if cur?.notes?.trim()}
+                <div class="md notes-view">{@html renderMarkdown(cur.notes)}</div>
+                <p class="hint">{t("nt.panel_foot")} · <button class="link" onclick={() => open(selected.id)}>{t("nt.edit_link")}</button></p>
+              {:else if cur}
+                <div class="empty"><p>{t("nt.empty")}</p>
+                  <button class="btn" onclick={() => open(selected.id)}><Icon name="pencil" size={14} /> {t("nt.write")}</button></div>
+              {/if}
             {:else}
               {#each atoms as a (a.id)}
                 <button class="req" class:rejected={a.status === "rejected"} onclick={() => go(`/atoms/atom/${a.id}`)}>
@@ -566,8 +541,7 @@
   .hint { color: var(--text-3); font-size: 12px; margin-top: 14px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
   .link { border: 0; background: none; padding: 0; font: inherit; color: var(--primary); cursor: pointer; }
   .link:hover { text-decoration: underline; }
-  .summary :global(.ref) { color: var(--primary); cursor: pointer; }
-  .summary :global(.ref:hover) { text-decoration: underline; }
+  .notes-view { line-height: 22px; }
   .find-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
   .line { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 10px; padding: 8px 0; line-height: 22px; }
   .lt { color: var(--text-3); font-family: var(--mono); font-size: 12px; padding-top: 1px; }

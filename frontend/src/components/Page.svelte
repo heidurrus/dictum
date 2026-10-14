@@ -5,10 +5,10 @@
   import { app, t, go, toggleInspector, inspectorOn } from "../lib/state.svelte.js";
   import { recordFromShell } from "../lib/capture.svelte.js";
 
-  let { title = "", crumb = "", crumbPath = "", sub = "", inspector = "", record = true, card = true, heading, actions, children } = $props();
+  let { title = "", crumb = "", crumbPath = "", sub = "", inspector = "", record = true, card = true, headClass = "", heading, actions, children } = $props();
 </script>
 
-<header class="page-head toolbar screen-head">
+<header class="page-head toolbar screen-head {headClass}">
   <div class="tb-title">
     {#if crumb}
       <button class="crumb" onclick={() => go(crumbPath)} aria-label={t("shell.back", { name: crumb })} title={t("shell.back", { name: crumb })}>

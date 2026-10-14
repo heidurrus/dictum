@@ -186,3 +186,83 @@ def test_export_writes_dictum_format_and_imports_4x_files(store, tmp_path):
     assert other.import_project(legacy)["name"] == "Онбординг"
     with pytest.raises(StoreError, match="not a Dictum project file"):
         other.import_project(dict(data, format="something-else"))
+
+
+# ── schema v9 (5.0 C3): notes and recap styles ────────────────────────────────
+def _v8_schema():
+    """The DDL as 4.9.3 shipped it: the current schema without the v9 columns."""
+    from core import store as store_mod
+    ddl = store_mod.SCHEMA
+    for new in (" notes TEXT, recap_style TEXT,", ", style TEXT NOT NULL DEFAULT 'brief', through_idx INTEGER"):
+        assert new in ddl
+        ddl = ddl.replace(new, "")
+    return ddl
+
+
+def test_v8_database_migrates_to_v9(tmp_path):
+    import sqlite3
+    root = tmp_path / "lib"
+    root.mkdir()
+    db = sqlite3.connect(str(root / "workbench.db"))
+    db.executescript(_v8_schema())
+    db.execute("INSERT INTO meta VALUES ('schema_version', '8')")
+    db.execute("INSERT INTO projects (id, name, created_at, created_by, updated_at, updated_by) VALUES ('p', 'P', 1, 'ba', 1, 'ba')")
+    db.execute("INSERT INTO sources (id, project_id, kind, title, status, created_at, created_by, updated_at, updated_by) "
+               "VALUES ('s', 'p', 'transcript', 'Звонок', 'ready', 1, 'ba', 1, 'ba')")
+    db.execute("INSERT INTO summaries VALUES ('m1', 's', 'claude', 'claude-opus-5', '## Итоги', 5, 'ba')")
+    db.commit()
+    db.close()
+
+    store = Store(root=str(root), user="ba")
+    store = Store(root=str(root), user="ba")                   # opening twice is harmless (idempotent)
+    with store._conn() as c:
+        scols = {r["name"]: r for r in c.execute("PRAGMA table_info(sources)")}
+        mcols = {r["name"]: r for r in c.execute("PRAGMA table_info(summaries)")}
+        version = c.execute("SELECT value FROM meta WHERE key = 'schema_version'").fetchone()[0]
+    assert {"notes", "recap_style"} <= set(scols) and {"style", "through_idx"} <= set(mcols)
+    assert mcols["style"]["notnull"] == 1 and mcols["style"]["dflt_value"] == "'brief'"
+    assert version == "9"
+    old = store.summaries("s")
+    assert list(old) == ["brief"] and old["brief"]["text"] == "## Итоги" and old["brief"]["through_idx"] is None
+    assert store.notes("s") == ("", None)
+
+
+def test_summary_rows_one_per_style(store):
+    p = store.create_project("P")
+    s = store.create_source(p["id"], "transcript", "Звонок")
+    store.add_summary(s["id"], "claude", "m", "старое")                        # the legacy call: brief
+    store.add_summary(s["id"], "claude", "m", "кратко", style="brief", through_idx=4)
+    store.add_summary(s["id"], "claude", "m", "задачи", style="actions", through_idx=4)
+    rows = store.summaries(s["id"])
+    assert {k: v["text"] for k, v in rows.items()} == {"brief": "кратко", "actions": "задачи"}
+    with store._conn() as c:
+        assert c.execute("SELECT COUNT(*) FROM summaries WHERE source_id = ?", (s["id"],)).fetchone()[0] == 2
+    assert store.latest_summary(s["id"], "brief")["through_idx"] == 4
+    with pytest.raises(StoreError):
+        store.add_summary(s["id"], "claude", "m", "x", style="poem")
+
+
+def test_export_import_carries_notes_and_recap_styles(store, tmp_path):
+    p = store.create_project("Онбординг")
+    s = store.create_source(p["id"], "transcript", "Звонок")
+    store.update_notes(s["id"], lambda _old: "- SLA 2 часа")
+    store.set_recap_style(s["id"], "actions")
+    store.add_summary(s["id"], "claude", "m", "задачи", style="actions", through_idx=3)
+    data = store.export_project(p["id"])
+    assert data["schema"] == 9
+    other = Store(root=str(tmp_path / "other"), user="ba")
+    other.import_project(data)
+    assert other.notes(s["id"]) == ("- SLA 2 часа", "actions")
+    assert other.summaries(s["id"])["actions"]["through_idx"] == 3
+    # A 4.9.3 file has no v9 columns: the summary becomes 'brief', the notes stay empty.
+    legacy = {**data, "schema": 8, "tables": {**data["tables"],
+              "sources": [{k: v for k, v in r.items() if k not in ("notes", "recap_style")} for r in data["tables"]["sources"]],
+              "summaries": [{k: v for k, v in r.items() if k not in ("style", "through_idx")} for r in data["tables"]["summaries"]]}}
+    legacy["tables"]["projects"] = [{**data["tables"]["projects"][0], "id": "p-old"}]
+    for r in legacy["tables"]["sources"]:
+        r.update(id="s-old", project_id="p-old")
+    for r in legacy["tables"]["summaries"]:
+        r.update(id="m-old", source_id="s-old")
+    third = Store(root=str(tmp_path / "third"), user="ba")
+    third.import_project(legacy)
+    assert list(third.summaries("s-old")) == ["brief"] and third.notes("s-old") == ("", None)

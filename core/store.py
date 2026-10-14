@@ -21,7 +21,7 @@ from contextlib import contextmanager
 
 from core.paths import app_data_dir
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 BACKLOG_KINDS = {"epic", "story", "subtask", "nfr"}
 ATOM_TYPES = {"functional", "nfr", "question", "business", "risk", "current"}
 # Stable ID prefix per atom type: FR / NFR / Q, BR (business requirement), RSK (risk), AS (as-is: today's process).
@@ -34,6 +34,7 @@ QUESTION_STATES = {"open", "asked", "answered"}
 JIRA_QUOTES = {"auto", "full", "link", "none"}
 DOC_STATUSES = {"draft", "review", "approved"}
 ACTION_STATUSES = {"open", "done"}
+RECAP_STYLES = ("brief", "bullets", "actions")
 SOURCE_KINDS = {"recording", "audio", "transcript", "document", "email"}
 SOURCE_STATUSES = {"recorded", "processing", "ready", "failed"}
 
@@ -48,7 +49,7 @@ CREATE TABLE IF NOT EXISTS sources (
   kind TEXT NOT NULL, title TEXT NOT NULL, original_filename TEXT,
   status TEXT NOT NULL, error TEXT, duration REAL, speakers INTEGER, asr_model TEXT,
   diarized INTEGER NOT NULL DEFAULT 0, import_format TEXT, audio_file TEXT, text TEXT, words_json TEXT,
-  meta_json TEXT, deleted_at REAL,
+  meta_json TEXT, deleted_at REAL, notes TEXT, recap_style TEXT,
   created_at REAL NOT NULL, created_by TEXT NOT NULL, updated_at REAL NOT NULL, updated_by TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS sources_by_project ON sources(project_id, deleted_at, created_at);
 CREATE TABLE IF NOT EXISTS segments (
@@ -60,7 +61,7 @@ CREATE TABLE IF NOT EXISTS speakers (
 CREATE TABLE IF NOT EXISTS summaries (
   id TEXT PRIMARY KEY, source_id TEXT NOT NULL REFERENCES sources(id),
   provider TEXT NOT NULL, model TEXT NOT NULL, text TEXT NOT NULL,
-  created_at REAL NOT NULL, created_by TEXT NOT NULL);
+  created_at REAL NOT NULL, created_by TEXT NOT NULL, style TEXT NOT NULL DEFAULT 'brief', through_idx INTEGER);
 CREATE INDEX IF NOT EXISTS summaries_by_source ON summaries(source_id, created_at);
 CREATE TABLE IF NOT EXISTS audit_log (
   id TEXT PRIMARY KEY, entity TEXT NOT NULL, entity_id TEXT NOT NULL, action TEXT NOT NULL,
@@ -186,7 +187,10 @@ class Store:
                                        "answer_source TEXT", "origin TEXT")),
                             ("doc_versions", ("status TEXT NOT NULL DEFAULT 'draft'", "status_at REAL", "status_by TEXT")),
                             ("documents", ("kind TEXT", "deleted_at REAL", "decompose INTEGER")),
-                            ("segments", ("original_text TEXT",))):
+                            ("segments", ("original_text TEXT",)),
+                            # v9 (5.0 C3): meeting notes and recap styles, one summary row per style.
+                            ("sources", ("notes TEXT", "recap_style TEXT")),
+                            ("summaries", ("style TEXT NOT NULL DEFAULT 'brief'", "through_idx INTEGER"))):
             have = {r["name"] for r in c.execute(f"PRAGMA table_info({table})")}
             for col in cols:
                 if col.split()[0] not in have:
@@ -583,12 +587,14 @@ class Store:
             self._audit(c, "speaker", f"{source_id}:{label}", "rename",
                         {"name": old["name"] if old else label}, {"name": name or label})
 
-    def transcript_text(self, source_id):
-        """Plain text for summaries, with renamed speakers and timestamps."""
+    def transcript_text(self, source_id, after_idx=None):
+        """Plain text for summaries, with renamed speakers and timestamps (only the lines after `after_idx` if given)."""
         from core.transcripts import format_time
         segs, _ = self.transcript(source_id)
         lines = []
         for s in segs:
+            if after_idx is not None and s["idx"] <= after_idx:
+                continue
             prefix = f"[{s['speaker_name']}] " if s.get("speaker_name") else ""
             if s.get("start") is not None:
                 end = f" - {format_time(s['end'])}" if s.get("end") is not None else ""
@@ -597,21 +603,88 @@ class Store:
         return "\n".join(lines)
 
     # ── summaries ────────────────────────────────────────────────────────────
-    def add_summary(self, source_id, provider, model, text):
+    def add_summary(self, source_id, provider, model, text, style="brief", through_idx=None):
+        """Store the recap of one style; it replaces that style's earlier row (one row per style)."""
+        if style not in RECAP_STYLES:
+            raise StoreError(f"unknown recap style {style}")
         self.get_source(source_id)
         with self._write() as c:
             now, by = self._stamp()
             mid = str(uuid.uuid4())
-            c.execute("INSERT INTO summaries VALUES (?,?,?,?,?,?,?)", (mid, source_id, provider, model, text, now, by))
-            self._audit(c, "summary", mid, "create", after={"source_id": source_id, "provider": provider, "model": model})
+            old = [r["id"] for r in c.execute("SELECT id FROM summaries WHERE source_id = ? AND style = ?", (source_id, style))]
+            c.execute("DELETE FROM summaries WHERE source_id = ? AND style = ?", (source_id, style))
+            c.execute("""INSERT INTO summaries (id, source_id, provider, model, text, created_at, created_by, style, through_idx)
+                         VALUES (?,?,?,?,?,?,?,?,?)""", (mid, source_id, provider, model, text, now, by, style, through_idx))
+            self._audit(c, "summary", mid, "create", after={"source_id": source_id, "provider": provider, "model": model,
+                                                            "style": style, "through_idx": through_idx, "replaces": old})
         return {"id": mid, "source_id": source_id, "provider": provider, "model": model, "text": text,
-                "created_at": now, "created_by": by}
+                "created_at": now, "created_by": by, "style": style, "through_idx": through_idx}
 
-    def latest_summary(self, source_id):
+    def latest_summary(self, source_id, style=None):
+        q, args = "SELECT * FROM summaries WHERE source_id = ?", [source_id]
+        if style:
+            q += " AND style = ?"
+            args.append(style)
         with self._conn() as c:
-            r = c.execute("SELECT * FROM summaries WHERE source_id = ? ORDER BY created_at DESC LIMIT 1",
-                          (source_id,)).fetchone()
+            r = c.execute(q + " ORDER BY created_at DESC LIMIT 1", args).fetchone()
         return dict(r) if r else None
+
+    def summaries(self, source_id):
+        """{style: summary row}: the newest row of each style."""
+        out = {}
+        with self._conn() as c:
+            for r in c.execute("SELECT * FROM summaries WHERE source_id = ? ORDER BY created_at", (source_id,)):
+                out[r["style"]] = dict(r)
+        return out
+
+    def last_segment_idx(self, source_id):
+        with self._conn() as c:
+            r = c.execute("SELECT MAX(idx) AS m FROM segments WHERE source_id = ?", (source_id,)).fetchone()
+        return r["m"]
+
+    # ── meeting notes (5.0 C3) ───────────────────────────────────────────────
+    def notes(self, source_id):
+        """(notes, recap_style) of a source."""
+        with self._conn() as c:
+            r = c.execute("SELECT notes, recap_style, deleted_at FROM sources WHERE id = ?", (source_id,)).fetchone()
+        if r is None or r["deleted_at"]:
+            raise StoreError("source not found")
+        return r["notes"] or "", r["recap_style"]
+
+    NOTES_MAX = 200_000
+    NOTES_COALESCE = 60          # seconds: autosaves within this window update one audit entry
+
+    def update_notes(self, source_id, change, action="notes"):
+        """Set the notes to change(old_text) in one transaction; returns {saved_at, text}.
+        Autosaves ("notes") by the same person within a minute share one audit entry, so typing does not
+        flood the log; every append ("notes_append") is its own entry."""
+        with self._write() as c:
+            r = c.execute("SELECT notes, deleted_at FROM sources WHERE id = ?", (source_id,)).fetchone()
+            if r is None or r["deleted_at"]:
+                raise StoreError("source not found")
+            before = r["notes"] or ""
+            text = change(before)
+            if not isinstance(text, str):
+                raise StoreError("notes must be text")
+            if len(text) > self.NOTES_MAX:
+                raise StoreError("the notes are too long")
+            now, by = self._stamp()
+            c.execute("UPDATE sources SET notes = ?, updated_at = ?, updated_by = ? WHERE id = ?", (text, now, by, source_id))
+            last = c.execute("SELECT id, action, at, by, before_json FROM audit_log WHERE entity = 'source' AND entity_id = ? "
+                             "ORDER BY at DESC LIMIT 1", (source_id,)).fetchone()
+            if (action == "notes" and last and last["action"] == "notes" and last["by"] == by
+                    and now - last["at"] <= self.NOTES_COALESCE):
+                c.execute("UPDATE audit_log SET after_json = ?, at = ? WHERE id = ?",
+                          (json.dumps({"notes": text}, ensure_ascii=False), now, last["id"]))
+            elif text != before:
+                self._audit(c, "source", source_id, action, {"notes": before}, {"notes": text})
+        return {"saved_at": now, "text": text}
+
+    def set_recap_style(self, source_id, style):
+        if style not in RECAP_STYLES:
+            raise StoreError(f"unknown recap style {style}")
+        with self._write() as c:
+            c.execute("UPDATE sources SET recap_style = ? WHERE id = ?", (style, source_id))
 
     # ── audit ────────────────────────────────────────────────────────────────
     def audit(self, entity=None, entity_id=None, limit=200):

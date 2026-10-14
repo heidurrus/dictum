@@ -26,6 +26,7 @@ from flask import Flask, request, jsonify, send_file, send_from_directory
 from core.ffmpeg import ensure_ffmpeg_on_path
 from core import macos_audio, settings
 from core.summarize import SummaryError, summarize
+from core import notes as meeting_notes, summarize as summarize_mod
 from core.atoms import extract_atoms
 from core import backlog, exports, frd, jira, skills, suggest
 from core.atlassian_auth import MCP_URL, AtlassianAuth, AuthError, AuthRequired
@@ -712,8 +713,9 @@ def _run_summary(job_id, text, title, prefs, api_key, source_id=None, project_id
         jobs.fail(job_id, f"Summary failed: {e}")
     else:
         model = model_name(prefs)
-        if source_id:
-            library.add_summary(source_id, prefs["llm_provider"], model, result)
+        if source_id:                                   # the legacy route writes the 'brief' recap over the whole text
+            library.add_summary(source_id, prefs["llm_provider"], model, result, style="brief",
+                                through_idx=library.last_segment_idx(source_id))
         jobs.finish(job_id, {"summary": result, "provider": prefs["llm_provider"], "model": model,
                              "source_id": source_id})
 
@@ -1172,12 +1174,80 @@ def api_source(source_id):
     except StoreError as e:
         return jsonify({"error": str(e)}), 404
     segments, speaker_names = library.transcript(source_id)
+    notes_text, recap_style = library.notes(source_id)
+    summaries = library.summaries(source_id)
+    current = recap_style or "brief"
     return jsonify({**source, "segments": segments, "speaker_names": speaker_names,
                     "text": library.transcript_text(source_id) if segments else "",
-                    "summary": library.latest_summary(source_id),
+                    "notes": notes_text, "recap_style": recap_style,
+                    "summaries": {k: {f: v[f] for f in ("text", "model", "created_at", "through_idx")}
+                                  for k, v in summaries.items()},
+                    # legacy: the summary of the current style, else the newest of any style
+                    "summary": summaries.get(current) or library.latest_summary(source_id),
                     "atom_marks": library.atom_marks(source_id),
                     "audio_url": f"/api/sources/{source_id}/audio" if source.get("audio_file") else None,
                     "audio_files": _audio_files(source)})
+
+
+# ── meeting notes and recap styles (5.0 C3) ──────────────────────────────────
+@app.route("/api/sources/<source_id>/notes", methods=["PUT"])
+def api_save_notes(source_id):
+    text = (request.get_json(silent=True) or {}).get("text")
+    if not isinstance(text, str):
+        return jsonify({"error": "text must be a string"}), 400
+    return _store_call(meeting_notes.save_notes, library, source_id, text)
+
+
+@app.route("/api/sources/<source_id>/notes/append", methods=["POST"])
+def api_append_note(source_id):
+    try:
+        return _store_call(meeting_notes.append_note, library, source_id, (request.get_json(silent=True) or {}).get("line"))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+def _recap_generate(prefs, api_key):
+    """The model call of a recap; the e2e fake server replaces this."""
+    return lambda system, user, on_delta: summarize_mod.generate(system, user, prefs, api_key, OLLAMA_URL, on_delta)
+
+
+def _run_recap(job_id, source_id, style, incremental, prefs, api_key, project):
+    try:
+        row = meeting_notes.recap(library, source_id, style, incremental, _recap_generate(prefs, api_key),
+                                  _skillset(project["id"]), prefs["llm_provider"], model_name(prefs),
+                                  language_rule(project), on_delta=lambda piece: jobs.append_partial(job_id, piece))
+    except (SummaryError, ValueError, StoreError) as e:
+        jobs.fail(job_id, e)
+    except Exception as e:  # unexpected: keep the message, don't crash the worker
+        jobs.fail(job_id, f"Recap failed: {e}")
+    else:
+        jobs.finish(job_id, {"summary": row["text"], "style": style, "model": row["model"], "provider": row["provider"],
+                             "through_idx": row["through_idx"], "incremental": row["incremental"],
+                             "unchanged": row["unchanged"], "source_id": source_id})
+
+
+@app.route("/api/sources/<source_id>/recap", methods=["POST"])
+def api_recap(source_id):
+    """Write or update the recap of one style (brief | bullets | actions) as a job."""
+    data = request.get_json(silent=True) or {}
+    style, incremental = data.get("style") or "brief", bool(data.get("incremental"))
+    if style not in meeting_notes.RECAP_STYLES:
+        return jsonify({"error": f"unknown recap style {style}"}), 400
+    try:
+        source = library.get_source(source_id)
+    except StoreError as e:
+        return jsonify({"error": str(e)}), 404
+    if library.last_segment_idx(source_id) is None:
+        return jsonify({"error": "There is no transcript text to summarise."}), 400
+    project = library.get_project(source["project_id"])
+    prefs, api_key, problem = _ai_prefs(project)
+    if problem:
+        return problem
+    job_id = jobs.create("summarize", source["title"])
+    jobs.set_progress(job_id, 0, "Updating the recap…" if incremental else "Writing the recap…")
+    threading.Thread(target=_run_recap, args=(job_id, source_id, style, incremental, prefs, api_key, project),
+                     daemon=True).start()
+    return jsonify({"job_id": job_id, "job": job_id})
 
 
 @app.route("/api/sources/<source_id>/segments/<int:idx>", methods=["PATCH"])
@@ -1198,8 +1268,17 @@ def api_consent():
 @app.route("/api/sources/<source_id>", methods=["PATCH"])
 def api_update_source(source_id):
     data = request.get_json(silent=True) or {}
-    if set(data) - {"title"}:
-        return jsonify({"error": "only the title can be changed here"}), 400
+    if set(data) - {"title", "recap_style"}:
+        return jsonify({"error": "only the title and the recap style can be changed here"}), 400
+    if "recap_style" in data:                       # the style chosen on the meeting page (5.0 C3)
+        style = data.pop("recap_style")
+        try:
+            library.get_source(source_id)
+            library.set_recap_style(source_id, style)
+        except StoreError as e:
+            return jsonify({"error": str(e)}), 404 if "not found" in str(e) else 400
+        if not data:
+            return jsonify({**library.get_source(source_id), "recap_style": style})
     return _store_call(library.update_source, source_id, **data)
 
 
