@@ -18,9 +18,9 @@ APP_LABEL = "requirements-workbench"
 ORDER = {"epic": 0, "story": 1, "nfr": 2, "subtask": 3}
 TEXT = {
     "ru": {"ac": "Критерии приёмки", "given": "Дано", "when": "когда", "then": "тогда", "source": "Источник",
-           "section": "раздел", "goal": "Бизнес-цель", "made": "Создано в Requirements Workbench"},
+           "section": "раздел", "goal": "Бизнес-цель", "made": "Создано в Dictum"},
     "en": {"ac": "Acceptance criteria", "given": "Given", "when": "when", "then": "then", "source": "Source",
-           "section": "section", "goal": "Business goal", "made": "Created in Requirements Workbench"},
+           "section": "section", "goal": "Business goal", "made": "Created in Dictum"},
 }
 
 

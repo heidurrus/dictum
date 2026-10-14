@@ -345,7 +345,7 @@ def test_language_rule_reaches_extraction_and_jira(store):
     rows = [r["item_id"] for r in jira.plan(store, pid, j)["rows"] if r["action"] == "create"]
     jira.push(store, pid, j, rows)
     story = next(i for i in j.issues.values() if i["fields"]["issuetype"]["name"] == "Story")
-    assert "**Acceptance criteria**" in story["fields"]["description"] and "Created in Requirements Workbench" in story["fields"]["description"]
+    assert "**Acceptance criteria**" in story["fields"]["description"] and "Created in Dictum" in story["fields"]["description"]
 
 
 def test_project_language_is_validated(store):

@@ -175,3 +175,14 @@ def test_sources_cut_off_by_a_restart_can_be_transcribed_again(store):
     assert store.get_source(done["id"])["status"] == "ready"
     assert any(e["action"] == "interrupted" for e in store.audit("source", rec["id"]))
     assert store.reset_stale_processing() == 0
+
+
+def test_export_writes_dictum_format_and_imports_4x_files(store, tmp_path):
+    p = store.create_project("Онбординг")
+    data = store.export_project(p["id"])
+    assert data["format"] == "dictum-project"
+    other = Store(root=str(tmp_path / "other"), user="ba")
+    legacy = dict(data, format="requirements-workbench-project")   # what 4.x wrote
+    assert other.import_project(legacy)["name"] == "Онбординг"
+    with pytest.raises(StoreError, match="not a Dictum project file"):
+        other.import_project(dict(data, format="something-else"))

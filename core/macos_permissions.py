@@ -11,7 +11,7 @@ import threading
 # AVAuthorizationStatus
 NOT_DETERMINED, RESTRICTED, DENIED, AUTHORIZED = 0, 1, 2, 3
 
-DENIED_MESSAGE = ("microphone access is off for Requirements Workbench. Turn it on in "
+DENIED_MESSAGE = ("microphone access is off for Dictum. Turn it on in "
                   "System Settings → Privacy & Security → Microphone, then record again")
 
 

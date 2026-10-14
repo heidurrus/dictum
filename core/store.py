@@ -135,6 +135,9 @@ SOURCE_FIELDS = ("id", "project_id", "kind", "title", "original_filename", "stat
                  "created_at", "created_by", "updated_at", "updated_by")
 
 
+# Project export format ids: 4.9+ writes the first; files exported by 4.x still import.
+PROJECT_FORMATS = ("dictum-project", "requirements-workbench-project")
+
 class StoreError(ValueError):
     """A request the store refuses (unknown id, duplicate name, …)."""
 
@@ -620,7 +623,7 @@ class Store:
     def export_project(self, project_id):
         """Every row of the project (and its audit trail) as plain data; audio files are added by the caller."""
         self.get_project(project_id)
-        out = {"format": "requirements-workbench-project", "schema": SCHEMA_VERSION, "tables": {}}
+        out = {"format": "dictum-project", "schema": SCHEMA_VERSION, "tables": {}}
         with self._conn() as c:
             for table, where in self._EXPORT_TABLES:
                 out["tables"][table] = [dict(r) for r in c.execute(f"SELECT * FROM {table} WHERE {where}", (project_id,))]
@@ -637,8 +640,8 @@ class Store:
 
     def import_project(self, data):
         """Load an exported project. Refused if a project with the same id already exists here."""
-        if not isinstance(data, dict) or data.get("format") != "requirements-workbench-project":
-            raise StoreError("this is not a Requirements Workbench project file")
+        if not isinstance(data, dict) or data.get("format") not in PROJECT_FORMATS:
+            raise StoreError("this is not a Dictum project file")
         tables = data.get("tables") or {}
         [project] = tables.get("projects") or [None]
         if not project:

@@ -17,7 +17,7 @@ import uuid
 from core.recorder import SAMPLE_RATE
 from core.resample import StreamResampler
 
-DEVICE_NAME = "Requirements Workbench System Audio"
+DEVICE_NAME = "Dictum System Audio"
 MIN_MACOS = (14, 2)
 BLOCK = 1024
 
