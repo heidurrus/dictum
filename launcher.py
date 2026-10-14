@@ -105,6 +105,8 @@ def start(slot, browser_mode, app_module=None, detect_hw=detect, plan_factory=bu
         if instance.IDENTITY_PATH not in {r.rule for r in module.app.url_map.iter_rules()}:
             instance.register_identity_route(module.app)
         slot.serve(module.app)
+        if hasattr(module, "start_background"):      # Шепнуть reminders (5.0 C7): only while the app runs
+            module.start_background()
 
     if not missing:
         launch_app()

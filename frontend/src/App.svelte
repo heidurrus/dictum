@@ -15,10 +15,11 @@
   import Export from "./screens/Export.svelte";
   import Library from "./screens/Library.svelte";
   import Ask from "./screens/Ask.svelte";
-  import Soon from "./screens/Soon.svelte";
+  import Whisper from "./screens/Whisper.svelte";
   import { api, setProgressTranslator, setLangSource, setJobStartedHook } from "./lib/api.js";
   import { actionFor } from "./lib/hotkeys.js";
   import { recordFromShell } from "./lib/capture.svelte.js";
+  import { toggleWhisper } from "./lib/whisper.svelte.js";
   import { progressText } from "./lib/progress.js";
   import { app, t, go, loadProjects, loadSources, setLang, applyTheme, setTheme, isDark, loadStatus, undoLast, toggleInspector, jobsTick } from "./lib/state.svelte.js";
 
@@ -59,7 +60,11 @@
       go("/ask");
       requestAnimationFrame(() => window.dispatchEvent(new CustomEvent("dictum:ask-focus")));   // the composer
     }
-    else if (action === "whisper") { e.preventDefault(); go("/whisper"); }
+    else if (action === "whisper") {      // go to Шепнуть and start listening; pressed again while listening, stop
+      e.preventDefault();
+      go("/whisper");
+      toggleWhisper();
+    }
     else if (/^nav\d$/.test(action)) {
       const path = RAIL_PATHS[Number(action.slice(3)) - 1];
       if (path) { e.preventDefault(); app.palette = false; go(path); }
@@ -124,7 +129,7 @@
         {:else if app.route.name === "ask"}
           {#key app.currentProjectId}<Ask />{/key}
         {:else if app.route.name === "whisper"}
-          <Soon title={t("nav.whisper")} icon="mic" />
+          <Whisper />
         {/if}
       </div>
     </main>
