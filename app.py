@@ -1,3 +1,4 @@
+import datetime
 import functools
 import io
 import json
@@ -26,7 +27,7 @@ from core.ffmpeg import ensure_ffmpeg_on_path
 from core import live as live_mod, live_atoms as live_atoms_mod, macos_audio, settings
 from core.summarize import SummaryError, summarize
 from core import notes as meeting_notes, summarize as summarize_mod
-from core import ask as ask_mod, live_questions as live_questions_mod
+from core import ask as ask_mod, live_questions as live_questions_mod, whisper as whisper_mod
 from core.atoms import extract_atoms
 from core import backlog, exports, frd, jira, materials, skills, suggest
 from core import index as local_index
@@ -628,6 +629,8 @@ def desktop_record_start():
     mic_index = data.get("mic_device")  # sounddevice index or None for default
     if _recorder is not None and _recorder.recording:
         return jsonify({"error": "A recording is already in progress"}), 409
+    if _whisper_listening():
+        return jsonify({"error": WHISPER_BUSY, "busy": "whisper"}), 409
     opts = None
     if data.get("model"):
         opts, error = _transcription_options(data)
@@ -642,6 +645,8 @@ def desktop_record_start():
     with _recorder_lock:
         if _recorder is not None and _recorder.recording:
             return jsonify({"error": "A recording is already in progress"}), 409
+        if _whisper_listening():
+            return jsonify({"error": WHISPER_BUSY, "busy": "whisper"}), 409
         title = (data.get("title") or "").strip()            # localised by the UI
         source = library.create_source(library.current_project()["id"], "recording",
                                        title or "Recording " + time.strftime("%d.%m.%Y %H:%M"), status="recording")
@@ -776,6 +781,261 @@ def desktop_record_stop():
     if job_id:
         response.headers["X-Job-Id"] = job_id
     return response
+
+
+# ── Шепнуть: the personal voice inbox (5.0 C7) ───────────────────────────────
+# One recorder at a time: a whisper is refused while a meeting records, and a meeting while a whisper does. The
+# capture (core/whisper.py) records the microphone only, through the meeting recorder, into <data>/whispers/<id>/.
+_whisper = {"capture": None, "opts": None, "lang": "ru"}
+_whisper_finish_lock = threading.Lock()
+_reminders = None
+WHISPER_BUSY = "A whisper is being recorded: finish it first."
+MEETING_BUSY = "A meeting is being recorded: a whisper can start once it stops."
+WHISPER_AUDIO = re.compile(r"^[\w-]+/mic\.wav$")
+
+
+def _whisper_listening():
+    cap = _whisper.get("capture")
+    return cap is not None and cap.recording
+
+
+def _whisper_live_asr(opts):
+    """The live words' speech model (the meeting's live pass, loaded in its own thread), or None when live mode is
+    off or the model is not installed: then the words appear after the stop."""
+    if not settings.load_settings().get("live_transcription", True):
+        return None
+    if not opts or not _asr_installed(opts["model_name"]):
+        return None
+    return lambda: live_mod.GigaAMAsr(get_model, opts["model_name"], opts["device"])
+
+
+def _new_whisper_capture(mic, opts):
+    """The capture for one whisper; the e2e fake server replaces this."""
+    return whisper_mod.Capture(mic, live_asr=_whisper_live_asr(opts))
+
+
+def _whisper_final_text(path, opts):
+    """The final GigaAM pass on the whisper's mic.wav: transcribe_longform when diarization's VAD is available (an HF
+    token), else the short-form pass on pieces cut at pauses (a whisper is at most 90 s). The e2e fake replaces this."""
+    import wave
+    import numpy as np
+    opts = opts or {"model_name": "v3_e2e_rnnt", "device": "cpu"}
+    if not _asr_installed(opts["model_name"]):
+        raise RuntimeError("Download the speech model in Settings first.")
+    model = get_model(opts["model_name"], opts["device"])
+    if hf_token:
+        try:
+            return " ".join(s["text"].strip() for s in longform.transcribe_longform(model, path) if s["text"].strip())
+        finally:
+            longform.release_device_memory(model._device)
+    with wave.open(path, "rb") as r:
+        samples = np.frombuffer(r.readframes(r.getnframes()), dtype="<i2")
+    pieces = [p for _, p in live_mod.split_at_pauses(samples) if live_mod.has_speech(p) is not None]
+    if not pieces:
+        return ""
+    texts = live_mod.GigaAMAsr(get_model, opts["model_name"], opts["device"]).transcribe(pieces)
+    return " ".join(t.strip() for t in texts if t and t.strip())
+
+
+def _whisper_complete(prefs, api_key):
+    """The model call of the parse; the e2e fake server replaces this."""
+    from core.llm import complete_json
+    return lambda system, user, schema: complete_json(system, user, schema, prefs, api_key, OLLAMA_URL)
+
+
+def _whisper_context():
+    projects = library.list_projects()
+    current = library.current_project()
+    labels = [lb["name"] for lb in library.list_labels(current["id"])]
+    return projects, current, labels
+
+
+def _parse_whisper(transcript, lang):
+    """(items, error, needs_setup): the configured provider (a "Только локально" current project stays local); with no
+    provider ready, the transcript as one note and the setup error."""
+    projects, current, labels = _whisper_context()
+    now = datetime.datetime.now()
+    prefs, api_key, problem = _ai_prefs(current)
+    if problem:
+        body, _code = problem
+        return whisper_mod.fallback_items(transcript, now, projects, current["id"], labels), body.get_json()["error"], True
+    try:
+        items = whisper_mod.parse(transcript, _whisper_complete(prefs, api_key), now, lang, projects, current["id"],
+                                  labels, skillset=_skillset(current["id"]))
+        return items, None, False
+    except Exception as e:                # the words are kept whatever the model does
+        job_log.exception("Whisper parse failed")
+        return whisper_mod.fallback_items(transcript, now, projects, current["id"], labels), str(e), False
+
+
+@app.route("/api/whispers/record/start", methods=["POST"])
+def api_whisper_start():
+    """Start listening: the microphone only, the same device choice as meetings; no consent sheet (it is the BA's own
+    voice), the same microphone permission."""
+    data = request.get_json(silent=True) or {}
+    with _recorder_lock:
+        if _recorder is not None and _recorder.recording:
+            return jsonify({"error": MEETING_BUSY, "busy": "meeting"}), 409
+        if _whisper_listening():
+            return jsonify({"error": "Already listening.", "busy": "whisper"}), 409
+    opts = None
+    if data.get("model"):
+        opts, error = _transcription_options(data)
+        if error:
+            return jsonify({"error": error}), 400
+    mic_ok, mic_reason = microphone_access()
+    if not mic_ok:
+        return jsonify({"error": mic_reason or MIC_NO_AUDIO, "permission": "microphone"}), 403
+    with _recorder_lock:
+        if _recorder is not None and _recorder.recording:
+            return jsonify({"error": MEETING_BUSY, "busy": "meeting"}), 409
+        if _whisper_listening():
+            return jsonify({"error": "Already listening.", "busy": "whisper"}), 409
+        capture = _new_whisper_capture(_mic_source(data.get("mic_device")), opts)
+        capture.start()
+        _whisper.update(capture=capture, opts=opts, lang=request.args.get("lang") or data.get("lang") or "ru")
+    return jsonify({"ok": True, "id": capture.id, "live": capture.live is not None, "max_seconds": capture.max_seconds})
+
+
+@app.route("/api/whispers/live")
+def api_whisper_live():
+    """{recording, text (the provisional words so far), elapsed, stopped_by}."""
+    cap = _whisper.get("capture")
+    if cap is None:
+        return jsonify({"recording": False, "text": "", "elapsed": 0, "stopped_by": None, "id": None})
+    return jsonify(cap.status())
+
+
+@app.route("/api/whispers/record/stop", methods=["POST"])
+def api_whisper_stop():
+    """Stop (or pick up a whisper that stopped itself), run the final speech pass and the parse. Nothing is saved:
+    → {transcript, items, duration, audio_file}. A second call returns the same answer."""
+    cap = _whisper.get("capture")
+    if cap is None:
+        return jsonify({"error": "Not listening."}), 409
+    with _whisper_finish_lock:
+        if cap.finished is not None:
+            return jsonify(cap.finished)
+        result = cap.stop("button")
+        mic = result.get("mic")
+        if not mic:
+            error = (result.get("errors") or {}).get("mic") or MIC_NO_AUDIO
+            return jsonify({"error": error, "duration": 0}), 400
+        lang = _whisper.get("lang") or "ru"
+        try:
+            transcript = _whisper_final_text(mic, _whisper.get("opts")) or ""
+            asr_error = None
+        except Exception as e:            # the live words, if any, still say what was said
+            job_log.exception("Whisper speech recognition failed")
+            transcript, asr_error = "", str(e)
+        transcript = " ".join((transcript or cap.words.text).split())
+        if not transcript:
+            body = {"transcript": "", "items": [], "duration": cap.duration(), "audio_file": cap.audio_file,
+                    "error": asr_error, "empty": asr_error is None}
+            cap.finished = body
+            return jsonify(body)
+        items, error, needs_setup = _parse_whisper(transcript, lang)
+        body = {"transcript": transcript, "items": items, "duration": cap.duration(), "audio_file": cap.audio_file,
+                "stopped_by": cap.stopped_by, "error": error, "needs_setup": needs_setup,
+                "asr_model": (_whisper.get("opts") or {}).get("model_name")}
+        cap.finished = body
+    return jsonify(body)
+
+
+def _whisper_payload(w, names=None):
+    names = names if names is not None else {p["id"]: p["name"] for p in library.list_projects(include_archived=True)}
+    return {**w, "project_name": names.get(w["project_id"])}
+
+
+def _due_value(d):
+    """due_at as epoch seconds from a body: `due_at` (a number or null) or `due` (ISO-8601, local unless an offset)."""
+    if "due_at" in d:
+        return d["due_at"] if d["due_at"] in (None, "") else float(d["due_at"])
+    due = whisper_mod.parse_iso(d.get("due"), datetime.datetime.now())
+    return due.timestamp() if due else None
+
+
+@app.route("/api/whispers", methods=["POST"])
+def api_whispers_save():
+    """Save the items of one utterance: one row per item, all with the same transcript and audio."""
+    d = request.get_json(silent=True) or {}
+    audio = d.get("audio_file") or None
+    if audio is not None and not WHISPER_AUDIO.match(str(audio)):
+        return jsonify({"error": "unknown audio file"}), 400
+    try:
+        items = [{**i, "due_at": _due_value(i)} for i in d.get("items") or [] if isinstance(i, dict)]
+        rows = library.add_whispers(items, d.get("transcript"), audio)
+    except (StoreError, ValueError, TypeError) as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify({"items": [_whisper_payload(w) for w in rows], "open": library.open_whispers()})
+
+
+@app.route("/api/whispers")
+def api_whispers_list():
+    """The inbox, whatever project is current: ?filter=all|open|task|note|remind|idea&q=."""
+    try:
+        rows = library.list_whispers(request.args.get("filter") or "all", request.args.get("q"))
+    except StoreError as e:
+        return jsonify({"error": str(e)}), 400
+    names = {p["id"]: p["name"] for p in library.list_projects(include_archived=True)}
+    return jsonify({"items": [_whisper_payload(w, names) for w in rows], "open": library.open_whispers()})
+
+
+@app.route("/api/whispers/<whisper_id>", methods=["PATCH"])
+def api_whisper_update(whisper_id):
+    d = request.get_json(silent=True) or {}
+    changes = {k: d[k] for k in ("kind", "title", "text", "done", "project_id") if k in d}
+    try:
+        if "due_at" in d or "due" in d:
+            changes["due_at"] = _due_value(d)
+        w = library.update_whisper(whisper_id, **changes)
+    except StoreError as e:
+        return jsonify({"error": str(e)}), 404 if "not found" in str(e) else 400
+    except (ValueError, TypeError) as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify({**_whisper_payload(w), "open": library.open_whispers()})
+
+
+@app.route("/api/whispers/<whisper_id>", methods=["DELETE"])
+def api_whisper_delete(whisper_id):
+    """Soft: the row and its audio stay; POST …/restore undoes it."""
+    return _store_call(lambda: {**library.delete_whisper(whisper_id), "open": library.open_whispers()})
+
+
+@app.route("/api/whispers/<whisper_id>/restore", methods=["POST"])
+def api_whisper_restore(whisper_id):
+    return _store_call(lambda: {**_whisper_payload(library.delete_whisper(whisper_id, restore=True)),
+                                "open": library.open_whispers()})
+
+
+@app.route("/api/whispers/<whisper_id>/to-question", methods=["POST"])
+def api_whisper_to_question(whisper_id):
+    """A Q atom in the given, else the linked, else the current project, quoting the transcript."""
+    d = request.get_json(silent=True) or {}
+    try:
+        w = library.get_whisper(whisper_id)
+        pid = d.get("project_id") or None
+        if not pid and w["project_id"]:
+            try:
+                pid = library.get_project(w["project_id"])["id"]
+            except StoreError:            # the linked project is gone: the soft link points nowhere
+                pid = None
+        pid = pid or library.current_project()["id"]
+        out = whisper_mod.to_question(library, w, pid)
+    except StoreError as e:
+        return jsonify({"error": str(e)}), 404 if "not found" in str(e) else 400
+    _index_after(pid, is_source=False)
+    project = library.get_project(pid)
+    return jsonify({**out, "project_name": project["name"], "whisper": _whisper_payload(out["whisper"])})
+
+
+def start_background():
+    """Started with the app (launcher), not on import: the reminder check every 30 s (spec C7, A6: only while the
+    app runs)."""
+    global _reminders
+    if _reminders is None:
+        _reminders = whisper_mod.ReminderScheduler(library, lambda title, text: notify(title, text)).start()
+    return _reminders
 
 
 def ollama_reachable(timeout=0.5):
