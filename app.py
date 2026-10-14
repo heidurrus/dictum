@@ -891,9 +891,10 @@ def api_whisper_start():
             return jsonify({"error": MEETING_BUSY, "busy": "meeting"}), 409
         if _whisper_listening():
             return jsonify({"error": "Already listening.", "busy": "whisper"}), 409
+        _whisper.update(opts=opts, lang=request.args.get("lang") or data.get("lang") or "ru")
         capture = _new_whisper_capture(_mic_source(data.get("mic_device")), opts)
         capture.start()
-        _whisper.update(capture=capture, opts=opts, lang=request.args.get("lang") or data.get("lang") or "ru")
+        _whisper["capture"] = capture
     return jsonify({"ok": True, "id": capture.id, "live": capture.live is not None, "max_seconds": capture.max_seconds})
 
 
