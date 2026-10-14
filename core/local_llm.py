@@ -102,6 +102,22 @@ MODELS = [
 ]
 MODELS_BY_ID = {m.id: m for m in MODELS}
 
+# The index's embedding model (5.0 C5, spec §9 A3): multilingual, run by a second llama-server with
+# `--embedding --pooling last`. From the official Qwen/Qwen3-Embedding-0.6B-GGUF repo (not unsloth), Q8_0.
+EMBED_MODELS = [
+    Model("qwen3-embedding-0.6b", "Qwen3 Embedding 0.6B", "Qwen3-Embedding-0.6B-Q8_0.gguf",
+          Asset(_hf("Qwen/Qwen3-Embedding-0.6B-GGUF", "370f27d7550e0def9b39c1f16d3fbaa13aa67728",
+                    "Qwen3-Embedding-0.6B-Q8_0.gguf"),
+                "06507c7b42688469c4e7298b0a1e16deff06caf291cf0a5b278c308249c3e439", 639150592),
+          min_ram_gb=4, context=8192, gpu_gb=1),
+]
+EMBED_MODELS_BY_ID = {m.id: m for m in EMBED_MODELS}
+
+
+def _any_model(model_id):
+    """A chat model or an embedding model by id (both download and run the same way)."""
+    return MODELS_BY_ID.get(model_id) or EMBED_MODELS_BY_ID.get(model_id)
+
 IDLE_STOP_SECONDS = 15 * 60
 START_TIMEOUT_SECONDS = 240
 DISK_MARGIN = 1 * 1024 ** 3
@@ -284,11 +300,11 @@ def server_binary():
 
 
 def model_file(model_id):
-    return os.path.join(models_path(), MODELS_BY_ID[model_id].file)
+    return os.path.join(models_path(), _any_model(model_id).file)
 
 
 def model_installed(model_id):
-    m = MODELS_BY_ID.get(model_id)
+    m = _any_model(model_id)
     return bool(m) and os.path.isfile(model_file(model_id)) and os.path.getsize(model_file(model_id)) == m.asset.size
 
 
@@ -300,10 +316,15 @@ def ready():
     return server_binary() is not None and bool(installed_models())
 
 
+def installed_embed_models():
+    return [m.id for m in EMBED_MODELS if model_installed(m.id)]
+
+
 def delete_model(model_id):
-    if model_id not in MODELS_BY_ID:
+    if _any_model(model_id) is None:
         raise LocalModelError("unknown model")
     runtime.stop_if(model_id)
+    embed_runtime.stop_if(model_id)
     for path in (model_file(model_id), model_file(model_id) + ".part"):
         if os.path.exists(path):
             os.remove(path)
@@ -399,14 +420,14 @@ class Installer:
             self.state = {**self.state, **kw}
 
     def start(self, model_id):
-        if model_id not in MODELS_BY_ID:
+        if _any_model(model_id) is None:
             raise LocalModelError("unknown model")
         if engine_asset() is None:
             raise LocalModelError("The built-in model isn't available for this computer. Use Claude or Ollama.")
         with self._lock:
             if self.state.get("status") in ("downloading", "verifying"):
                 return dict(self.state)
-        model = MODELS_BY_ID[model_id]
+        model = _any_model(model_id)
         need = (0 if server_binary() else engine_asset().size) + (0 if model_installed(model_id) else model.asset.size)
         partial = model_file(model_id) + ".part"
         need -= os.path.getsize(partial) if os.path.exists(partial) else 0
@@ -455,8 +476,11 @@ def _gb(n):
 
 # ── running the server ───────────────────────────────────────────────────────
 
-def _pid_file():
-    return os.path.join(root_dir(), "server.pid")
+SERVERS = ("server", "embed-server")     # the chat model's llama-server and the index's (5.0 C5)
+
+
+def _pid_file(name="server"):
+    return os.path.join(root_dir(), f"{name}.pid")
 
 
 def _is_our_server(pid, port):
@@ -478,14 +502,21 @@ def _is_our_server(pid, port):
 
 
 def cleanup_stale():
-    """Stop a server left behind by a crash or force-quit, which would otherwise hold gigabytes of memory."""
+    """Stop servers left behind by a crash or force-quit, which would otherwise hold gigabytes of memory."""
+    stopped = False
+    for name in SERVERS:
+        stopped = _cleanup_one(name) or stopped
+    return stopped
+
+
+def _cleanup_one(name):
     try:
-        with open(_pid_file(), encoding="utf-8") as f:
+        with open(_pid_file(name), encoding="utf-8") as f:
             pid, port = (int(x) for x in f.read().split())
     except (OSError, ValueError):
         return False
     try:
-        os.remove(_pid_file())
+        os.remove(_pid_file(name))
     except OSError:
         pass
     if pid == os.getpid() or not _is_our_server(pid, port):
@@ -508,9 +539,12 @@ def _free_port():
 
 
 class Runtime:
-    """Starts llama-server on demand and stops it when idle or at exit."""
+    """Starts llama-server on demand and stops it when idle or at exit. `embedding`: the index's own instance
+    (`--embedding --pooling last`, its own port, pid file and log), so the chat model and the index never evict
+    each other."""
 
-    def __init__(self, idle_seconds=IDLE_STOP_SECONDS, clock=time.monotonic):
+    def __init__(self, idle_seconds=IDLE_STOP_SECONDS, clock=time.monotonic, name="server", embedding=False):
+        self.name, self.embedding = name, embedding
         self._lock = threading.RLock()
         self._proc = None
         self._model = None
@@ -528,13 +562,14 @@ class Runtime:
             return self._model if self._proc and self._proc.poll() is None else None
 
     def log_path(self):
-        return os.path.join(root_dir(), "server.log")
+        return os.path.join(root_dir(), f"{self.name}.log")
 
     def acquire(self, model_id):
         """Make sure the server runs the model; returns (base_url, api_key). Pair with release()."""
         with self._lock:
             if not model_installed(model_id):
-                raise LocalModelError("The local model isn't downloaded yet. Download it in Settings → AI.")
+                raise LocalModelError("The index model isn't downloaded yet." if self.embedding else
+                                      "The local model isn't downloaded yet. Download it in Settings → AI.")
             binary = server_binary()
             if not binary:
                 raise LocalModelError("The local engine isn't installed yet. Download the model in Settings → AI.")
@@ -551,17 +586,21 @@ class Runtime:
             self._last_used = self._clock()
 
     def _start_locked(self, binary, model_id):
-        model = MODELS_BY_ID[model_id]
+        model = _any_model(model_id)
         port, key = _free_port(), secrets.token_urlsafe(24)
         cmd = [binary, "-m", model_file(model_id), "--host", "127.0.0.1", "--port", str(port),
-               "--api-key", key, "--no-webui", "-c", str(model.context), "-np", "1",
-               "--reasoning", "off", "--jinja"]
+               "--api-key", key, "--no-webui", "-c", str(model.context)]
+        if self.embedding:
+            # One physical batch holds a whole input; a chunk is ~800 characters, far below this.
+            cmd += ["--embedding", "--pooling", "last", "-b", "2048", "-ub", "2048"]
+        else:
+            cmd += ["-np", "1", "--reasoning", "off", "--jinja"]
         log = open(self.log_path(), "w", encoding="utf-8", errors="replace")
         flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         self._proc = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
                                       cwd=os.path.dirname(binary), creationflags=flags)
         log.close()
-        with open(_pid_file(), "w", encoding="utf-8") as f:
+        with open(_pid_file(self.name), "w", encoding="utf-8") as f:
             f.write(f"{self._proc.pid} {port}")
         self._url, self._key, self._model = f"http://127.0.0.1:{port}", key, model_id
         deadline = time.monotonic() + START_TIMEOUT_SECONDS
@@ -596,7 +635,7 @@ class Runtime:
         proc, self._proc, self._model = self._proc, None, None
         if proc:
             try:
-                os.remove(_pid_file())
+                os.remove(_pid_file(self.name))
             except OSError:
                 pass
         if proc and proc.poll() is None:
@@ -627,6 +666,7 @@ def _tail(path, lines=3):
 
 
 runtime = Runtime()
+embed_runtime = Runtime(name="embed-server", embedding=True)
 installer = Installer()
 
 
@@ -646,6 +686,9 @@ def status():
         "models": [{"id": m.id, "label": m.label, "size": m.asset.size, "min_ram_gb": m.min_ram_gb,
                     "installed": model_installed(m.id), "recommended": m.id == recommended,
                     "fits": _fits_ram(m, ram), "speed": speed(m, gpu)} for m in MODELS],
+        "embed_running": embed_runtime.running_model(),
+        "embed_models": [{"id": m.id, "label": m.label, "size": m.asset.size, "installed": model_installed(m.id)}
+                         for m in EMBED_MODELS],
     }
 
 

@@ -139,6 +139,13 @@ CREATE TABLE IF NOT EXISTS labels (
 CREATE TABLE IF NOT EXISTS material_labels (
   source_id TEXT NOT NULL REFERENCES sources(id), label_id TEXT NOT NULL REFERENCES labels(id),
   assigned_by TEXT NOT NULL, score REAL, PRIMARY KEY (source_id, label_id));
+CREATE TABLE IF NOT EXISTS material_chunks (
+  id TEXT PRIMARY KEY, source_id TEXT NOT NULL REFERENCES sources(id), idx INTEGER NOT NULL, text TEXT NOT NULL,
+  embedding BLOB);
+CREATE INDEX IF NOT EXISTS chunks_by_source ON material_chunks(source_id, idx);
+CREATE TABLE IF NOT EXISTS source_embeddings (
+  entity TEXT NOT NULL, entity_id TEXT NOT NULL, idx INTEGER NOT NULL, text TEXT NOT NULL, embedding BLOB,
+  PRIMARY KEY (entity, entity_id, idx));
 """
 
 PROJECT_FIELDS = ("id", "name", "local_only", "archived", "language", "jira_quotes", "auto_extract",
@@ -207,7 +214,10 @@ class Store:
                             # v9 part 2 (5.0 C4.1): lines from the live pass while recording, replaced on stop.
                             ("segments", ("provisional INTEGER NOT NULL DEFAULT 0",)),
                             # v9 part 3 (5.0 C4.2): atoms found while recording, and evidence the final pass lost.
-                            ("atoms", ("live INTEGER NOT NULL DEFAULT 0", "stale_evidence INTEGER NOT NULL DEFAULT 0"))):
+                            ("atoms", ("live INTEGER NOT NULL DEFAULT 0", "stale_evidence INTEGER NOT NULL DEFAULT 0")),
+                            # v9 part 5 (5.0 C5 index): a deleted label that still holds removal tombstones is kept
+                            # hidden, so recreating it by name never puts back what the BA took off.
+                            ("labels", ("deleted_at REAL",))):
             have = {r["name"] for r in c.execute(f"PRAGMA table_info({table})")}
             for col in cols:
                 if col.split()[0] not in have:
@@ -1036,7 +1046,7 @@ class Store:
             labels = self._material_labels(c, [r["id"] for r in rows])
         return [self._material_row(r, labels[r["id"]]) for r in rows]
 
-    # ── labels (5.0 C5; assigning by meaning comes with the index) ───────────
+    # ── labels (5.0 C5; assigning by meaning is core/index.py) ───────────────
     _LABEL_FIELDS = ("id", "project_id", "name", "color", "created_at")
 
     def list_labels(self, project_id):
@@ -1044,39 +1054,143 @@ class Store:
         with self._conn() as c:
             rows = c.execute("""SELECT l.*, (SELECT COUNT(*) FROM material_labels ml JOIN sources s ON s.id = ml.source_id
                                   WHERE ml.label_id = l.id AND ml.assigned_by != 'removed' AND s.deleted_at IS NULL) AS count
-                                FROM labels l WHERE l.project_id = ? ORDER BY l.created_at, l.rowid""", (project_id,)).fetchall()
+                                FROM labels l WHERE l.project_id = ? AND l.deleted_at IS NULL
+                                ORDER BY l.created_at, l.rowid""", (project_id,)).fetchall()
         return [{**{k: r[k] for k in self._LABEL_FIELDS}, "count": r["count"]} for r in rows]
 
     def get_label(self, label_id):
         with self._conn() as c:
-            r = c.execute("SELECT * FROM labels WHERE id = ?", (label_id,)).fetchone()
+            r = c.execute("SELECT * FROM labels WHERE id = ? AND deleted_at IS NULL", (label_id,)).fetchone()
         if r is None:
             raise StoreError("label not found")
         return {k: r[k] for k in self._LABEL_FIELDS}
 
     def create_label(self, project_id, name, color=None):
+        """A new label, or the deleted one of that name brought back with its removal tombstones."""
         name = " ".join((name or "").split())[:60]
         if not name:
             raise StoreError("the label needs a name")
         self.get_project(project_id)
         with self._write() as c:
-            have = c.execute("SELECT name FROM labels WHERE project_id = ?", (project_id,)).fetchall()
-            if any(r["name"].casefold() == name.casefold() for r in have):
+            have = c.execute("SELECT id, name, deleted_at FROM labels WHERE project_id = ?", (project_id,)).fetchall()
+            same = [r for r in have if r["name"].casefold() == name.casefold()]
+            if same and not same[0]["deleted_at"]:
                 raise StoreError(f"a label named {name!r} already exists")
             now, _by = self._stamp()
-            lid = str(uuid.uuid4())
-            color = color or LABEL_COLORS[len(have) % len(LABEL_COLORS)]
-            c.execute("INSERT INTO labels (id, project_id, name, color, created_at) VALUES (?,?,?,?,?)",
-                      (lid, project_id, name, color, now))
-            self._audit(c, "label", lid, "create", after={"project_id": project_id, "name": name, "color": color})
+            if same:
+                lid = same[0]["id"]
+                c.execute("UPDATE labels SET name = ?, deleted_at = NULL, centroid = NULL, created_at = ? WHERE id = ?",
+                          (name, now, lid))
+                self._audit(c, "label", lid, "restore", after={"project_id": project_id, "name": name})
+            else:
+                lid = str(uuid.uuid4())
+                color = color or LABEL_COLORS[len(have) % len(LABEL_COLORS)]
+                c.execute("INSERT INTO labels (id, project_id, name, color, created_at) VALUES (?,?,?,?,?)",
+                          (lid, project_id, name, color, now))
+                self._audit(c, "label", lid, "create", after={"project_id": project_id, "name": name, "color": color})
         return {**self.get_label(lid), "count": 0}
 
     def delete_label(self, label_id):
+        """Takes the label off every material. If the BA had removed it from some materials, the label is kept
+        hidden with those tombstones, so a label recreated with the same name does not land there again."""
         label = self.get_label(label_id)
         with self._write() as c:
-            c.execute("DELETE FROM material_labels WHERE label_id = ?", (label_id,))
-            c.execute("DELETE FROM labels WHERE id = ?", (label_id,))
+            c.execute("DELETE FROM material_labels WHERE label_id = ? AND assigned_by != 'removed'", (label_id,))
+            if c.execute("SELECT 1 FROM material_labels WHERE label_id = ?", (label_id,)).fetchone():
+                c.execute("UPDATE labels SET deleted_at = ?, centroid = NULL WHERE id = ?", (self._clock(), label_id))
+            else:
+                c.execute("DELETE FROM labels WHERE id = ?", (label_id,))
             self._audit(c, "label", label_id, "delete", before=label)
+
+    def label_members(self, label_id):
+        """{source_id: assigned_by} of every live material that carries the label (tombstones left out)."""
+        with self._conn() as c:
+            return {r["source_id"]: r["assigned_by"] for r in c.execute(
+                """SELECT ml.source_id, ml.assigned_by FROM material_labels ml JOIN sources s ON s.id = ml.source_id
+                   WHERE ml.label_id = ? AND ml.assigned_by != 'removed' AND s.deleted_at IS NULL""", (label_id,))}
+
+    def label_rows(self, project_id):
+        """{(source_id, label_id): assigned_by} for the project, tombstones included (auto runs read them)."""
+        with self._conn() as c:
+            return {(r["source_id"], r["label_id"]): r["assigned_by"] for r in c.execute(
+                "SELECT ml.source_id, ml.label_id, ml.assigned_by FROM material_labels ml JOIN labels l ON l.id = ml.label_id "
+                "WHERE l.project_id = ?", (project_id,))}
+
+    def set_label_centroid(self, label_id, blob):
+        with self._write() as c:
+            c.execute("UPDATE labels SET centroid = ? WHERE id = ?", (blob, label_id))
+
+    def label_centroids(self, project_id):
+        """[(label_id, centroid blob)] of the project's live labels that have one."""
+        with self._conn() as c:
+            return [(r["id"], r["centroid"]) for r in c.execute(
+                "SELECT id, centroid FROM labels WHERE project_id = ? AND deleted_at IS NULL AND centroid IS NOT NULL "
+                "ORDER BY created_at, rowid", (project_id,))]
+
+    # ── the index's vectors (5.0 C5): float32 little-endian BLOBs, written by core/index.py ──
+    def material_chunks(self, source_id):
+        """[{idx, text, embedding}] of a material, in order."""
+        with self._conn() as c:
+            return [dict(r) for r in c.execute("SELECT idx, text, embedding FROM material_chunks WHERE source_id = ? "
+                                               "ORDER BY idx", (source_id,))]
+
+    def set_material_chunks(self, source_id, chunks):
+        """Replace a material's chunks with [(text, embedding blob)]."""
+        with self._write() as c:
+            c.execute("DELETE FROM material_chunks WHERE source_id = ?", (source_id,))
+            c.executemany("INSERT INTO material_chunks (id, source_id, idx, text, embedding) VALUES (?,?,?,?,?)",
+                          [(str(uuid.uuid4()), source_id, i, text, blob) for i, (text, blob) in enumerate(chunks)])
+
+    def project_chunks(self, project_id):
+        """[(source_id, embedding blob)] of every embedded chunk of the project's live materials, grouped by material."""
+        with self._conn() as c:
+            return [(r["source_id"], r["embedding"]) for r in c.execute(
+                """SELECT mc.source_id, mc.embedding FROM material_chunks mc JOIN sources s ON s.id = mc.source_id
+                   WHERE s.project_id = ? AND s.deleted_at IS NULL AND s.kind = 'material' AND mc.embedding IS NOT NULL
+                   ORDER BY mc.source_id, mc.idx""", (project_id,))]
+
+    def embeddings(self, entity, entity_id):
+        """{idx: {text, embedding}} stored for one meeting ("segment") or atom ("atom")."""
+        with self._conn() as c:
+            return {r["idx"]: {"text": r["text"], "embedding": r["embedding"]} for r in c.execute(
+                "SELECT idx, text, embedding FROM source_embeddings WHERE entity = ? AND entity_id = ?", (entity, entity_id))}
+
+    def set_embeddings(self, entity, entity_id, rows):
+        """Replace what is stored for one entity with [(idx, text, embedding blob)]."""
+        with self._write() as c:
+            c.execute("DELETE FROM source_embeddings WHERE entity = ? AND entity_id = ?", (entity, entity_id))
+            c.executemany("INSERT INTO source_embeddings (entity, entity_id, idx, text, embedding) VALUES (?,?,?,?,?)",
+                          [(entity, entity_id, idx, text, blob) for idx, text, blob in rows])
+
+    def drop_embeddings_except(self, entity, keep_ids, project_id):
+        """Forget the vectors of this project's meetings ("segment") or atoms ("atom") that are no longer indexed."""
+        table = "atoms" if entity == "atom" else "sources"
+        with self._write() as c:
+            gone = [r[0] for r in c.execute(f"SELECT id FROM {table} WHERE project_id = ?", (project_id,))
+                    if r[0] not in keep_ids]
+            c.executemany("DELETE FROM source_embeddings WHERE entity = ? AND entity_id = ?", [(entity, i) for i in gone])
+
+    def used_in(self, source_id):
+        """"Где используется": atoms whose evidence quotes the material, and documents whose latest version cites
+        those atoms."""
+        with self._conn() as c:
+            m = c.execute("SELECT project_id FROM sources WHERE id = ?", (source_id,)).fetchone()
+            if m is None:
+                raise StoreError("material not found")
+            atoms = [dict(r) for r in c.execute(
+                """SELECT a.id, a.type, a.statement, a.status FROM atoms a WHERE a.deleted_at IS NULL AND a.id IN
+                   (SELECT atom_id FROM evidence WHERE source_id = ?) ORDER BY a.created_at, a.rowid""", (source_id,))]
+            docs = c.execute("SELECT id, title FROM documents WHERE project_id = ? AND deleted_at IS NULL "
+                             "ORDER BY created_at, rowid", (m["project_id"],)).fetchall()
+        rids = self.known_requirement_ids(m["project_id"])
+        for a in atoms:
+            a["rid"] = rids.get(a["id"], {}).get(ATOM_PREFIX[a["type"]])
+        ids, documents = {a["id"] for a in atoms}, []
+        for d in docs if ids else []:
+            v = self.version(d["id"])
+            if v and ids & set(v["snapshot"]):
+                documents.append({"id": d["id"], "title": d["title"], "version": v["number"]})
+        return {"atoms": atoms, "documents": documents}
 
     @staticmethod
     def _label_pair(c, source_id, label_id):
@@ -1084,7 +1198,7 @@ class Store:
                       "WHERE s.id = ?", (source_id,)).fetchone()
         if m is None or m["deleted_at"]:
             raise StoreError("material not found")
-        lab = c.execute("SELECT project_id FROM labels WHERE id = ?", (label_id,)).fetchone()
+        lab = c.execute("SELECT project_id FROM labels WHERE id = ? AND deleted_at IS NULL", (label_id,)).fetchone()
         if lab is None:
             raise StoreError("label not found")
         if lab["project_id"] != m["project_id"]:
@@ -1146,7 +1260,9 @@ class Store:
         out = {"format": "dictum-project", "schema": SCHEMA_VERSION, "tables": {}}
         with self._conn() as c:
             for table, where in self._EXPORT_TABLES:
-                out["tables"][table] = [dict(r) for r in c.execute(f"SELECT * FROM {table} WHERE {where}", (project_id,))]
+                # vectors (labels.centroid) are not JSON and are rebuilt by the index on the other machine
+                out["tables"][table] = [{k: (None if isinstance(v, bytes) else v) for k, v in dict(r).items()}
+                                        for r in c.execute(f"SELECT * FROM {table} WHERE {where}", (project_id,))]
         out["audit"] = [dict(r) for r in self._audit_rows_for(project_id)]
         return out
 
