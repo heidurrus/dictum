@@ -12,7 +12,7 @@ from contextlib import contextmanager
 
 import anthropic
 
-from core import local_llm
+from core import local_llm, usage
 
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 MODELS_WITH_DEFAULT_FALLBACKS = {"claude-opus-5"}
@@ -120,6 +120,7 @@ def _claude_json(system, user, schema, model, api_key, client=None, max_tokens=C
         # Streaming: extraction output can be long, and streaming avoids request timeouts.
         with client.beta.messages.stream(**params) as stream:
             message = stream.get_final_message()
+    usage.record("llm_cloud", *usage.claude_tokens(message))
     if message.stop_reason == "refusal":
         raise LLMError("Claude declined to process this text.")
     if message.stop_reason == "max_tokens":
@@ -148,6 +149,7 @@ def _ollama_json(system, user, schema, model, url, opener=urllib.request.urlopen
         raise LLMError(f"Ollama error ({e.code}): {detail[:200]}")
     except (urllib.error.URLError, ConnectionError, TimeoutError):
         raise LLMError("Ollama isn't running. Start the Ollama app, or choose Claude in Settings.")
+    usage.record("llm_local", reply.get("prompt_eval_count"), reply.get("eval_count"))
     content = re.sub(r"<think>.*?</think>", "", (reply.get("message") or {}).get("content", ""), flags=re.S)
     try:
         return json.loads(content)
@@ -166,6 +168,7 @@ def _local_json(system, user, schema, model_id, opener=None):
             reply = json.loads(resp.read())
     except local_llm.LocalModelError as e:
         raise LLMError(str(e))
+    usage.record("llm_local", *usage.openai_tokens(reply))
     choice = (reply.get("choices") or [{}])[0]
     if choice.get("finish_reason") == "length":
         raise LLMError("The local model's answer was cut off; try a shorter source.")

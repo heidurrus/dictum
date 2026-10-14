@@ -100,6 +100,8 @@ def transcribe_chunks(model, chunks, batch_size=16, progress=None, word_timestam
             done += len(batch)
             if progress:
                 progress(done, len(chunks))
+    from core import usage
+    usage.record("asr", seconds=usage.audio_seconds(chunks))   # every pass: files, channels, live windows, whispers
     return results
 
 
