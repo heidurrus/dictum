@@ -1,5 +1,7 @@
 // Live session (spec 5.0 C4.1, C4.2): record from Встречи → the meeting page opens at once with the audio pill →
-// provisional lines appear → a requirement found on the fly appears with the "1 новое" tag → accept it with its
+// provisional lines appear → with `live_questions` on, the question card answers the question heard from a material
+// "в контексте" and "Добавить в заметки" puts it into the notes → a requirement found on the fly appears with the
+// "1 новое" tag → accept it with its
 // checkbox → pause shows the paused state → resume → stop → the final transcript replaces the provisional lines,
 // the meeting is processed and the accepted requirement is listed under "Требования из встречи".
 // Runs once per interface language.
@@ -12,18 +14,41 @@ const L = {
   ru: { locale: "ru-RU", heading: "Встречи", record: "Записать встречу", consent: "Да, записывать", recording: "Идёт запись",
         pause: "Пауза", resume: "Продолжить", stop: "Завершить и расшифровать", listening: "Слушаю…",
         paused: "На паузе — звук не пишется", title: /^Встреча /, ready: "Разобран",
-        liveReqs: "Требования на лету", newOne: "1 новое", reqs: "Требования из встречи" },
+        liveReqs: "Требования на лету", newOne: "1 новое", reqs: "Требования из встречи",
+        qTitle: "В разговоре прозвучал вопрос", qAdd: "Добавить в заметки", qNote: "- Вопрос: ", qAnswer: "Статус утверждает руководитель" },
   en: { locale: "en-US", heading: "Meetings", record: "Record a meeting", consent: "Yes, record", recording: "Recording",
         pause: "Pause", resume: "Resume", stop: "Stop and transcribe", listening: "Listening…",
         paused: "Paused: no audio is being recorded", title: /^Meeting /, ready: "Processed",
-        liveReqs: "Requirements on the fly", newOne: "1 new", reqs: "Requirements from the meeting" },
+        liveReqs: "Requirements on the fly", newOne: "1 new", reqs: "Requirements from the meeting",
+        qTitle: "A question came up in the call", qAdd: "Add to notes", qNote: "- Question: ", qAnswer: "Статус утверждает руководитель" },
 };
-const LIVE = ["Давайте начнём с заявок дилеров", "Заявки дублируются почти каждый день", "Проверяем дубли по VIN и телефону"];
+const QUESTION = "А кто утверждает изменение статуса заявки дилера?";
+const LIVE = ["Давайте начнём с заявок дилеров", "Заявки дублируются почти каждый день", "Проверяем дубли по VIN и телефону", QUESTION];
+const MATERIAL = { title: "Регламент v2", text: "Изменение статуса заявки дилера утверждает руководитель отдела или его заместитель." };
 const FINAL = "Нужна выгрузка отчёта в Excel";
 const LIVE_REQ = "Проверять дубли заявок по VIN и телефону";
 
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 const errors = [];
+
+// The question card (C4.3) is off by default: turn it on through /settings, and give the current project a material
+// "в контексте" that answers the scripted question, indexed by the fake index.
+{
+  const ctx = await browser.newContext();
+  const req = ctx.request;
+  const on = await (await req.post(base + "/settings", { data: { live_questions: true } })).json();
+  if (on.live_questions !== true) throw new Error("live_questions did not turn on: " + JSON.stringify(on));
+  const { current_project_id: pid } = await (await req.get(base + "/api/projects")).json();
+  await req.post(`${base}/api/projects/${pid}/materials`, { data: MATERIAL });
+  const { job_id } = await (await req.post(`${base}/api/projects/${pid}/index`, { data: {} })).json();
+  for (let i = 0; job_id; i++) {
+    const job = await (await req.get(`${base}/job/${job_id}`)).json();
+    if (job.status === "done") break;
+    if (job.status === "error" || i > 200) throw new Error("index job: " + JSON.stringify(job));
+    await new Promise(r => setTimeout(r, 100));
+  }
+  await ctx.close();
+}
 for (const [lang, s] of Object.entries(L)) {
   const ctx = await browser.newContext({ locale: s.locale, viewport: { width: 1440, height: 900 } });
   const page = await ctx.newPage();
@@ -51,8 +76,24 @@ for (const [lang, s] of Object.entries(L)) {
 
   await page.locator(".listening.on", { hasText: s.listening }).waitFor();
   for (const text of LIVE) await page.locator(".live-row.provisional", { hasText: text }).waitFor({ timeout: 8000 });
-  if (await page.locator(".live-row").count() !== 3) throw new Error("live rows: " + await page.locator(".live-row").count());
-  step("three provisional lines appear while recording, ending with Слушаю…");
+  if (await page.locator(".live-row").count() !== 4) throw new Error("live rows: " + await page.locator(".live-row").count());
+  step("four provisional lines appear while recording, ending with Слушаю…");
+
+  const card = page.locator(".q-card", { hasText: s.qTitle });
+  await card.waitFor({ timeout: 10000 });
+  const cardText = await card.textContent();
+  if (!cardText.includes(QUESTION) || !cardText.includes(s.qAnswer) || !cardText.includes(MATERIAL.title))
+    throw new Error("question card: " + cardText);
+  await card.getByRole("button", { name: s.qAdd }).click();
+  await card.waitFor({ state: "detached" });
+  const line = `${s.qNote}${QUESTION}`;
+  await page.waitForFunction(l => document.querySelector("textarea.notes-editor")?.value.includes(l), line);
+  const withNote = await json(`/api/sources/${id}`);
+  if (!(withNote.notes || "").includes(line) || !(withNote.notes || "").includes(`(${MATERIAL.title})`))
+    throw new Error("notes: " + withNote.notes);
+  await page.waitForTimeout(2500);                       // two more polls: the dismissed card does not come back
+  if (await page.locator(".q-card").count()) throw new Error("the question card came back");
+  step("the question card answers the question from the material; Добавить в заметки puts the line into the notes");
 
   const block = page.locator(".live-atoms");
   await block.locator("h2", { hasText: s.liveReqs }).waitFor();
