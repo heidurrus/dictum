@@ -299,6 +299,33 @@ svg { flex: none; }
 .witem .m { color: var(--text-3); font-size: 12px; margin-top: 2px; display: flex; gap: 8px; flex-wrap: wrap; }
 .witem .m .due { color: var(--danger); font-weight: 500; } .witem .m .due.ok { color: var(--ok); }
 
+
+/* ---------- Library: labels and graph ---------- */
+.lbl { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; border-radius: 12px; font-size: 13px; color: var(--text-2); cursor: pointer; }
+.lbl:hover { background: var(--surface-2); } .lbl.on { background: var(--secondary-c); color: var(--on-secondary-c); }
+.lbl i { width: 10px; height: 10px; border-radius: 50%; flex: none; } .lbl .n { margin-left: auto; color: var(--text-3); font-size: 12px; }
+.newlbl { display: flex; gap: 6px; padding: 6px 4px; }
+.newlbl input { flex: 1; min-width: 0; height: 32px; border-radius: 10px; border: 0; background: var(--surface-2); padding: 0 10px; outline: none; }
+.newlbl input:focus { box-shadow: 0 0 0 2px var(--primary); }
+.graph { position: relative; flex: 1; min-height: 0; overflow: hidden; border-radius: 0 0 24px 24px; background: radial-gradient(circle at 50% 40%, var(--surface-2), transparent 70%); }
+.graph svg { width: 100%; height: 100%; }
+.graph .edge { stroke: var(--outline); stroke-width: 1.5; opacity: .7; }
+.graph .edge.hot { stroke: var(--primary); stroke-width: 2.5; opacity: 1; }
+.graph .node { cursor: pointer; }
+.graph .node circle { stroke: var(--surface); stroke-width: 3; transition: r .15s; }
+.graph .node:hover circle { r: 22; }
+.graph .node.on circle { stroke: var(--primary); stroke-width: 4; }
+.graph .node text { font: 500 11px var(--font); fill: var(--text-2); pointer-events: none; }
+.graph .node.on text { fill: var(--text); font-weight: 600; }
+.graph .node .k { font: 700 9px var(--mono); fill: #fff; text-anchor: middle; dominant-baseline: central; }
+.gtools { position: absolute; right: 12px; top: 12px; display: flex; gap: 6px; }
+.gtools button { width: 32px; height: 32px; border-radius: 10px; background: var(--surface); box-shadow: var(--shadow-1); display: grid; place-items: center; color: var(--text-2); font-weight: 600; }
+.glegend { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--text-2); background: var(--surface); padding: 6px 10px; border-radius: 10px; box-shadow: var(--shadow-1); }
+.glegend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+.related { display: grid; gap: 4px; }
+.related .r { display: flex; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 10px; cursor: pointer; font-size: 13px; }
+.related .r:hover { background: var(--surface-2); } .related .r .pct { margin-left: auto; color: var(--text-3); font-size: 12px; }
+
 /* ---------- Ask ---------- */
 .ask { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; height: 100%; }
 .chat { display: flex; flex-direction: column; min-height: 0; }
@@ -478,13 +505,18 @@ const WHISPERS = [
   { id: 5, kind: "task", text: "Проверить, что Jira-токен не протух перед выгрузкой бэклога", when: "Вчера", due: "вчера", done: true, project: "Портал дилера" },
   { id: 6, kind: "task", text: "Купить переходник USB-C для диктофона", when: "Раньше", due: "", done: true, project: "" },
 ];
+const LABELS = [["заявки", "#0B57D0"], ["регламент", "#5B45C9"], ["SLA", "#0A6D66"], ["процесс", "#B0471B"], ["архитектура", "#9A3A9E"], ["стратегия", "#1E8E3E"], ["as-is", "#6A5A36"], ["воркшоп", "#8F5200"]];
+const LCOLOR = n => (LABELS.find(l => l[0] === n) || [, "#75767F"])[1];
+// Similarity between materials (embeddings, computed locally). The graph's edges and "related" lists come from here.
+const RELATED = [[2, 5, .72], [2, 3, .64], [2, 10, .58], [3, 10, .55], [4, 2, .51], [4, 5, .47], [6, 9, .43], [6, 10, .41], [9, 4, .33], [5, 10, .31]];
+const relatedTo = id => RELATED.filter(([a, b]) => a === id || b === id).map(([a, b, w]) => [a === id ? b : a, w]).sort((x, y) => y[1] - x[1]);
 const WKIND = { task: ["Задача", "check"], note: ["Заметка", "edit"], remind: ["Напоминание", "bell"], idea: ["Идея", "bolt"] };
 
 /* ---------- State ---------- */
 const S = {
   page: "meetings", theme: localStorage.getItem("wb5.theme") || "", onb: 0, tut: 0,
   sel: 1, tab: "summary", q: "", sort: "new",
-  file: 2, view: "list", kind: "all", fq: "",
+  file: 2, view: "list", kind: "all", fq: "", lsel: "", newLabel: null, gz: 1,
   paused: false, secs: 1935, qcard: true, notes: "- Дубли заявок: VIN + телефон\n- SLA 2 часа (!)\n- Кто утверждает статус? → уточнить у Олега\n- История изменений",
   perms: { mic: true, sys: false, notif: false }, model: "35b", dl: 0, disc: { 1: true, 2: true, 3: false },
   setsec: "models", ctxOnly: true, toast: "",
@@ -649,48 +681,83 @@ function pageSession() {
 function pageLibrary() {
   const KINDS = [["all", "lib", "Все материалы"], ["file", "doc", "Файлы"], ["url", "link", "Ссылки"], ["note", "edit", "Заметки"]];
   const KLABEL = { file: "Файл", url: "Ссылка", note: "Заметка" };
-  let files = FILES.filter(f => (S.kind === "all" || f.kind === S.kind) && (!S.fq || f.name.toLowerCase().includes(S.fq.toLowerCase())));
+  let files = FILES.filter(f => (S.kind === "all" || f.kind === S.kind) && (!S.lsel || f.labels.includes(S.lsel)) && (!S.fq || f.name.toLowerCase().includes(S.fq.toLowerCase())));
   const f = FILES.find(x => x.id === S.file) || FILES[0];
   const count = k => k === "all" ? FILES.length : FILES.filter(x => x.kind === k).length;
+  const lcount = l => FILES.filter(x => x.labels.includes(l)).length;
   const linkTo = b => /^(FR|BR|NFR|AS|Q|RSK)-/.test(b) ? "requirements" : "meetings";
+  const tag = l => `<span class="tag" style="background:${LCOLOR(l)}1f;color:${LCOLOR(l)}">${l}</span>`;
+  const views = `<div class="seg"><button class="${S.view === "list" ? "on" : ""}" onclick="S.view='list';render()">${ic("list", 16)}</button><button class="${S.view === "grid" ? "on" : ""}" onclick="S.view='grid';render()">${ic("grid", 16)}</button><button class="${S.view === "graph" ? "on" : ""}" onclick="S.view='graph';render()" title="Граф связей">${ic("tree", 16)}</button></div>`;
+  const body = S.view === "list" ? html`<div class="scroll grow"><table class="ftable"><thead><tr><th>Имя</th><th>Метки</th><th>Изменён</th><th>Размер</th><th>Контекст</th></tr></thead><tbody>
+        ${files.map(x => `<tr class="${S.file === x.id ? "on" : ""}" onclick="S.file=${x.id};render()"><td><span class="fname"><span class="fico ${x.ext}">${x.ext.toUpperCase()}</span><span class="trunc">${x.name}</span></span></td>
+          <td style="white-space:nowrap">${x.labels.map(tag).join(" ")}</td><td class="t2" style="white-space:nowrap">${x.changed}</td><td class="t2 num" style="white-space:nowrap">${x.size}</td><td><span class="cb ${x.ctx ? "on" : ""}" onclick="event.stopPropagation();FILES.find(y=>y.id===${x.id}).ctx=!${x.ctx};render()">${x.ctx ? ic("check", 14) : ""}</span></td></tr>`).join("")}</tbody></table>
+        ${files.length ? "" : `<div class="empty">Ничего не найдено</div>`}
+        <div class="drop">Перетащите сюда .docx, .pdf, .md, ссылку или текст — файл проиндексируется локально, метки назначатся сами. Аудио добавляйте во Встречах</div></div>`
+    : S.view === "grid" ? html`<div class="scroll grow"><div class="grid">${files.map(x => `<div class="fcard ${S.file === x.id ? "on" : ""}" onclick="S.file=${x.id};render()"><span class="fico ${x.ext}">${x.ext.toUpperCase()}</span><div class="name">${x.name}</div><div class="meta">${KLABEL[x.kind]} · ${x.changed}</div><div style="display:flex;gap:4px;flex-wrap:wrap">${x.labels.map(tag).join("")}</div><div class="ctx"><span class="cb ${x.ctx ? "on" : ""}">${x.ctx ? ic("check", 14) : ""}</span>В контексте ИИ</div></div>`).join("")}</div></div>`
+    : graphView(files);
   return html`
-  ${head("Материалы", "Документы, ссылки и заметки, которые вы принесли в проект. ИИ цитирует их в требованиях и в «Спросить»", html`
+  ${head("Материалы", "Документы, ссылки и заметки проекта · индекс и метки считаются на этом Mac", html`
     <label class="search">${ic("search", 18)}<input placeholder="Искать в материалах" value="${S.fq}" oninput="S.fq=this.value;render();this.focus();this.setSelectionRange(99,99)"></label>
     <button class="btn filled">${ic("plus", 18)} Добавить</button>`)}
   <div class="body library">
     <div class="card tree scroll" id="t-tree">
       ${KINDS.map(([k, i, l]) => `<div class="node ${S.kind === k ? "on" : ""}" onclick="S.kind='${k}';render()">${ic(i, 18)}${l}<span class="n">${count(k)}</span></div>`).join("")}
       <div class="sec">Метки</div>
-      ${["заявки", "регламент", "SLA", "процесс", "архитектура", "стратегия"].map(l => `<div class="node sub">#${l}</div>`).join("")}
-      <div class="sec">Папка проекта</div>
-      <div class="vault">${ic("folder", 22)}<div><b>Портал дилера</b>~/RequirementsWorkbench/…</div></div>
-      <div class="node sub" onclick="toast('Папка показана в Finder')">${ic("finder", 16)}Показать в Finder</div>
-      <div class="node sub" onclick="toast('Открыто в Obsidian')">${ic("link", 16)}Открыть в Obsidian</div>
+      ${LABELS.map(([l, c]) => `<div class="lbl ${S.lsel === l ? "on" : ""}" onclick="S.lsel=S.lsel==='${l}'?'':'${l}';render()"><i style="background:${c}"></i>${l}<span class="n">${lcount(l)}</span></div>`).join("")}
+      ${S.newLabel === null ? `<div class="lbl" style="color:var(--primary)" onclick="S.newLabel='';render();setTimeout(()=>document.getElementById('nl')?.focus(),0)">${ic("plus", 14)} Создать метку</div>`
+        : `<form class="newlbl" onsubmit="event.preventDefault();createLabel(this.nl.value)"><input id="nl" name="nl" placeholder="Название" value="${S.newLabel}" oninput="S.newLabel=this.value"><button class="btn sm filled" type="submit">Создать и назначить</button></form>
+           <div class="t3" style="font-size:11px;padding:0 10px 6px">Метка появится у материалов, которые ей соответствуют по смыслу, — проверьте и поправьте</div>`}
     </div>
     <div class="card files">
-      <div class="addrow"><button class="btn sm">${ic("upload", 16)} Файлы</button><button class="btn sm">${ic("link", 16)} Ссылка</button><button class="btn sm">${ic("clip", 16)} Вставить текст</button><button class="btn sm">${ic("folder", 16)} Импорт папки</button>
-        <span class="grow"></span><div class="seg"><button class="${S.view === "list" ? "on" : ""}" onclick="S.view='list';render()">${ic("list", 16)}</button><button class="${S.view === "grid" ? "on" : ""}" onclick="S.view='grid';render()">${ic("grid", 16)}</button></div></div>
-      <div class="scroll grow">
-      ${S.view === "list" ? html`<table class="ftable"><thead><tr><th>Имя</th><th>Метки</th><th>Изменён</th><th>Размер</th><th>Контекст</th></tr></thead><tbody>
-        ${files.map(x => `<tr class="${S.file === x.id ? "on" : ""}" onclick="S.file=${x.id};render()"><td><span class="fname"><span class="fico ${x.ext}">${x.ext.toUpperCase()}</span><span class="trunc">${x.name}</span></span></td>
-          <td style="white-space:nowrap">${x.labels.map(l => `<span class="tag">${l}</span>`).join(" ")}</td><td class="t2" style="white-space:nowrap">${x.changed}</td><td class="t2 num" style="white-space:nowrap">${x.size}</td><td><span class="cb ${x.ctx ? "on" : ""}" onclick="event.stopPropagation();FILES.find(y=>y.id===${x.id}).ctx=!${x.ctx};render()">${x.ctx ? ic("check", 14) : ""}</span></td></tr>`).join("")}</tbody></table>`
-      : html`<div class="grid">${files.map(x => `<div class="fcard ${S.file === x.id ? "on" : ""}" onclick="S.file=${x.id};render()"><span class="fico ${x.ext}">${x.ext.toUpperCase()}</span><div class="name">${x.name}</div><div class="meta">${KLABEL[x.kind]} · изменён ${x.changed}</div><div class="ctx"><span class="cb ${x.ctx ? "on" : ""}">${x.ctx ? ic("check", 14) : ""}</span>В контексте ИИ</div></div>`).join("")}</div>`}
-      ${files.length ? "" : `<div class="empty">Ничего не найдено</div>`}
-      <div class="drop">Перетащите сюда .docx, .pdf, .md, ссылку или текст — файл попадёт в папку проекта и проиндексируется локально. Аудио добавляйте во Встречах</div>
-      </div>
+      <div class="addrow"><button class="btn sm">${ic("upload", 16)} Файлы</button><button class="btn sm">${ic("link", 16)} Ссылка</button><button class="btn sm">${ic("clip", 16)} Вставить текст</button><button class="btn sm">${ic("folder", 16)} Импорт папки</button><span class="grow"></span>${views}</div>
+      ${body}
     </div>
     <div class="card panel">
-      <div class="panel-head"><h2 class="trunc">${f.name}</h2><div class="meta"><span class="fico ${f.ext}" style="width:22px;height:22px;font-size:8px">${f.ext.toUpperCase()}</span><span>${KLABEL[f.kind]}</span><span>${f.size}</span></div></div>
+      <div class="panel-head"><h2 class="trunc">${f.name}</h2><div class="meta"><span class="fico ${f.ext}" style="width:22px;height:22px;font-size:8px">${f.ext.toUpperCase()}</span><span>${KLABEL[f.kind]}</span><span>${f.size}</span><span>· ${f.changed}</span></div></div>
       <div class="panel-body scroll preview">
         <div class="doc">${f.preview.replace(/\n/g, "<br>")}</div>
-        <dl class="kv"><dt>Путь</dt><dd class="mono trunc">Материалы/${f.name}.${f.ext}</dd><dt>Добавлен</dt><dd>${f.imported}</dd><dt>Изменён</dt><dd>${f.changed}</dd><dt>Метки</dt><dd>${f.labels.map(l => `<span class="tag">${l}</span>`).join(" ")} <button class="chip sm">+ метка</button></dd></dl>
+        <dl class="kv"><dt>Метки</dt><dd style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">${f.labels.map(tag).join("")} <button class="chip sm" onclick="S.newLabel='';render();setTimeout(()=>document.getElementById('nl')?.focus(),0)">+ метка</button></dd><dt>Добавлен</dt><dd>${f.imported}</dd></dl>
         <div class="row" style="border-top:1px solid var(--outline-2)"><div class="l"><b>Включать в контекст ИИ</b><small>Извлечение и «Спросить» смогут цитировать этот файл</small></div><span class="switch ${f.ctx ? "on" : ""}" onclick="FILES.find(y=>y.id===${f.id}).ctx=!${f.ctx};render()"></span></div>
+        <div class="links"><h4>Похожие материалы · ${relatedTo(f.id).length}</h4><div class="related">${relatedTo(f.id).map(([id, w]) => { const r = FILES.find(x => x.id === id); return `<div class="r" onclick="S.file=${id};render()"><span class="fico ${r.ext}" style="width:22px;height:22px;font-size:8px">${r.ext.toUpperCase()}</span><span class="trunc">${r.name}</span><span class="pct">${Math.round(w * 100)}%</span></div>`; }).join("") || `<div class="t3" style="font-size:13px">Пока ничего похожего</div>`}</div></div>
         <div class="links"><h4>Где используется · ${f.back.length}</h4>${f.back.length ? f.back.map(b => `<div class="link" onclick="go('${linkTo(b)}')">${ic(linkTo(b) === "requirements" ? "req" : "meet", 14)}<span class="wl">${b}</span></div>`).join("") : `<div class="t3" style="font-size:13px">Пока ни одно требование не ссылается сюда</div>`}</div>
       </div>
       <div class="panel-foot"><button class="btn tonal">${ic("edit", 16)} Открыть</button><button class="btn">${ic("finder", 16)} Показать в Finder</button><button class="icon-btn" title="Ещё">${ic("more")}</button></div>
     </div>
   </div>`;
 }
+// Force layout, deterministic: a few hundred iterations on render is plenty for a dozen nodes.
+function layout(ids) {
+  const n = ids.length, pos = ids.map((id, i) => ({ id, x: 300 + 180 * Math.cos(i * 2.4), y: 230 + 150 * Math.sin(i * 2.4) }));
+  const at = Object.fromEntries(pos.map(p => [p.id, p]));
+  for (let it = 0; it < 300; it++) {
+    for (const a of pos) for (const b of pos) if (a !== b) { const dx = a.x - b.x, dy = a.y - b.y, d = Math.max(30, Math.hypot(dx, dy)); const k = 6000 / (d * d); a.x += dx / d * k; a.y += dy / d * k; }
+    for (const [a, b, w] of RELATED) if (at[a] && at[b]) { const dx = at[b].x - at[a].x, dy = at[b].y - at[a].y, d = Math.hypot(dx, dy) || 1, k = (d - (240 - 120 * w)) * .02; at[a].x += dx / d * k; at[a].y += dy / d * k; at[b].x -= dx / d * k; at[b].y -= dy / d * k; }
+    for (const p of pos) { p.x += (300 - p.x) * .006; p.y += (230 - p.y) * .006; p.x = Math.max(70, Math.min(530, p.x)); p.y = Math.max(50, Math.min(400, p.y)); }
+  }
+  return pos;
+}
+function graphView(files) {
+  const ids = files.map(f => f.id), pos = layout(ids), at = Object.fromEntries(pos.map(p => [p.id, p]));
+  const sel = S.file;
+  return html`<div class="graph">
+    <svg viewBox="0 0 600 460" style="transform:scale(${S.gz})">
+      ${RELATED.filter(([a, b]) => at[a] && at[b]).map(([a, b, w]) => `<line class="edge ${a === sel || b === sel ? "hot" : ""}" x1="${at[a].x}" y1="${at[a].y}" x2="${at[b].x}" y2="${at[b].y}" stroke-opacity="${.3 + w}"/>`).join("")}
+      ${pos.map(p => { const x = FILES.find(q => q.id === p.id); const c = LCOLOR(x.labels[0] || ""); return `<g class="node ${p.id === sel ? "on" : ""}" transform="translate(${p.x},${p.y})" onclick="S.file=${p.id};render()"><circle r="${p.id === sel ? 20 : 16}" fill="${c}"/><text class="k">${x.ext.toUpperCase().slice(0, 3)}</text><text y="34" text-anchor="middle">${x.name.length > 26 ? x.name.slice(0, 25) + "…" : x.name}</text></g>`; }).join("")}
+    </svg>
+    <div class="gtools"><button onclick="S.gz=Math.min(2,S.gz+.2);render()">+</button><button onclick="S.gz=Math.max(.6,S.gz-.2);render()">−</button><button title="Центрировать" onclick="S.gz=1;render()">${ic("search", 14)}</button></div>
+    <div class="glegend">${LABELS.filter(([l]) => files.some(x => x.labels[0] === l)).map(([l, c]) => `<span><i style="background:${c}"></i>${l}</span>`).join("")}<span class="t3">· линия = похожи по смыслу</span></div>
+  </div>`;
+}
+// "Create & auto-assign": the label goes to the selected material and to everything close to it in the index.
+window.createLabel = name => {
+  name = (name || "").trim(); if (!name) return;
+  if (!LABELS.some(l => l[0] === name)) LABELS.push([name, ["#D93025", "#F29900", "#1E8E3E", "#7B5800", "#C5221F"][LABELS.length % 5]]);
+  const seed = FILES.find(x => x.id === S.file) || FILES[0];
+  const targets = [seed, ...relatedTo(seed.id).filter(([, w]) => w >= .45).map(([id]) => FILES.find(x => x.id === id))];
+  for (const t of targets) if (!t.labels.includes(name)) t.labels.push(name);
+  S.newLabel = null; S.lsel = name; render();
+  toast(`Метка «${name}» назначена: ${targets.length} материал(а) по смыслу · поправьте, если что-то лишнее`);
+};
 
 /* ---------- Whisper: press, speak, get a task / note / reminder. Never touches requirements. ---------- */
 const WSAMPLE = "Напомни завтра в десять позвонить Ирине насчёт истории изменений заявки, и ещё надо отправить Олегу регламент до вечера";
@@ -874,7 +941,7 @@ window.dlTick = () => { if (S.onb !== 4 || S.dl >= 100) return; S.dl = Math.min(
 window.finishOnb = tut => { S.onb = 0; try { localStorage.setItem("wb5.seen", "1"); } catch (_) {} S.tut = tut ? 1 : 0; go("meetings"); render(); };
 
 /* ---------- Tutorial ---------- */
-const TUT = [["t-rec", "Записать встречу", "Одна кнопка: микрофон и системный звук пишутся раздельно, транскрипт и требования появляются по ходу встречи."], ["t-whisper", "Шепнуть", "Скажите задачу, заметку или напоминание — они лягут в личный ящик и не смешаются с требованиями. ⌥ Пробел из любого окна."], ["t-list", "Встречи", "Все записи, импорты и тексты проекта. Переименуйте прямо в списке, ищите по словам из разговора."], ["t-library", "Материалы", "Документы, ссылки и заметки, которые вы приносите в проект. ИИ цитирует их; встречи и требования живут в своих разделах."], ["t-ask", "Спросить", "Вопрос по всему проекту: ответ с цитатами из встреч и файлов, всё считается локально."]];
+const TUT = [["t-rec", "Записать встречу", "Одна кнопка: микрофон и системный звук пишутся раздельно, транскрипт и требования появляются по ходу встречи."], ["t-whisper", "Шепнуть", "Скажите задачу, заметку или напоминание — они лягут в личный ящик и не смешаются с требованиями. ⌥ Пробел из любого окна."], ["t-list", "Встречи", "Все записи, импорты и тексты проекта. Переименуйте прямо в списке, ищите по словам из разговора."], ["t-library", "Материалы", "Документы, ссылки и заметки проекта: список, плитка или граф связей. Создайте метку — она сама разойдётся по похожим материалам."], ["t-ask", "Спросить", "Вопрос по всему проекту: ответ с цитатами из встреч и файлов, всё считается локально."]];
 function tutorial() {
   const [id, t, d] = TUT[S.tut - 1];
   const el = document.getElementById(id);

@@ -122,15 +122,18 @@ Decisions:
 - **Wikilinks and backlinks.** Requirements link to their meeting (`[[Встречи/2026-10-14 Звонок]]`),
   documents link to requirements (`[[FR-12]]`). The library shows backlinks for the selected
   file: "Цитируется в FR-12, FR-30 · Входит в ТЗ v3".
-- **Library page** (Материалы) shows only what the user brought in: files, links, pasted text and
-  notes. Its left column is kinds (Все · Файлы · Ссылки · Заметки), labels, and the project folder
-  with "Показать в Finder" / "Открыть в Obsidian". Meetings, requirements and documents never appear
-  here as folders; they have their own rail items and show up on a material only as "Где
-  используется" backlinks. Whole-vault browsing is Obsidian's and Finder's job, which is why the
-  vault is written for them. List or grid in the middle (name, labels, changed, size, in context),
-  the selected file on the right with a preview, labels, backlinks and "Включать в контекст".
-  Add by drop, "Добавить файлы", "Добавить ссылку", "Вставить текст", "Импорт папки". Audio is
-  added on Встречи, not here.
+- **Library page** (Материалы) is Foresight's knowledge-sources page, copied: files, links, pasted
+  text and notes the user brought in, in **list, grid or graph** view. The left column is kinds
+  (Все · Файлы · Ссылки · Заметки) and labels with counts. Meetings, requirements and documents never
+  appear here as folders; they have their own rail items and show up on a material only as "Где
+  используется" backlinks. The inspector shows a preview, labels, "Включать в контекст" and
+  **Похожие материалы** with a similarity score.
+- **Labels assign themselves.** "Создать метку → Создать и назначить" puts the new label on the
+  selected material and on everything close to it in the local embedding index (threshold, then
+  the user corrects). Dropped files get labels from the nearest cluster the same way. The graph
+  view draws materials as nodes coloured by label and similarity as edges, with zoom and a legend.
+  No "open in Obsidian": the vault on disk stays for backups and other tools, but the app is the
+  way in.
 - **Context for AI.** Files marked "в контексте" are chunked and embedded locally; the extractor
   and Спросить cite them as `[Источник N]` the way Foresight does.
 - **Спросить** page: ask across the project's meetings, requirements and materials; answers with
