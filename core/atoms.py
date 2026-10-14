@@ -136,11 +136,13 @@ def _source_header(source):
 
 
 def extract_candidates(store, source_id, prefs, api_key, ollama_url, skillset=None, progress=None,
-                       complete=complete_json, note=None):
+                       complete=complete_json, note=None, segments=None, context=None):
     """Atoms found in one source, verified against the text, without saving anything
-    (used by extraction and by "try this skill")."""
+    (used by extraction and by "try this skill"). While recording (5.0 C4.2) `segments` are only the lines
+    since the last pass and `context` the lines just before them: shown to the model, never cited."""
     source = store.get_source(source_id)
-    segments, _ = store.transcript(source_id)
+    if segments is None:
+        segments, _ = store.transcript(source_id)
     if not segments:
         raise LLMError("This source has no text yet.")
     skillset = skillset or skills.resolve()
@@ -152,7 +154,11 @@ def extract_candidates(store, source_id, prefs, api_key, ollama_url, skillset=No
     candidates, dropped, skipped = [], 0, []
     for i, chunk in enumerate(chunks):
         report(i, steps, f"Reading part {i + 1} of {len(chunks)}…" if len(chunks) > 1 else "Reading the source…")
-        user = _source_header(source) + "\n\n" + "\n".join(segment_line(s) for s in chunk)
+        user = _source_header(source) + "\n\n"
+        if context:
+            user += ("Earlier in the meeting, for context only (take nothing from these lines):\n"
+                     + "\n".join("  " + segment_line(s) for s in context) + "\n\nNew lines:\n")
+        user += "\n".join(segment_line(s) for s in chunk)
         if (note or "").strip():
             user += "\n\nThe analyst's instruction for this run (follow it unless it breaks the format): " + note.strip()
         reply = complete(system, user, EXTRACT_SCHEMA, prefs, api_key, ollama_url)
