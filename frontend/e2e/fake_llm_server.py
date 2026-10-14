@@ -67,6 +67,26 @@ app_module.backlog.invest = functools.partial(app_module.backlog.invest, complet
 app_module.frd.suggest_fix = functools.partial(app_module.frd.suggest_fix, complete=fake_complete)
 app_module.settings.secret = lambda name: "fake-key"
 
+# Recaps (5.0 C3): the style comes from its skill, the reply says how many transcript lines it was sent;
+# every prompt is kept so a suite can check that an update sent only the new lines (GET /__fake/recaps).
+RECAPS = []
+
+
+def fake_recap_generate(prefs, api_key):
+    def generate(system, user, on_delta):
+        style = ("actions" if "list the outcomes" in system else "bullets" if "point-by-point" in system else "brief")
+        incremental = "updating an existing recap" in system
+        lines = len(re.findall(r"^(?:\[[^\]]*\] )?\[\d{1,2}:\d{2}", user, flags=re.M))
+        RECAPS.append({"style": style, "incremental": incremental, "length": len(user), "lines": lines})
+        text = f"## {style}\n- recap {style}: {lines} lines" + (" (updated)" if incremental else "")
+        on_delta(text)
+        return text
+    return generate
+
+
+app_module._recap_generate = fake_recap_generate
+app_module.app.add_url_rule("/__fake/recaps", "fake_recaps", lambda: app_module.jsonify(RECAPS))
+
 
 def fake_transcribe(job_id, audio_path, model_name, diarize, word_timestamps, device):
     for pct in (20, 40, 60, 80):
