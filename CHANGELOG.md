@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.9.3 (2026-10-15): Встречи
+
+- **Встречи is the home page.** It replaces the Sources and Overview screens; the old `#/sources` and `#/overview` addresses open it. The header says «<project> · n встреч · n требований», with «Импорт» (⌘O, or drop files anywhere on the window) and «Записать встречу» (the microphone and recognition options are behind the arrow next to it; the consent question and the stop button live here).
+- **The pipeline strip**: Встречи · Требования · ТЗ vN · Бэклог · Jira, each with its ring and its state in words (the same wording the overview had); a click opens that screen, and the chip the next step points at is outlined.
+- **The meeting list**: search over titles and the text of every meeting (a word that only appears in the transcript finds it), sort Новые / Старые / А–Я, rows with an icon by kind, date, duration, people, a Запись / Импорт / Текст tag, the state (Разобран, Распознаю · n%, Без расшифровки, Ошибка with the reason on hover) and the requirement count. Double-click or Enter opens the meeting.
+- **The details panel**: the title is renamed in place (click it, Enter saves); tabs Резюме (the summary, its [mm:ss] references open the meeting at that line, «Сделать сводку» / «Обновить»), Транскрипт (read-only, with the quoted spans, requirement chips and a search that highlights and counts hits), Заметки (next update) and Требования. «Открыть встречу», «Требования · n» and «Ещё»: save audio, extract requirements, rename, delete with undo. Narrow windows hide the panel.
+- `GET /api/projects/<id>/sources` takes `q` (case-insensitive in any script) and `sort` (`new`, `old`, `az`), and every row carries `people`, `atoms` and `tags`.
+- On first start the interface language follows the system (Russian for ru-*, English otherwise); the choice in Settings wins afterwards.
+
 ## 4.9.2 (2026-10-14): Status chip and hotkeys
 
 - **A status chip in the top bar says what the machine is doing.** While a call is recorded: «Идёт запись · 12:04» with a red dot, and a click opens Встречи, where the recording controls are. While something runs: the first job with its progress ring («Распознаю · 42% · 1 задача», «Извлекаю требования… · 2 задачи», model downloads with their size). Otherwise «Готово». A click lists every job with its progress and running time; model downloads can be cancelled from there. It checks every 2 seconds while something runs and every 15 seconds otherwise.
