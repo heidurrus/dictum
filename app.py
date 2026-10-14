@@ -1268,8 +1268,17 @@ def api_consent():
 @app.route("/api/sources/<source_id>", methods=["PATCH"])
 def api_update_source(source_id):
     data = request.get_json(silent=True) or {}
-    if set(data) - {"title"}:
-        return jsonify({"error": "only the title can be changed here"}), 400
+    if set(data) - {"title", "recap_style"}:
+        return jsonify({"error": "only the title and the recap style can be changed here"}), 400
+    if "recap_style" in data:                       # the style chosen on the meeting page (5.0 C3)
+        style = data.pop("recap_style")
+        try:
+            library.get_source(source_id)
+            library.set_recap_style(source_id, style)
+        except StoreError as e:
+            return jsonify({"error": str(e)}), 404 if "not found" in str(e) else 400
+        if not data:
+            return jsonify({**library.get_source(source_id), "recap_style": style})
     return _store_call(library.update_source, source_id, **data)
 
 

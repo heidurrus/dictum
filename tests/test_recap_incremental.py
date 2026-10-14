@@ -113,3 +113,11 @@ def test_recap_route_and_legacy_summary_field(client, app_module, lib, monkeypat
     assert wait_for(lambda: client.get(f"/job/{job}").get_json()["status"] == "done")
     body = client.get(f"/api/sources/{sid}").get_json()
     assert body["summaries"]["brief"]["text"] == "## Кратко" and body["summaries"]["brief"]["through_idx"] == 1
+
+
+def test_the_chosen_style_is_remembered(client, lib):  # noqa: F811
+    sid = import_vtt(client)["source_id"]
+    assert client.patch(f"/api/sources/{sid}", json={"recap_style": "actions"}).get_json()["recap_style"] == "actions"
+    assert client.get(f"/api/sources/{sid}").get_json()["recap_style"] == "actions"
+    assert client.patch(f"/api/sources/{sid}", json={"recap_style": "poem"}).status_code == 400
+    assert client.patch(f"/api/sources/{sid}", json={"text": "x"}).status_code == 400
