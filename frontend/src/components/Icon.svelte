@@ -46,6 +46,7 @@
     link: '<path d="M7 9a2.8 2.8 0 0 0 4 0l2-2a2.8 2.8 0 0 0-4-4l-.8.8M9 7a2.8 2.8 0 0 0-4 0L3 9a2.8 2.8 0 0 0 4 4l.8-.8"/>',
     sidebar: '<rect x="1.8" y="2.8" width="12.4" height="10.4" rx="1.8"/><path d="M6 3v10"/>',
     clock: '<circle cx="8" cy="8" r="6"/><path d="M8 4.8V8l2.2 1.5"/>',
+    bell: '<path d="M4 11.5V7.2a4 4 0 0 1 8 0v4.3l1.2 1.3H2.8zM6.6 14h2.8"/>',
     inspector: '<rect x="1.8" y="2.8" width="12.4" height="10.4" rx="1.8"/><path d="M10 3v10"/>',
     home: '<path d="M2.5 7.5L8 2.8l5.5 4.7v5.2a.8.8 0 0 1-.8.8H3.3a.8.8 0 0 1-.8-.8z"/><path d="M6.5 13.3V9.5h3v3.8"/>',
     updown: '<path d="M5 6l3-3 3 3M5 10l3 3 3-3"/>',
