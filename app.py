@@ -740,7 +740,7 @@ def summarize_route():
     prefs, api_key, problem = _ai_prefs(project)
     if problem:
         return problem
-    job_id = jobs.create()
+    job_id = jobs.create("summarize", title or "")
     jobs.set_progress(job_id, 0, "Writing summary…")
     threading.Thread(target=_run_summary, args=(job_id, text, title, prefs, api_key, source_id,
                                                 project["id"] if project else None), daemon=True).start()
@@ -793,7 +793,7 @@ def _transcription_in_progress(source_id):
 
 
 def _start_transcription(source, audio_path, opts):
-    job_id = jobs.create()
+    job_id = jobs.create("transcribe", source["title"])
     _transcribing[source["id"]] = job_id
     threading.Thread(target=run_job, daemon=True, args=(
         job_id, audio_path, audio_path, opts["model_name"], opts["diarize"], opts["word_timestamps"],
@@ -834,7 +834,7 @@ def transcribe():
         with open(os.path.join(library.source_dir(source), filename), "wb") as f:
             f.write(data)
         library.save_transcript(source["id"], result)
-        job_id = jobs.create()
+        job_id = jobs.create("import", source["title"])
         jobs.finish(job_id, {**result, "source_id": source["id"]})
         return jsonify({"job_id": job_id, "source_id": source["id"]})
 
@@ -872,6 +872,34 @@ def job_status(job_id):
     if job is None:
         return jsonify({"error": "Job not found"}), 404
     return jsonify(job)
+
+
+def _download_entry(job_id, kind_label, st, cancel_url):
+    done, total = st.get("done") or 0, st.get("total") or 0
+    return {"id": job_id, "kind": "download", "label": f"{kind_label} · {done / 1024 ** 3:.1f} / {total / 1024 ** 3:.1f} GB",
+            "progress": int(100 * done / total) if total else None, "message": st.get("status"),
+            "cancellable": True, "cancel_url": cancel_url, "started_at": None, "done": done, "total": total}
+
+
+@app.route("/api/jobs")
+def api_jobs():
+    """What the machine is doing now, for the status chip: running or queued jobs, downloads, the recorder."""
+    out = []
+    for job in jobs.active():
+        pct = job.get("progress")
+        out.append({"id": job["id"], "kind": job.get("kind"), "label": job.get("label") or "",
+                    "progress": pct if pct else None, "message": job.get("progress_msg") or "",
+                    "cancellable": False, "cancel_url": None, "started_at": job.get("started_at")})
+    st = local_llm.installer.status()
+    if st.get("status") in ("downloading", "verifying"):
+        model = local_llm.MODELS_BY_ID.get(st.get("model"))
+        out.append(_download_entry("local-llm", model.label if model else st.get("model"), st, "/api/local-llm/cancel"))
+    st = asr_downloads.status()
+    if st and st.get("status") in ("downloading", "verifying"):
+        out.append(_download_entry("asr", "GigaAM " + st["model"], st, "/api/asr/download/cancel"))
+    with _recorder_lock:
+        rec = _recorder.status() if _recorder is not None else None
+    return jsonify({"jobs": out, "recording": rec if rec and rec.get("recording") else None})
 
 
 # ── Library API (projects, sources) ──────────────────────────────────────────
@@ -1317,7 +1345,11 @@ def api_extract_atoms(source_id):
 
 
 def _start_extraction(source_id, prefs, api_key, note=None):
-    job_id = jobs.create()
+    try:
+        label = library.get_source(source_id)["title"]
+    except StoreError:
+        label = ""
+    job_id = jobs.create("extract", label)
     _extracting[source_id] = job_id
     jobs.set_progress(job_id, 0, "Reading the source…")
     threading.Thread(target=_run_extraction, args=(job_id, source_id, prefs, api_key, note), daemon=True).start()
@@ -1403,7 +1435,7 @@ def api_reclassify_atoms(project_id):
     prefs, api_key, problem = _ai_prefs(project)
     if problem:
         return problem
-    job_id = jobs.create()
+    job_id = jobs.create("extract", project["name"])
     jobs.set_progress(job_id, 0, "Reading the source…")
 
     def run():
@@ -1605,7 +1637,7 @@ def api_build_document(project_id):
     prefs, api_key, problem = _ai_prefs(project)
     if problem:
         return problem
-    job_id = jobs.create()
+    job_id = jobs.create("document", doc["title"])
     _building[doc["id"]] = job_id
     jobs.set_progress(job_id, 0, "Writing the document…")
     threading.Thread(target=_run_build, args=(job_id, project_id, prefs, api_key, mode, note, doc["id"]),
@@ -1790,7 +1822,7 @@ def api_fix(document_id):
     prefs, api_key, problem = _ai_prefs(library.get_project(doc["project_id"]))
     if problem:
         return problem
-    job_id = jobs.create()
+    job_id = jobs.create("document", doc["title"])
     threading.Thread(target=_run_fix, args=(job_id, doc["project_id"], data["atom_id"], data.get("rule", ""),
                                             data.get("message", ""), prefs, api_key), daemon=True).start()
     return jsonify({"job_id": job_id})
@@ -1854,7 +1886,7 @@ def _start_backlog_job(project_id, fn, message):
     prefs, api_key, problem = _ai_prefs(project)
     if problem:
         return problem
-    job_id = jobs.create()
+    job_id = jobs.create("backlog", project["name"])
     _backlog_jobs[project_id] = job_id
     jobs.set_progress(job_id, 0, message)
     threading.Thread(target=_run_backlog, args=(job_id, fn, project_id, prefs, api_key), daemon=True).start()
@@ -2062,7 +2094,7 @@ def _start_jira(project_id, kind, item_ids=None):
     running = _jira_jobs.get(project_id)
     if running and (jobs.get(running) or {}).get("status") == "processing":
         return jsonify({"error": "A Jira step is already running for this project."}), 409
-    job_id = jobs.create()
+    job_id = jobs.create("jira", kind)
     _jira_jobs[project_id] = job_id
     jobs.set_progress(job_id, 0, "Connecting to Jira…")
     threading.Thread(target=_run_jira, args=(job_id, project_id, kind, item_ids), daemon=True).start()
@@ -2338,7 +2370,7 @@ def api_skill_try():
     prefs, api_key, problem = _ai_prefs(library.get_project(project_id))
     if problem:
         return problem
-    job_id = jobs.create()
+    job_id = jobs.create("skill", skill.name)
     jobs.set_progress(job_id, 0, "Trying the skill…")
     threading.Thread(target=_run_try, args=(job_id, skill.stage, skill, project_id, source_id, prefs, api_key),
                      daemon=True).start()

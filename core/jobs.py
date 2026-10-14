@@ -18,11 +18,14 @@ class JobStore:
         self._ttl = ttl
         self._clock = clock
 
-    def create(self):
+    def create(self, kind=None, label=None):
+        """kind (transcribe, summarize, extract, document, backlog, jira, skill) and a human label
+        let the status chip say what is running; neither changes how the job runs."""
         self.prune()
         job_id = str(uuid.uuid4())
         with self._lock:
-            self._jobs[job_id] = {"status": "processing", "progress": 0, "progress_msg": "Starting…"}
+            self._jobs[job_id] = {"status": "processing", "progress": 0, "progress_msg": "Starting…",
+                                  "kind": kind, "label": label, "started_at": time.time()}
         return job_id
 
     def set_progress(self, job_id, pct, msg):
@@ -64,6 +67,13 @@ class JobStore:
             if job is None:
                 return None
             return {k: v for k, v in job.items() if k != "finished_at"}
+
+    def active(self):
+        """Every job still processing (running or queued), oldest first, as {id, ...fields}."""
+        with self._lock:
+            items = [{"id": jid, **{k: v for k, v in job.items() if k not in ("finished_at", "result", "partial")}}
+                     for jid, job in self._jobs.items() if job.get("status") == "processing"]
+        return sorted(items, key=lambda j: j.get("started_at") or 0)
 
     def prune(self):
         now = self._clock()
