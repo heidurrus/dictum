@@ -1,6 +1,6 @@
 <script>
   import { keyOf } from "./lib/keys.js";
-  import Rail from "./components/Rail.svelte";
+  import Rail, { RAIL_PATHS } from "./components/Rail.svelte";
   import TopBar from "./components/TopBar.svelte";
   import CommandPalette from "./components/CommandPalette.svelte";
   import RecordingHud from "./components/RecordingHud.svelte";
@@ -15,9 +15,11 @@
   import Backlog from "./screens/Backlog.svelte";
   import Export from "./screens/Export.svelte";
   import Soon from "./screens/Soon.svelte";
-  import { api, setProgressTranslator, setLangSource } from "./lib/api.js";
+  import { api, setProgressTranslator, setLangSource, setJobStartedHook } from "./lib/api.js";
+  import { actionFor } from "./lib/hotkeys.js";
+  import { recordFromShell } from "./lib/capture.svelte.js";
   import { progressText } from "./lib/progress.js";
-  import { app, t, go, loadProjects, loadSources, setLang, applyTheme, setTheme, isDark, loadStatus, undoLast, toggleInspector } from "./lib/state.svelte.js";
+  import { app, t, go, loadProjects, loadSources, setLang, applyTheme, setTheme, isDark, loadStatus, undoLast, toggleInspector, jobsTick } from "./lib/state.svelte.js";
 
   let ready = $state(false);
   let error = $state("");
@@ -25,6 +27,7 @@
   applyTheme();
   setProgressTranslator(progressText);
   setLangSource(() => app.lang);
+  setJobStartedHook(jobsTick);
   // Screens rebuilt on panes; the others still scroll as one page inside the main area.
   const INSPECTOR = { transcript: "source", atoms: "atoms", document: "document", backlog: "backlog", skills: "skills", sources: "sources" };
   function onKey(e) {
@@ -34,14 +37,27 @@
       if (undoLast()) e.preventDefault();
       return;
     }
-    if ((e.metaKey || e.ctrlKey) && e.shiftKey && (key === "l" || key === "L")) {
-      e.preventDefault();
-      setTheme(isDark() ? "light" : "dark");
-      return;
-    }
     if ((e.metaKey || e.ctrlKey) && e.altKey && e.code === "KeyI" && INSPECTOR[app.route.name]) {
       e.preventDefault();
       toggleInspector(INSPECTOR[app.route.name]);
+      return;
+    }
+    // Everything else comes from the hotkeys map (settings; the defaults until it has loaded).
+    const action = actionFor(e, app.settings?.hotkeys);
+    if (!action) return;
+    // A binding without ⌘ (⌥Space) must not fire while the BA is typing.
+    if (!(e.metaKey || e.ctrlKey) && e.target.closest?.("input:not([type=checkbox]), textarea, select, [contenteditable]")) return;
+    if (action === "record") {
+      if (!app.device.desktop) return;            // a browser tab keeps ⌘R as the reload
+      e.preventDefault();
+      recordFromShell();
+    } else if (action === "palette") { e.preventDefault(); app.palette = !app.palette; }
+    else if (action === "theme") { e.preventDefault(); setTheme(isDark() ? "light" : "dark"); }
+    else if (action === "ask") { e.preventDefault(); go("/ask"); }
+    else if (action === "whisper") { e.preventDefault(); go("/whisper"); }
+    else if (/^nav\d$/.test(action)) {
+      const path = RAIL_PATHS[Number(action.slice(3)) - 1];
+      if (path) { e.preventDefault(); app.palette = false; go(path); }
     }
   }
   // The empty address opens the overview, or Sources while the project has nothing in it.
@@ -58,6 +74,7 @@
       app.device = device;
       app.models = models;
       app.health = health;
+      api("/settings").then(s => (app.settings = s)).catch(() => {});   // hotkeys; the defaults work meanwhile
       if (!models.includes(app.options.model)) app.options.model = models[0];
       if (app.options.device !== "cpu" && !device.cuda && !device.mps) app.options.device = "cpu";
       if (app.options.device === "cuda" && !device.cuda && device.mps) app.options.device = "mps";
