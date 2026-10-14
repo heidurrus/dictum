@@ -10,7 +10,6 @@
   let index = $state(0);
   let atoms = $state([]);
   let list = $state(null);
-  const mod = typeof navigator !== "undefined" && /Mac/.test(navigator.platform) ? "⌘" : "Ctrl+";
   const PREFIX = { functional: "FR", nfr: "NFR", question: "Q", business: "BR", risk: "RSK", current: "AS" };
 
   $effect(() => {
@@ -20,10 +19,10 @@
     if (pid) api(`/api/projects/${pid}/atoms`).then(b => { atoms = (b.atoms || []).filter(a => a.status !== "rejected"); }).catch(() => { atoms = []; });
   });
 
-  // In rail order, with the rail's shortcuts; Skills, Export and Overview are reached from here.
+  // In rail order, with the rail's shortcuts; Skills and Export are reached from here.
   const hk = $derived({ ...DEFAULT_HOTKEYS, ...(app.settings?.hotkeys || {}) });
   const screens = $derived([
-    { icon: "sources", label: t("nav.meetings"), keys: [comboLabel(hk.nav1)], run: () => go("/sources") },
+    { icon: "sources", label: t("nav.meetings"), keys: [comboLabel(hk.nav1)], run: () => go("/meetings") },
     { icon: "file", label: t("nav.library"), keys: [comboLabel(hk.nav2)], run: () => go("/library") },
     { icon: "atoms", label: t("nav.atoms"), keys: [comboLabel(hk.nav3)], run: () => go("/atoms") },
     { icon: "doc", label: t("nav.document"), keys: [comboLabel(hk.nav4)], run: () => go("/document") },
@@ -33,7 +32,6 @@
     { icon: "gear", label: t("nav.settings"), keys: [comboLabel(hk.nav8)], run: () => go("/settings") },
     { icon: "skills", label: t("nav.skills"), run: () => go("/skills") },
     { icon: "export", label: t("nav.export"), run: () => go("/export") },
-    { icon: "home", label: t("nav.overview"), keys: [mod + "0"], run: () => go("/overview") },
   ]);
   const commands = $derived([
     { icon: isDark() ? "sun" : "moon", label: t(isDark() ? "cmd.light" : "cmd.dark"), keys: [comboLabel(hk.theme)], run: () => setTheme(isDark() ? "light" : "dark") },
@@ -45,7 +43,7 @@
     const out = [];
     const push = (title, items) => { if (items.length) out.push({ title, items }); };
     push(t("cmd.g.go"), screens.filter(s => hit(s.label)));
-    push(t("nav.sources"), app.sources.filter(s => hit(s.title)).slice(0, q ? 8 : 4)
+    push(t("nav.meetings"), app.sources.filter(s => hit(s.title)).slice(0, q ? 8 : 4)
       .map(s => ({ icon: s.kind === "audio" ? "wave" : "file", label: s.title, run: () => go(`/source/${s.id}`) })));
     push(t("nav.document"), app.documents.filter(d => hit(d.title) || hit(d.short)).slice(0, 8)
       .map(d => ({ icon: "doc", label: d.title, hint: d.version ? "v" + d.version : "", run: () => go(`/document/${d.id}`) })));

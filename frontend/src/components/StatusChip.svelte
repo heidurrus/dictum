@@ -35,7 +35,7 @@
   const elapsed = j => (j.started_at ? clock(Math.max(0, Math.floor(now - j.started_at))) : "");
 
   function onChip() {
-    if (recOn) { go("/sources"); return; }      // the recording HUD and its stop button live there
+    if (recOn) { go("/meetings"); return; }      // the recording HUD and its stop button live there
     open = !open;
     if (open) refresh();
   }

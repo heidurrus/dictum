@@ -79,7 +79,7 @@
   }
   const catIcon = { project: "cube", ai: "spark", asr: "wave", interface: "sun", env: "info" };
   const back = $derived(app.returnTo && app.returnTo.name !== "settings" ? app.returnTo : null);
-  const backName = $derived(back ? t("nav." + ({ backlog: "decomposition", transcript: "sources", home: "overview" }[back.name] || back.name)) : "");
+  const backName = $derived(back ? t("nav." + ({ backlog: "decomposition", transcript: "meetings", home: "meetings" }[back.name] || back.name)) : "");
 </script>
 
 <Page title={t("set.title")} sub={t("set.sub")} crumb={backName} crumbPath={back?.hash || ""}>

@@ -112,11 +112,11 @@ export function askThenRecord() {
   if (consented()) startRecording();
   else cap.consentAsk = true;
 }
-// The shell's record button (rail, phone header): the same flow; the consent sheet is part of Sources.
+// The shell's record button (rail, phone header): the same flow; the consent sheet is part of Встречи.
 export function recordFromShell() {
   if (cap.recording) return;
   askThenRecord();
-  if (cap.consentAsk && app.route.name !== "sources") go("/sources");
+  if (cap.consentAsk && app.route.name !== "meetings") go("/meetings");
 }
 export function confirmConsent() {
   cap.consentAsk = false;

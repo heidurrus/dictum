@@ -1,7 +1,7 @@
 <script module>
   // In rail order; the hotkeys nav1…nav8 (⌘1…⌘8 by default) follow it. `opt` items are left out of the phone bar.
   export const RAIL_ITEMS = [
-    { route: "sources", path: "/sources", icon: "meet", key: "nav.meetings" },
+    { route: "meetings", path: "/meetings", icon: "meet", key: "nav.meetings" },
     { route: "library", path: "/library", icon: "lib", key: "nav.library" },
     { route: "atoms", path: "/atoms", icon: "req", key: "nav.atoms" },
     { route: "document", path: "/document", icon: "doc", key: "nav.document", opt: true },
@@ -39,7 +39,7 @@
   const more = [{ route: "skills", path: "/skills", key: "nav.skills" }, { route: "export", path: "/export", key: "nav.export" }];
 
   // A transcript belongs to Встречи; Skills and Export light up Ещё.
-  const current = $derived(app.route.name === "transcript" ? "sources"
+  const current = $derived(app.route.name === "transcript" ? "meetings"
     : more.some(m => m.route === app.route.name) ? "more" : app.route.name);
   const review = $derived(app.status?.atoms?.review || 0);
   const stale = $derived(!!(app.status?.document?.stale || app.status?.document?.others_stale));
@@ -53,7 +53,6 @@
     if (key === "Escape" && moreOpen) { moreOpen = false; return; }
     if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
     if (key === ",") { e.preventDefault(); go("/settings"); return; }
-    if (key === "0") { e.preventDefault(); go("/overview"); return; }
     // ⌘1…⌘8 and ⌘R come from the hotkeys map, in App.svelte.
   }
   function onDoc(e) { if (moreOpen && moreWrap && !moreWrap.contains(e.target)) moreOpen = false; }

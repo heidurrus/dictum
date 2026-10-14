@@ -5,7 +5,7 @@
   import { app, t, go, toggleInspector, inspectorOn } from "../lib/state.svelte.js";
   import { recordFromShell } from "../lib/capture.svelte.js";
 
-  let { title = "", crumb = "", crumbPath = "", sub = "", inspector = "", record = true, heading, actions, children } = $props();
+  let { title = "", crumb = "", crumbPath = "", sub = "", inspector = "", record = true, card = true, heading, actions, children } = $props();
 </script>
 
 <header class="page-head toolbar screen-head">
@@ -33,11 +33,13 @@
     {/if}
   </div>
 </header>
-<div class="workspace card-m">
+<!-- card={false}: the screen lays out its own cards (Встречи: the strip, the list and the panel). -->
+<div class="workspace" class:card-m={card}>
   {@render children?.()}
 </div>
 
 <style>
+  .workspace { flex: 1; }
   .on { color: var(--primary); }
   .tb-title :global(.title-btn) { border: 0; background: none; padding: 0; font: inherit; color: inherit; cursor: text; text-align: left; max-width: 100%; }
   .crumb { display: inline-flex; align-items: center; gap: 4px; justify-self: start; height: 24px; padding: 0 8px 0 4px; margin: 0 0 2px -4px;
