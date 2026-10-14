@@ -6,6 +6,7 @@
     chevd: '<path d="M3.5 6L8 10.5 12.5 6"/>',
     play: '<path d="M5 3.2v9.6L12.5 8z" fill="currentColor"/>',
     pause: '<path d="M5 3.5v9M11 3.5v9"/>',
+    stop: '<rect x="4" y="4" width="8" height="8" rx="1.5" fill="currentColor" stroke="none"/>',
     back: '<path d="M13 8H3M7 4L3 8l4 4"/>',
     arrow: '<path d="M3 8h10M9 4l4 4-4 4"/>',
     plus: '<path d="M8 3v10M3 8h10"/>',

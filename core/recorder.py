@@ -67,16 +67,51 @@ def speech_bounds(path, window=0.02, rel_threshold=0.1):
     """
     with wave.open(path, "rb") as r:
         rate = r.getframerate() or SAMPLE_RATE
-        audio = np.frombuffer(r.readframes(r.getnframes()), dtype="<i2").astype(np.float32)
+        audio = np.frombuffer(r.readframes(r.getnframes()), dtype="<i2")
+    return speech_bounds_samples(audio, rate, window, rel_threshold)
+
+
+def _frame_rms(audio, rate, window):
     n = max(1, int(rate * window))
+    audio = np.asarray(audio).astype(np.float32)
     if len(audio) < n:
         return None
     frames = audio[: len(audio) // n * n].reshape(-1, n)
-    rms = np.sqrt((frames ** 2).mean(axis=1))
+    return np.sqrt((frames ** 2).mean(axis=1))
+
+
+def speech_bounds_samples(audio, rate=SAMPLE_RATE, window=0.02, rel_threshold=0.1):
+    """speech_bounds for samples already in memory (mono int16): (start, end) seconds, or None if silent."""
+    rms = _frame_rms(audio, rate, window)
+    if rms is None:
+        return None
     loud = np.nonzero(rms >= rms.max() * rel_threshold)[0] if rms.max() > 0 else []
     if not len(loud):
         return None
     return round(loud[0] * window, 3), round((loud[-1] + 1) * window, 3)
+
+
+def last_silence(audio, rate=SAMPLE_RATE, window=0.02, rel_threshold=0.1, min_gap=0.3):
+    """Sample index in the middle of the last pause (at least `min_gap` s of frames below the speech_bounds
+    threshold) that has speech before it, or None when the speech runs without a pause."""
+    rms = _frame_rms(audio, rate, window)
+    if rms is None or rms.max() <= 0:
+        return None
+    quiet = rms < rms.max() * rel_threshold
+    need = max(1, int(round(min_gap / window)))
+    n = max(1, int(rate * window))
+    i = len(quiet) - 1
+    while i >= 0:
+        if not quiet[i]:
+            i -= 1
+            continue
+        end = i
+        while i >= 0 and quiet[i]:
+            i -= 1
+        start = i + 1                      # quiet run [start, end]
+        if end - start + 1 >= need and i >= 0:   # speech before it
+            return ((start + end + 1) // 2) * n
+    return None
 
 
 def wav_peak(path, block_frames=SAMPLE_RATE * 10):
@@ -129,6 +164,8 @@ class DualChannelRecorder:
         self._threads = []
         self._channels = {}
         self._started_at = None
+        self._paused = threading.Event()
+        self._pauses = []            # [[start, end or None], ...] seconds of audio written while paused
         self.recording_id = None
         self.folder = None
 
@@ -137,14 +174,17 @@ class DualChannelRecorder:
         with self._lock:
             return self._started_at is not None and not self._stop.is_set()
 
-    def start(self):
+    def start(self, folder=None):
+        """Start capturing into `folder` (a new folder under out_root when not given)."""
         with self._lock:
             if self._started_at is not None and not self._stop.is_set():
                 raise RuntimeError("A recording is already in progress")
             self.recording_id = time.strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6]
-            self.folder = os.path.join(self._out_root, self.recording_id)
+            self.folder = folder or os.path.join(self._out_root, self.recording_id)
             os.makedirs(self.folder, exist_ok=True)
             self._stop = threading.Event()
+            self._paused = threading.Event()
+            self._pauses = []
             self._channels = {name: {"frames": 0, "error": None, "path": None} for name in CHANNELS}
             self._threads = []
             self._started_at = self._clock()
@@ -167,6 +207,8 @@ class DualChannelRecorder:
                 if writer is None:
                     writer = StreamingWavWriter(path, self._samplerate)
                     self._channels[name]["path"] = path
+                if self._paused.is_set():   # paused: silence keeps the timeline continuous
+                    chunk = np.zeros(len(chunk), dtype=np.int16)
                 writer.write(chunk)
                 self._channels[name]["frames"] = writer.frames
                 if self._stop.is_set():
@@ -177,17 +219,51 @@ class DualChannelRecorder:
             if writer is not None:
                 writer.close()
 
+    def _position(self):
+        """Seconds of audio written so far (the longest channel): where a pause starts or ends."""
+        return round(max([c["frames"] for c in self._channels.values()] or [0]) / self._samplerate, 3)
+
+    @property
+    def paused(self):
+        return self._paused.is_set()
+
+    def pause(self):
+        """Keep writing, but silence, until resume(): timestamps stay continuous."""
+        with self._lock:
+            if self._started_at is None or self._stop.is_set():
+                raise RuntimeError("No recording in progress")
+            if not self._paused.is_set():
+                self._pauses.append([self._position(), None])
+                self._paused.set()
+
+    def resume(self):
+        with self._lock:
+            if self._started_at is None or self._stop.is_set():
+                raise RuntimeError("No recording in progress")
+            if self._paused.is_set():
+                self._pauses[-1][1] = self._position()
+                self._paused.clear()
+
+    def pauses(self):
+        """Paused spans in seconds of audio, [[start, end], ...]; the open one has end None."""
+        with self._lock:
+            return [list(p) for p in self._pauses]
+
     def status(self):
         with self._lock:
             started = self._started_at
             active = started is not None and not self._stop.is_set()
             channels = {n: {"frames": c["frames"], "seconds": round(c["frames"] / self._samplerate, 1),
                             "error": c["error"]} for n, c in self._channels.items()}
+            paused = active and self._paused.is_set()
+            pauses = [list(p) for p in self._pauses]
         return {
             "recording": active,
             "recording_id": self.recording_id,
             "elapsed": round(self._clock() - started, 1) if active else 0,
             "channels": channels,
+            "paused": paused,
+            "pauses": pauses,
         }
 
     def stop(self, join_timeout=5.0):
@@ -196,6 +272,9 @@ class DualChannelRecorder:
             if self._started_at is None or self._stop.is_set():
                 raise RuntimeError("No recording in progress")
             self._stop.set()
+            if self._paused.is_set():
+                self._pauses[-1][1] = self._position()
+                self._paused.clear()
         for t in self._threads:
             t.join(timeout=join_timeout)
         with self._lock:

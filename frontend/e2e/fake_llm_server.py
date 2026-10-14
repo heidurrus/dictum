@@ -10,6 +10,7 @@ import json
 import os
 import re
 import sys
+import threading
 import time
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
@@ -152,6 +153,56 @@ else:
     import core.private_browser
     core.private_browser.open_private = lambda url, **k: None       # tests open the sign-in in the test browser
     app_module._jira_session = lambda: FAKE_JIRA
+
+# Live session (5.0 C4.1, e2e/session.mjs): FAKE_RECORDER=1 makes this a desktop window with a fake microphone and
+# system audio (a steady tone, written by the real recorder into the meeting's folder) and a fake live pass that
+# appends three scripted provisional lines 1 s apart. Stop runs the real stop route; the final transcription is
+# fake_transcribe above, once per channel, and replaces the provisional lines.
+LIVE_SCRIPT = [("BA", "Давайте начнём с заявок дилеров"), ("OTHER", "Заявки дублируются почти каждый день"),
+               ("BA", "Проверяем дубли по VIN и телефону")]
+
+
+def _tone(value):
+    def source(stop):
+        import numpy as np
+        chunk = 1600                                  # 0.1 s at 16 kHz, delivered in real time
+        while not stop.is_set():
+            yield np.full(chunk, value, dtype=np.int16)
+            time.sleep(chunk / 16000)
+    return source
+
+
+class FakeLive:
+    def __init__(self, source_id):
+        self.source_id, self.state, self._stop = source_id, "on", threading.Event()
+        self._lock = threading.Lock()
+        threading.Thread(target=self._run, daemon=True).start()
+
+    def _run(self):
+        for i, (speaker, text) in enumerate(LIVE_SCRIPT):
+            if self._stop.wait(1.0):
+                return
+            with self._lock:
+                if self._stop.is_set():
+                    return
+                app_module.library.append_provisional_segments(self.source_id, [
+                    {"speaker": speaker, "start": 2.0 * i, "end": 2.0 * i + 1.5, "text": text}])
+
+    def turn_off(self, reason):
+        self.state = "off"
+
+    def stop(self, join_timeout=2.0):
+        with self._lock:
+            self._stop.set()
+
+
+if os.getenv("FAKE_RECORDER"):
+    app_module.IS_DESKTOP = True
+    app_module.microphone_access = lambda: (True, None)
+    app_module._mic_source = lambda idx: _tone(1000)
+    app_module._system_source = lambda: _tone(2000)
+    app_module._start_live = lambda source, folder, opts, recorder: FakeLive(source["id"])
+    app_module.app.view_functions["audio_devices"] = lambda: app_module.jsonify([{"index": 0, "name": "Fake microphone"}])
 
 # Pretend to be another machine for screenshots: FAKE_GPU="none" or a size in GB.
 if os.getenv("FAKE_GPU"):

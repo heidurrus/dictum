@@ -10,9 +10,11 @@
   import PopMenu from "../components/PopMenu.svelte";
   import NotesEditor from "../components/NotesEditor.svelte";
   import Recap from "../components/Recap.svelte";
+  import AudioPill from "../components/AudioPill.svelte";
   import { api } from "../lib/api.js";
   import { extractAtoms } from "../lib/atoms.js";
-  import { transcribeSaved } from "../lib/capture.svelte.js";
+  import { adoptRecording, cap, clock, stopRecording, togglePause, transcribeSaved } from "../lib/capture.svelte.js";
+  import { createLive } from "../lib/live.svelte.js";
   import { fmtTime, fmtDate, fmtDuration, speakerClass, speakerDisplay } from "../lib/format.js";
   import { saveText } from "../lib/save.js";
   import { audioLabel, fmtBytes, saveAudio } from "../lib/audio.js";
@@ -64,19 +66,58 @@
     }
   }
 
-  // Reload when the route points at another source; keep polling while it's being processed.
+  // Reload when the route points at another source; keep polling while it's being processed. While it is being
+  // recorded the live poller (lib/live.svelte.js) follows the transcript; once the recorder stops, the source
+  // is reloaded until the final transcription has finished.
   $effect(() => {
     const current = id;
     let stop = false;
     load().then(async () => {
       if (focusSeg != null) showSegment(focusSeg);
-      while (!stop && source && source.id === current && source.status === "processing") {
+      while (!stop && source && source.id === current && (source.status === "processing" || source.status === "recording")) {
         await new Promise(r => setTimeout(r, 2000));
-        if (!stop) await load();
+        if (!stop && (source?.status !== "recording" || (live && !live.state.recording))) await load();
       }
     });
     return () => { stop = true; };
   });
+
+  // ── live session (5.0 C4.1) ───────────────────────────────────────────────
+  const isLive = $derived(source?.status === "recording");
+  let live = $state(null);
+  let liveBody = $state(null);
+  let stick = true;                      // follow the newest line while the reader is at the bottom
+  let stopping = $state(false);
+  $effect(() => {
+    if (!isLive) { live = null; return; }
+    const l = createLive(id);
+    live = l;
+    return l.follow(st => adoptRecording(id, st));      // after a reload: take the recording over
+  });
+  const liveSt = $derived(live?.state || null);
+  const livePaused = $derived(cap.recording && cap.sourceId === id ? cap.paused : !!liveSt?.paused);
+  const liveSeconds = $derived(cap.recording && cap.sourceId === id ? cap.elapsed : Math.floor(liveSt?.elapsed || 0));
+  const liveChannel = l => (l === "BA" ? "mic" : "sys");
+  const liveName = l => (l === "BA" || l === "OTHER" ? t(l === "BA" ? "mt.ch.mic" : "mt.ch.sys") : speakerDisplay(l, null, t));
+  function onLiveScroll(e) {
+    const el = e.currentTarget;
+    stick = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+  }
+  $effect(() => {
+    liveSt?.segments.length;
+    if (stick && liveBody) requestAnimationFrame(() => { if (liveBody) liveBody.scrollTop = liveBody.scrollHeight; });
+  });
+  async function liveToggle() {
+    if (!cap.recording && liveSt) adoptRecording(id, liveSt);
+    await togglePause();
+    live?.poll();
+  }
+  async function liveStop() {
+    if (!cap.recording && liveSt) adoptRecording(id, liveSt);
+    stopping = true;
+    try { await stopRecording(); } finally { stopping = false; }
+    await load();
+  }
 
   const speakerOrder = $derived(source ? [...new Set(source.segments.map(s => s.speaker).filter(Boolean))] : []);
   // Two-channel recordings label the sides, not people: the chips say Микрофон / Собеседники.
@@ -304,7 +345,11 @@
         title={t("meet.title_tip")} aria-label={t("tr.edit_title")} onblur={saveTitle} onkeydown={titleKey}></h1>
   {/snippet}
   {#snippet actions()}
-    {#if source}
+    {#if source && isLive}
+      <div class="levels" class:still={livePaused} aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+      <span class="timer num" aria-label={t("live.elapsed")}>{clock(liveSeconds)}</span>
+      <AudioPill paused={livePaused} busy={stopping} ontoggle={liveToggle} onstop={liveStop} />
+    {:else if source}
       {#if source.status !== "ready" && audioItems.length}
         <PopMenu cls="btn ghost" text={t("tr.more")} ariaLabel={t("tr.more")} align="right" onpick={more} items={audioItems} />
       {/if}
@@ -340,7 +385,40 @@
              ontimeupdate={() => (now = audio.currentTime)} onloadedmetadata={() => (duration = audio.duration)}
              onplay={() => (playing = true)} onpause={() => (playing = false)}></audio>
     {/if}
-    {#if source.status !== "ready"}
+    {#if isLive}
+      <Panes contentClass="mt-content">
+        <div class="sess-body">
+          <section class="card col tr-card live-card" aria-label={t("nav.transcript")}>
+            <div class="col-head">
+              <h2 class="block-title">{t("nav.transcript")}</h2>
+              <span class="t3 opt">·</span>
+              <span class="chan mic opt"><i></i><span class="trunc">{t("mt.ch.mic")}</span></span>
+              <span class="chan sys opt"><i></i><span class="trunc">{t("mt.ch.sys")}</span></span>
+            </div>
+            <div class="col-body scroll" bind:this={liveBody} onscroll={onLiveScroll}>
+              <div class="transcript live-lines">
+                {#each liveSt?.segments || [] as seg (seg.idx)}
+                  <div class="seg-line line seg-row live-row" class:provisional={seg.provisional} id="seg-{seg.idx}">
+                    <span class="time mono">{seg.start != null ? fmtTime(seg.start) : ""}</span>
+                    <div class="seg-text"><p>{#if seg.speaker}<span class="spk {liveChannel(seg.speaker)}">{liveName(seg.speaker)}</span>{" "}{/if}{seg.text}</p></div>
+                  </div>
+                {/each}
+                {#if livePaused}
+                  <div class="listening paused"><Icon name="pause" size={16} /> {t("live.paused_note")}</div>
+                {:else if !liveSt || liveSt.live === "off"}
+                  <div class="listening off"><Icon name="clock" size={16} /> {t("live.after_stop")}</div>
+                {:else}
+                  <div class="listening on"><span class="spinner"></span> {t("live.listening")}{#if liveSt.live === "catching_up"}<span class="t3"> · {t("live.catching_up")}</span>{/if}</div>
+                {/if}
+              </div>
+            </div>
+          </section>
+          <section class="card col notes-card" aria-label={t("meet.tab.notes")}>
+            <NotesEditor sourceId={id} value={source.notes} onsaved={text => { if (source) source.notes = text; }} />
+          </section>
+        </div>
+      </Panes>
+    {:else if source.status !== "ready"}
       <div class="card pad">
         {#if source.status === "processing"}
           <div class="banner info"><span class="spinner"></span><span class="grow">
@@ -617,6 +695,19 @@
   .up :global(.menu) { top: auto; bottom: calc(100% + 8px); min-width: 120px; }
 
   .notes-card :global(.notes-editor) { min-height: 120px; }
+
+  /* prototype-v5 "Session" while recording: .levels, .timer, .listening; provisional lines are lighter */
+  .levels { display: flex; gap: 3px; align-items: center; height: 24px; flex: none; }
+  .levels i { width: 3px; height: 6px; border-radius: 2px; background: var(--primary); animation: lv 1s ease-in-out infinite; }
+  .levels i:nth-child(2) { animation-delay: .15s; } .levels i:nth-child(3) { animation-delay: .3s; }
+  .levels i:nth-child(4) { animation-delay: .45s; } .levels i:nth-child(5) { animation-delay: .6s; }
+  .levels.still i { animation: none; background: var(--outline); }
+  @keyframes lv { 0%, 100% { height: 6px; } 50% { height: 22px; } }
+  @media (prefers-reduced-motion: reduce) { .levels i { animation: none; height: 12px; } }
+  .timer { font: 600 18px/1 var(--mono); color: var(--text-2); letter-spacing: .02em; flex: none; }
+  .live-row .time { cursor: default; }
+  .live-row.provisional .seg-text p { color: var(--text-2); }
+  .listening { display: flex; gap: 10px; align-items: center; color: var(--text-3); padding: 10px 6px; font-style: italic; }
   .live-req { border-top: 1px solid var(--outline-2); display: flex; flex-direction: column; min-height: 0; max-height: 45%; flex: none; }
   .live-req .col-head { border-bottom: 0; }
   .req-list { padding-bottom: 6px; min-height: 0; }

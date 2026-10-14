@@ -23,6 +23,7 @@ DEFAULTS = {
     "claude_model": "claude-opus-5",
     "ollama_model": "qwen3:8b",
     "local_model": "",                 # built-in model id; empty = the downloaded one
+    "live_transcription": True,        # transcript on the meeting page while recording (5.0 C4.1)
     "hotkeys": {                       # action → key combo, read by the UI's one key handler
         "record": "cmd+r", "palette": "cmd+k", "theme": "cmd+shift+l", "ask": "cmd+j", "whisper": "alt+space",
         **{f"nav{i}": f"cmd+{i}" for i in range(1, 9)},
@@ -124,6 +125,9 @@ def save_settings(updates):
             raise ValueError(f"unknown setting {key}")
         if key == "hotkeys":
             data[key] = _hotkeys(data[key], value)
+            continue
+        if key == "live_transcription":
+            data[key] = value is True or str(value).strip().lower() in ("true", "1", "yes", "on")
             continue
         value = str(value).strip()
         if key == "llm_provider" and value not in PROVIDERS:
