@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Workbench 5 Prototype</title>
+<title>Dictum Prototype</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -543,7 +543,7 @@ function shell(content) {
   return html`
   <div class="shell">
     <nav class="rail" aria-label="Разделы">
-      <div class="logo" title="Requirements Workbench">${ic("req", 22)}</div>
+      <div class="logo" title="Dictum">${ic("req", 22)}</div>
       <button class="rec-fab" id="t-rec" title="Записать встречу (⌘R)" onclick="S.page='session';S.paused=false;go('session')"><span class="dot"></span></button>
       ${NAV.map(([p, i, l, o = {}]) => html`<button class="nav-item ${act === p ? "active" : ""} ${["backlog", "documents", "ask"].includes(p) ? "opt" : ""}" id="t-${p}" onclick="go('${p}')">
         <span class="pill">${ic(i, 22)}</span>${l}${o.badge ? `<span class="badge">${o.badge}</span>` : ""}${o.dot ? `<span class="dotb"></span>` : ""}</button>`).join("")}
@@ -767,7 +767,7 @@ function pageWhisper() {
   const cap = S.wstate === "idle" ? html`
       <button class="wbtn" onclick="wStart()" title="Говорите (⌥ Пробел)">${ic("mic", 44)}</button>
       <h2>Нажмите и скажите, что нужно сделать</h2>
-      <p class="hint">Задача, заметка, напоминание или идея — Workbench распознает речь на этом Mac и сам поймёт, что это.<br>Из любого окна: <span class="kbd">⌥ Пробел</span> · из строки меню: значок микрофона</p>`
+      <p class="hint">Задача, заметка, напоминание или идея — Dictum распознает речь на этом Mac и сам поймёт, что это.<br>Из любого окна: <span class="kbd">⌥ Пробел</span> · из строки меню: значок микрофона</p>`
     : S.wstate === "listening" ? html`
       <button class="wbtn live" onclick="wStop()" title="Готово">${ic("stop", 40)}</button>
       <h2>Слушаю…</h2><p class="hint">Нажмите ещё раз, когда закончите. Пауза в две секунды тоже остановит запись.</p>
@@ -866,7 +866,7 @@ function pageSettings() {
       <div class="row" style="margin-top:12px"><div class="l"><b>Статистика</b><small>За неделю на этом компьютере обработано 184 тыс. токенов · 6 встреч · 0 отправлено в облако</small></div></div></div>`
   : S.setsec === "storage" ? html`
     <div class="card setcard"><h3>Хранилище проекта</h3><div class="d">Папка, которую можно открыть в Finder или Obsidian. Приложение пишет в неё каждое изменение и подхватывает правки извне</div>
-      <div class="row"><div class="l"><b>~/RequirementsWorkbench/Портал дилера</b><small>8 встреч · 94 требования · 3 документа · 1,9 ГБ с аудио</small></div><button class="btn sm">Сменить папку</button><button class="btn sm">${ic("finder", 16)} Показать</button></div>
+      <div class="row"><div class="l"><b>~/Dictum/Портал дилера</b><small>8 встреч · 94 требования · 3 документа · 1,9 ГБ с аудио</small></div><button class="btn sm">Сменить папку</button><button class="btn sm">${ic("finder", 16)} Показать</button></div>
       <div class="row"><div class="l"><b>Следить за изменениями на диске</b><small>Правки в Obsidian и Finder попадают в приложение</small></div><span class="switch on"></span></div>
       <div class="row"><div class="l"><b>Хранить аудио рядом с транскриптом</b><small>mixed.wav, mic.wav, sys.wav в папке встречи</small></div><span class="switch on"></span></div></div>`
   : S.setsec === "privacy" ? html`
@@ -890,7 +890,7 @@ function onboarding() {
   let body = "", next = "Далее", back = step > 1, nextFn = "S.onb++;render()", skip = "";
   if (step === 1) {
     next = "Начать"; back = false;
-    body = html`<h1>Добро пожаловать в Requirements Workbench</h1><p class="lead">Запишите встречу, получите требования с цитатами, соберите ТЗ и бэклог. Всё считается на этом Mac: ни звук, ни текст не покидают компьютер, пока вы сами не включите облако.</p>
+    body = html`<h1>Добро пожаловать в Dictum</h1><p class="lead">Запишите встречу, получите требования с цитатами, соберите ТЗ и бэклог. Всё считается на этом Mac: ни звук, ни текст не покидают компьютер, пока вы сами не включите облако.</p>
     <div class="panels">
       <div class="panel-art"><div class="art"><div class="line" style="left:16px;top:18px;width:60%"></div><div class="line" style="left:16px;top:36px;width:40%"></div><div class="line" style="left:16px;top:54px;width:70%"></div><div class="hud"><b>Идёт запись · 24:10</b>Микрофон · Собеседники · требования на лету</div></div><h3>Записывайте встречи</h3><p>Два канала, заметки рядом с транскриптом</p></div>
       <div class="panel-art"><div class="art"><div class="cardlet" style="left:14px;top:14px;right:40px"><b>FR-12 · принято</b>Проверка дублей по VIN и телефону</div><div class="cardlet" style="left:30px;top:66px;right:14px"><b>NFR-4 · конфликт</b>Ответ дилеру ≤ 2 ч · 2 цитаты</div><div class="cardlet" style="left:14px;top:118px;right:60px"><b>Q-7 · вопрос</b>Кто утверждает статус?</div></div><h3>Проверяйте требования</h3><p>Каждое — с цитатой из источника</p></div>
@@ -915,7 +915,7 @@ function onboarding() {
     next = "Загрузить"; nextFn = "S.onb=4;S.dl=0;render();dlTick()";
   } else if (step === 4) {
     const done = S.dl >= 100;
-    body = html`<h1>${done ? "Готово" : "Готовим Workbench…"}</h1><p class="lead">${done ? "Модели на месте. Дальше всё работает без интернета." : "Загружаем модели. Это один раз; можно свернуть окно — загрузка продолжится."}</p>
+    body = html`<h1>${done ? "Готово" : "Готовим Dictum…"}</h1><p class="lead">${done ? "Модели на месте. Дальше всё работает без интернета." : "Загружаем модели. Это один раз; можно свернуть окно — загрузка продолжится."}</p>
     <div class="card setcard" style="margin-top:24px;display:grid;gap:14px">
       <div><div style="display:flex;justify-content:space-between;margin-bottom:6px"><b>GigaAM v3 e2e</b><span class="t2 num">${Math.min(100, S.dl * 2)}% · 1,1 ГБ</span></div><div class="progress"><i style="width:${Math.min(100, S.dl * 2)}%"></i></div></div>
       <div><div style="display:flex;justify-content:space-between;margin-bottom:6px"><b>Qwen3.6 35B-A3B</b><span class="t2 num">${S.dl}% · 17,7 ГБ</span></div><div class="progress"><i style="width:${S.dl}%"></i></div></div>
@@ -926,14 +926,14 @@ function onboarding() {
     body = html`<h1>Материалы</h1><p class="lead">Нашли в Загрузках, Документах и на Рабочем столе файлы, похожие на материалы проекта. Отметьте, что добавить в папку проекта.</p>
     <div class="card" style="margin:24px 0 14px">${cands.map(([id, ext, n, d]) => `<div class="disc" onclick="S.disc[${id}]=!S.disc[${id}];render()"><span class="cb ${S.disc[id] ? "on" : ""}">${S.disc[id] ? ic("check", 14) : ""}</span><span class="fico ${ext}">${ext.toUpperCase()}</span><div class="l"><b>${n}</b><small>${d}</small></div></div>`).join("")}</div>
     <div style="display:flex;gap:8px"><button class="btn">${ic("folder", 16)} Выбрать папку</button><button class="btn text">Ничего не добавлять</button></div>
-    <p class="t3" style="font-size:13px;margin-top:16px">Файлы копируются в ~/RequirementsWorkbench/Портал дилера. Оригиналы остаются на месте.</p>`;
+    <p class="t3" style="font-size:13px;margin-top:16px">Файлы копируются в ~/Dictum/Портал дилера. Оригиналы остаются на месте.</p>`;
     next = `Добавить ${Object.values(S.disc).filter(Boolean).length} и продолжить`;
   } else {
     body = html`<h1>Всё готово</h1><p class="lead">Покажем четыре места, с которых начинается работа. Подсказки можно вызвать снова из справки.</p>
     <div class="panels" style="grid-template-columns:repeat(2,1fr)">${[["mic", "Записать встречу", "Кнопка слева сверху или ⌘R"], ["meet", "Встречи", "Список, резюме, транскрипт и заметки"], ["lib", "Материалы", "Папка проекта: файлы, ссылки, метки"], ["chat", "Спросить", "Вопросы по всему проекту с цитатами"], ["bell", "Шепнуть", "Задача или напоминание голосом, ⌥ Пробел"], ["set", "Настройки", "Модели, приватность, папка проекта"]].map(([i, t, d]) => `<div class="card" style="padding:20px;display:flex;gap:14px;align-items:center"><span style="width:44px;height:44px;border-radius:14px;background:var(--primary-c);color:var(--on-primary-c);display:grid;place-items:center">${ic(i, 22)}</span><div><b>${t}</b><div class="t2" style="font-size:13px">${d}</div></div></div>`).join("")}</div>`;
     next = "Показать подсказки"; nextFn = "finishOnb(true)"; skip = `<button class="btn text" onclick="finishOnb(false)">Пропустить</button>`;
   }
-  return html`<div class="onb"><div class="onb-top"><span style="width:32px;height:32px;border-radius:10px;background:var(--primary);color:var(--on-primary);display:grid;place-items:center">${ic("req", 18)}</span><b>Requirements Workbench</b><span class="t3">· первый запуск</span>${steps}</div>
+  return html`<div class="onb"><div class="onb-top"><span style="width:32px;height:32px;border-radius:10px;background:var(--primary);color:var(--on-primary);display:grid;place-items:center">${ic("req", 18)}</span><b>Dictum</b><span class="t3">· первый запуск</span>${steps}</div>
     <div class="onb-body"><div class="onb-inner">${body}</div></div>
     <div class="onb-bot">${back ? `<button class="btn text" onclick="S.onb--;render()">${ic("back", 16)} Назад</button>` : ""}<div class="right">${skip}<button class="btn filled lg" onclick="${nextFn}">${next} ${ic("arrow", 16)}</button></div></div></div>`;
 }
