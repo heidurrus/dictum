@@ -26,8 +26,8 @@ depends on an unmerged one.
 | 11 | Шепнуть: capture, parse, inbox, reminders, to-question (window-level ⌥Space) | C7 | 4.9.10 | merged |
 | 12 | Menu-bar item and global hotkey (macOS, Carbon hot keys so the App Store sandbox allows it) | C7 | 4.9.11 | merged, hand check pending |
 | 13 | Onboarding, permissions API, discovery, tutorial, e2e gate | C8 | 4.9.12 | merged, hand check pending |
-| 14 | Settings sections, stats, storage move, hotkeys UI | C9 | 4.9.13 | in progress |
-| 15 | Requirements, Documents, Backlog, Export, Skills restyled; old tokens deleted | C10 | 4.9.14 | planned |
+| 14 | Settings sections, stats, storage move, hotkeys UI | C9 | 4.9.13 | merged |
+| 15 | Requirements, Documents, Backlog, Export, Skills restyled; old tokens deleted | C10 | 4.9.14 | in progress |
 | 16 | Release: Windows parity, README, changelog, screenshots, 5.0.0 | C11 | 5.0.0 | planned |
 
 ## Log
@@ -46,3 +46,4 @@ depends on an unmerged one.
 - 2026-10-15 · 11 merged (d91e1e7). 614 tests, i18n 1446, whisper.mjs ru/en with FAKE_RECORDER, 13 suites; screenshot OK. Date rules applied in code over the model's output. Post-5.0 idea noted: English speech engine (Parakeet TDT via sherpa-onnx, Whisper via whisper.cpp).
 - 2026-10-15 · 12 merged (95c8258). 659 tests, i18n 1454, 13 suites; Cocoa/Carbon path reviewed (callAfter from webview.start, every call wrapped), not launched here: user to check the glyph, ⌥Space from another app, menu language, red dot while recording, Выйти keeps the WAV. ⌘R stays window-only by design.
 - 2026-10-15 · 13 merged (ce4c63f). 682 tests, i18n 1580, onboarding.mjs ru/en (20 steps) + 13 suites; welcome screenshot OK. Hand check: real permission prompts, download progress, discovery on real folders, tutorial at narrow widths. Help menu now has Подсказки and Первый запуск заново.
+- 2026-10-15 · 14 merged (4dcacf1). 696 tests, i18n 1711, settings.mjs ru/en + 14 suites; model cards screenshot OK (machine line, RAM tags, index model). Data-dir move writes a pointer file in the default folder; refused while recording/downloading or with DICTUM_DATA_DIR set.
