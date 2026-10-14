@@ -60,6 +60,8 @@ export const app = $state({
   extracting: {},
   work: {},                 // other long jobs shown in the sidebar: key → { title, progress, message, path }
   atomsVersion: 0,
+  settings: null,           // GET /settings, loaded at boot (the hotkeys map lives there)
+  jobsTick: 0,              // bumped when something started a job: the status chip polls at once
   returnTo: null,           // {hash, name}: where Settings was opened from          // bumped when atoms change elsewhere, so open screens reload
 });
 
@@ -79,6 +81,8 @@ window.addEventListener("hashchange", e => {
   if (app.route.name !== prev) { app.toasts = []; app.inspectorOverlay = false; }   // toasts belong to the screen that raised them
   loadStatus();
 });
+
+export function jobsTick() { app.jobsTick++; }
 
 export function setTheme(theme) {
   app.theme = theme;

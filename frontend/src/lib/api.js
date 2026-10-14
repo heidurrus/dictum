@@ -12,6 +12,10 @@ export class ApiError extends Error {
 let currentLang = () => "ru";
 export function setLangSource(fn) { currentLang = fn; }
 
+// Set by the app: called after a request that started a job, so the status chip refreshes at once.
+let onJobStarted = () => {};
+export function setJobStartedHook(fn) { onJobStarted = fn; }
+
 export async function api(path, { method = "GET", body, form, headers } = {}) {
   if (path.startsWith("/api/") && !/[?&]lang=/.test(path)) path += (path.includes("?") ? "&" : "?") + "lang=" + currentLang();
   const init = { method, headers: { ...(headers || {}) } };
@@ -24,6 +28,7 @@ export async function api(path, { method = "GET", body, form, headers } = {}) {
   let data = null;
   try { data = await res.json(); } catch (_) { /* not JSON */ }
   if (!res.ok) throw new ApiError((data && data.error) || `HTTP ${res.status}`, res.status, data);
+  if (method !== "GET" && data && (data.job_id || data.extract_job || /\/download$/.test(path.split("?")[0]))) onJobStarted();
   return data;
 }
 

@@ -3,6 +3,8 @@
   // the theme toggle and help on the right.
   import { keyOf } from "../lib/keys.js";
   import Icon from "./Icon.svelte";
+  import StatusChip from "./StatusChip.svelte";
+  import { DEFAULT_HOTKEYS, comboLabel } from "../lib/hotkeys.js";
   import { api } from "../lib/api.js";
   import { app, t, go, currentProject, switchProject, loadProjects, restoreProject, toast, setTheme, isDark } from "../lib/state.svelte.js";
 
@@ -66,6 +68,7 @@
 
   const shown = $derived(app.projects.filter(p => p.name.toLowerCase().includes(query.trim().toLowerCase())));
   const project = $derived(currentProject());
+  const hk = $derived({ ...DEFAULT_HOTKEYS, ...(app.settings?.hotkeys || {}) });
 </script>
 
 <svelte:window onkeydown={onKey} />
@@ -123,11 +126,11 @@
   </div>
 
   <span class="grow"></span>
-  <!-- Slot for the 36-px status chip (jobs); it comes in the next increment and renders nothing until then. -->
+  <StatusChip />
   <button class="icon-btn-m" onclick={() => setTheme(isDark() ? "light" : "dark")}
-          aria-label={t("shell.theme")} title={`${t("shell.theme")} · ${mod}⇧L`}>
+          aria-label={t("shell.theme")} title={`${t("shell.theme")} · ${comboLabel(hk.theme)}`}>
     <Icon name={isDark() ? "sun" : "moon"} size={18} /></button>
-  <button class="icon-btn-m help" onclick={() => (app.palette = true)} aria-label={t("shell.help")} title={`${t("shell.help")} · ${mod}K`}>
+  <button class="icon-btn-m help" onclick={() => (app.palette = true)} aria-label={t("shell.help")} title={`${t("shell.help")} · ${comboLabel(hk.palette)}`}>
     <Icon name="help" size={18} /></button>
 </div>
 
