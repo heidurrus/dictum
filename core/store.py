@@ -1020,6 +1020,12 @@ class Store:
             now, by = self._stamp()
             c.execute("UPDATE atoms SET status = 'merged', merged_into = ?, updated_at = ?, updated_by = ? WHERE id = ?",
                       (into_id, now, by, duplicate_id))
+            # A live atom whose quote the final transcript lost (5.0 C4.2) has verified evidence again once the
+            # final pass's copy of it is folded in: a quote on a line of the same source.
+            c.execute("""UPDATE atoms SET stale_evidence = 0 WHERE id = ? AND stale_evidence = 1 AND EXISTS (
+                           SELECT 1 FROM evidence e WHERE e.atom_id = atoms.id AND e.segment_idx IS NOT NULL
+                           AND e.source_id IN (SELECT source_id FROM evidence WHERE atom_id = atoms.id
+                                               AND segment_idx IS NULL))""", (into_id,))
             self._audit(c, "atom", duplicate_id, "merge", {"status": dup["status"]},
                         {"merged_into": into_id, "reason": audit_reason})
 

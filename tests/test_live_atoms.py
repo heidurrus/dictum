@@ -229,6 +229,29 @@ def test_the_final_extraction_keeps_live_atoms_and_folds_its_duplicates_into_the
     assert store.get_atom(pl)["status"] == "pending"
 
 
+def test_a_stale_live_atom_is_no_longer_stale_once_the_final_pass_folds_its_copy_in(store, source):
+    say(store, source, LINES[:4])
+    [live_id] = live(store, source, FakeExtract(source["id"])).run_pass()
+    final_transcript(store, source, [("BA", "Добрый день"), ("BA", "Нужно проверять дубли по номеру VIN")])
+    reconcile(store, source["id"])
+    assert store.get_atom(live_id)["stale_evidence"] == 1     # "Нужна проверка дублей по VIN" is not in the final text
+
+    def complete(system, user, schema, prefs, api_key, ollama_url):
+        if "duplicates" in schema["properties"]:
+            keys = [line.split(" ", 1)[0] for line in user.splitlines()]
+            return {"duplicates": [{"new": next(k for k in keys if k.startswith("N")),
+                                    "same_as": next(k for k in keys if k.startswith("E"))}], "conflicts": []}
+        return {"atoms": [{"type": "functional", "statement": "Проверять дубли по VIN",
+                           "evidence": [{"segment": 1, "quote": "проверять дубли по номеру VIN"}]}]}
+    result = atoms_mod.extract_atoms(store, source["id"], {"llm_provider": "claude", "claude_model": "m"}, "k", "",
+                                     complete=complete)
+    assert result["merged"] == 1
+    kept = store.get_atom(live_id)
+    assert kept["stale_evidence"] == 0 and kept["status"] == "pending"
+    assert [(e["segment_idx"], e["quote"]) for e in kept["evidence"] if e["segment_idx"] is not None] == \
+        [(1, "проверять дубли по номеру VIN")]
+
+
 def test_run_job_rechecks_live_atoms_after_saving_the_final_transcript(app_module, monkeypatch):
     a = app_module
     src = a.library.create_source(a.library.current_project()["id"], "recording", "Live", status="processing")
