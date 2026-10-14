@@ -157,7 +157,8 @@ else:
 # Live session (5.0 C4.1, e2e/session.mjs): FAKE_RECORDER=1 makes this a desktop window with a fake microphone and
 # system audio (a steady tone, written by the real recorder into the meeting's folder) and a fake live pass that
 # appends three scripted provisional lines 1 s apart. Stop runs the real stop route; the final transcription is
-# fake_transcribe above, once per channel, and replaces the provisional lines.
+# fake_transcribe above, once per channel, and replaces the provisional lines. Requirements on the fly (C4.2) run
+# for real every second once the three lines are in; the fake model finds one requirement in them.
 LIVE_SCRIPT = [("BA", "Давайте начнём с заявок дилеров"), ("OTHER", "Заявки дублируются почти каждый день"),
                ("BA", "Проверяем дубли по VIN и телефону")]
 
@@ -196,8 +197,21 @@ class FakeLive:
             self._stop.set()
 
 
+LIVE_REQUIREMENT = "Проверять дубли заявок по VIN и телефону"
+
+
+def fake_live_complete(system, user, schema, prefs, api_key, ollama_url):
+    if "duplicates" in schema["properties"]:
+        return {"duplicates": [], "conflicts": []}
+    found = re.search(r"^\[S(\d+)\] (?:\[[^\]]*\] )?(.*VIN.*)$", user, flags=re.M)
+    return {"atoms": [{"type": "functional", "statement": LIVE_REQUIREMENT,
+                       "evidence": [{"segment": int(found.group(1)), "quote": "дубли по VIN и телефону"}]}] if found else []}
+
+
 if os.getenv("FAKE_RECORDER"):
     app_module.IS_DESKTOP = True
+    app_module._start_live_atoms = functools.partial(app_module._start_live_atoms, window=1.0, min_segments=3,
+                                                     complete=fake_live_complete)
     app_module.microphone_access = lambda: (True, None)
     app_module._mic_source = lambda idx: _tone(1000)
     app_module._system_source = lambda: _tone(2000)

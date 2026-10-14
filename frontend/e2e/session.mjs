@@ -1,6 +1,8 @@
-// Live session (spec 5.0 C4.1): record from Встречи → the meeting page opens at once with the audio pill →
-// provisional lines appear → pause shows the paused state → resume → stop → the final transcript replaces the
-// provisional lines and the meeting is processed. Runs once per interface language.
+// Live session (spec 5.0 C4.1, C4.2): record from Встречи → the meeting page opens at once with the audio pill →
+// provisional lines appear → a requirement found on the fly appears with the "1 новое" tag → accept it with its
+// checkbox → pause shows the paused state → resume → stop → the final transcript replaces the provisional lines,
+// the meeting is processed and the accepted requirement is listed under "Требования из встречи".
+// Runs once per interface language.
 // Run: FAKE_RECORDER=1 WORKBENCH_DATA_DIR=$(mktemp -d) python frontend/e2e/fake_llm_server.py 5312 &
 //      node frontend/e2e/session.mjs http://127.0.0.1:5312
 import { chromium } from "playwright-core";
@@ -9,13 +11,16 @@ const base = process.argv[2] || "http://127.0.0.1:5098";
 const L = {
   ru: { locale: "ru-RU", heading: "Встречи", record: "Записать встречу", consent: "Да, записывать", recording: "Идёт запись",
         pause: "Пауза", resume: "Продолжить", stop: "Завершить и расшифровать", listening: "Слушаю…",
-        paused: "На паузе — звук не пишется", title: /^Встреча /, ready: "Разобран" },
+        paused: "На паузе — звук не пишется", title: /^Встреча /, ready: "Разобран",
+        liveReqs: "Требования на лету", newOne: "1 новое", reqs: "Требования из встречи" },
   en: { locale: "en-US", heading: "Meetings", record: "Record a meeting", consent: "Yes, record", recording: "Recording",
         pause: "Pause", resume: "Resume", stop: "Stop and transcribe", listening: "Listening…",
-        paused: "Paused: no audio is being recorded", title: /^Meeting /, ready: "Processed" },
+        paused: "Paused: no audio is being recorded", title: /^Meeting /, ready: "Processed",
+        liveReqs: "Requirements on the fly", newOne: "1 new", reqs: "Requirements from the meeting" },
 };
 const LIVE = ["Давайте начнём с заявок дилеров", "Заявки дублируются почти каждый день", "Проверяем дубли по VIN и телефону"];
 const FINAL = "Нужна выгрузка отчёта в Excel";
+const LIVE_REQ = "Проверять дубли заявок по VIN и телефону";
 
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 const errors = [];
@@ -49,6 +54,27 @@ for (const [lang, s] of Object.entries(L)) {
   if (await page.locator(".live-row").count() !== 3) throw new Error("live rows: " + await page.locator(".live-row").count());
   step("three provisional lines appear while recording, ending with Слушаю…");
 
+  const block = page.locator(".live-atoms");
+  await block.locator("h2", { hasText: s.liveReqs }).waitFor();
+  const req = block.locator(".req", { hasText: LIVE_REQ });
+  await req.waitFor({ timeout: 10000 });
+  const tag = block.locator(".new-tag");
+  await tag.waitFor();
+  if ((await tag.textContent()).trim() !== s.newOne) throw new Error("new tag: " + await tag.textContent());
+  if (!(await req.textContent()).includes("«дубли по VIN и телефону»")) throw new Error("live req: " + await req.textContent());
+  step("a requirement found on the fly appears under the notes with the new tag");
+
+  await req.getByRole("checkbox").check();
+  await tag.waitFor({ state: "detached" });
+  for (let i = 0; i < 50; i++) {
+    const a = (await json(`/api/sources/${id}/live`)).atoms.find(x => x.statement === LIVE_REQ);
+    if (a?.status === "accepted" && a.live) break;
+    if (i === 49) throw new Error("live atom not accepted: " + JSON.stringify(a));
+    await page.waitForTimeout(100);
+  }
+  if (!(await req.getByRole("checkbox").isChecked())) throw new Error("the checkbox did not stay checked");
+  step("its checkbox accepts it; looking at the block clears the tag");
+
   await pill.getByRole("button", { name: s.pause, exact: true }).click();
   await page.locator(".audio-pill.paused").waitFor();
   await page.locator(".listening.paused", { hasText: s.paused }).waitFor();
@@ -72,6 +98,12 @@ for (const [lang, s] of Object.entries(L)) {
   if (!done.audio_files.some(f => f.id === "mic") || !done.audio_files.some(f => f.id === "sys") || done.audio_file !== "mixed.wav")
     throw new Error("audio files: " + JSON.stringify(done.audio_files));
   step("stop: the final transcript replaces the provisional lines; mic, sys and mixed audio are kept");
+
+  await page.locator(".live-req h2", { hasText: s.reqs }).waitFor();
+  await page.locator(".live-req .req", { hasText: LIVE_REQ }).locator(".status.ok").waitFor({ timeout: 10000 });
+  const kept = (await json(`/api/projects/${src.project_id}/atoms?source_id=${id}`)).atoms.find(x => x.statement === LIVE_REQ);
+  if (!kept || kept.status !== "accepted" || !kept.live || !kept.stale_evidence) throw new Error("kept live atom: " + JSON.stringify(kept));
+  step("after stop the accepted requirement is listed under Требования из встречи (its quote marked stale)");
 
   await page.goto(base + "/#/meetings");
   await page.locator(`#src-${id} .right .tag`, { hasText: s.ready }).waitFor({ timeout: 10000 });

@@ -217,3 +217,119 @@ class LiveTranscriber:
         if self._slow >= 2:
             self.window = min(self.window * 2, self.max_window)
             self._slow = 0
+
+
+# ── auto-stop on silence (5.0 C4.3) ──────────────────────────────────────────
+SPEECH_RMS_FLOOR = 100        # a 20 ms frame quieter than this (int16 RMS, about -50 dBFS) is not speech
+SILENCE_TICK = 5.0
+
+
+def has_speech(samples, rate=SAMPLE_RATE, floor=SPEECH_RMS_FLOOR):
+    """(start, end) seconds of the speech in these samples (speech_bounds_samples), or None when there is none:
+    all zeros, or nothing louder than the floor (room noise alone never counts as speech)."""
+    bounds = speech_bounds_samples(samples, rate)
+    if bounds is None:
+        return None
+    part = np.asarray(samples[int(bounds[0] * rate):int(bounds[1] * rate)], dtype=np.float32)
+    n = max(1, int(rate * 0.02))
+    if len(part) < n:
+        return None
+    frames = part[: len(part) // n * n].reshape(-1, n)
+    return bounds if float(np.sqrt((frames ** 2).mean(axis=1)).max()) >= floor else None
+
+
+class SilenceWatch:
+    """Counts the seconds of audio since the last speech on either channel, leaving paused spans out, and calls
+    `on_silence(minutes)` once when it reaches `minutes`. Like the live transcriber it only ever opens the channel
+    files read-only, at the byte offset it reached last time; a failure here is logged and changes nothing."""
+
+    def __init__(self, recording_dir, minutes, on_silence, pauses=None, tick=SILENCE_TICK, rate=SAMPLE_RATE):
+        self.recording_dir = recording_dir
+        self.minutes = minutes
+        self._on_silence = on_silence
+        self._pauses = pauses or (lambda: [])
+        self.tick_seconds = tick
+        self.rate = rate
+        self.offsets = {c: WAV_HEADER_BYTES for c in CHANNELS}
+        self.samples = {c: 0 for c in CHANNELS}
+        self.last_speech = 0.0           # seconds of audio: where the last speech ended
+        self.silent = 0.0
+        self.fired = False
+        self._stop = threading.Event()
+        self._thread = None
+
+    @property
+    def position(self):
+        return max(self.samples.values()) / self.rate
+
+    @property
+    def limit(self):
+        return self.minutes * 60
+
+    def _read_new(self, channel):
+        """Samples appended to <channel>.wav since the last read; the file is opened read-only."""
+        path = os.path.join(self.recording_dir, f"{channel}.wav")
+        try:
+            f = open(path, "rb")
+        except FileNotFoundError:
+            return np.zeros(0, dtype=np.int16)
+        with f:
+            size = os.fstat(f.fileno()).st_size
+            start = self.offsets[channel]
+            n = (size - start) // 2 * 2
+            if n <= 0:
+                return np.zeros(0, dtype=np.int16)
+            f.seek(start)
+            data = f.read(n)
+        n = len(data) // 2 * 2
+        self.offsets[channel] = start + n
+        return np.frombuffer(data[:n], dtype="<i2")
+
+    def silent_seconds(self):
+        """Seconds of audio since the last speech, paused spans not counted."""
+        a, b = self.last_speech, self.position
+        if b <= a:
+            return 0.0
+        paused = 0.0
+        for start, end in self._pauses() or []:
+            if start is None:
+                continue
+            end = b if end is None else end
+            paused += max(0.0, min(b, end) - max(a, start))
+        return max(0.0, (b - a) - paused)
+
+    def check(self):
+        """Read what was written since the last check; fire once the silence is long enough. Returns the
+        silent seconds."""
+        for ch in CHANNELS:
+            new = self._read_new(ch)
+            first = self.samples[ch]
+            self.samples[ch] += len(new)
+            if len(new):
+                bounds = has_speech(new, self.rate)
+                if bounds is not None:
+                    self.last_speech = max(self.last_speech, first / self.rate + bounds[1])
+        self.silent = self.silent_seconds()
+        if self.minutes and not self.fired and self.silent >= self.limit:
+            self.fired = True
+            self._stop.set()
+            self._on_silence(self.minutes)
+        return self.silent
+
+    def start(self):
+        self._thread = threading.Thread(target=self._run, name="silence-watch", daemon=True)
+        self._thread.start()
+        return self
+
+    def _run(self):
+        while not self._stop.wait(self.tick_seconds):
+            try:
+                self.check()
+            except Exception:              # never reaches the recorder; auto-stop is simply off from here
+                log.exception("Silence watch failed in %s", self.recording_dir)
+                return
+
+    def stop(self, join_timeout=1.0):
+        self._stop.set()
+        if self._thread is not None and self._thread is not threading.current_thread():
+            self._thread.join(timeout=join_timeout)
