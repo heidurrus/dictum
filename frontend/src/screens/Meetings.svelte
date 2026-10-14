@@ -318,7 +318,7 @@
     {/if}
 
     <div class="meetings" class:solo={!app.sources.length}>
-      <section class="card list-card" aria-label={t("nav.meetings")}>
+      <section class="card list-card" id="t-list" aria-label={t("nav.meetings")}>
         {#if cap.error}
           <div class="banner danger notice"><Icon name="warn" /><span class="grow">{cap.error}</span>
             <button class="btn sm ghost" onclick={() => (cap.error = "")}>{t("src.dismiss")}</button></div>

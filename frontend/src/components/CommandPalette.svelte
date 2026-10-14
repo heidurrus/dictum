@@ -5,6 +5,7 @@
   import { api } from "../lib/api.js";
   import { app, t, go, setTheme, isDark, switchProject } from "../lib/state.svelte.js";
   import { DEFAULT_HOTKEYS, comboLabel } from "../lib/hotkeys.js";
+  import { reopenOnboarding, startTutorial } from "../lib/onboarding.svelte.js";
 
   let query = $state("");
   let index = $state(0);
@@ -35,6 +36,8 @@
   ]);
   const commands = $derived([
     { icon: isDark() ? "sun" : "moon", label: t(isDark() ? "cmd.light" : "cmd.dark"), keys: [comboLabel(hk.theme)], run: () => setTheme(isDark() ? "light" : "dark") },
+    { icon: "help", label: t("help.tips"), run: startTutorial },
+    { icon: "help", label: t("help.onboarding"), run: reopenOnboarding },
   ]);
 
   const groups = $derived.by(() => {

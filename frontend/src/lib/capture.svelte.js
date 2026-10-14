@@ -15,7 +15,7 @@ export const cap = $state({
   consentAsk: false,
 });
 
-function optionsPayload() {
+export function optionsPayload() {
   const o = app.options;
   return { model: o.model, device: o.device, diarize: String(o.diarize),
            word_timestamps: String(!o.diarize && o.word_timestamps) };

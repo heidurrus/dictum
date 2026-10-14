@@ -16,6 +16,9 @@
   import Library from "./screens/Library.svelte";
   import Ask from "./screens/Ask.svelte";
   import Whisper from "./screens/Whisper.svelte";
+  import Onboarding from "./screens/Onboarding.svelte";
+  import Tutorial from "./components/Tutorial.svelte";
+  import { onb, loadOnboarding } from "./lib/onboarding.svelte.js";
   import { api, setProgressTranslator, setLangSource, setJobStartedHook } from "./lib/api.js";
   import { actionFor } from "./lib/hotkeys.js";
   import { cap, recordFromShell, stopRecording } from "./lib/capture.svelte.js";
@@ -32,7 +35,10 @@
   setJobStartedHook(jobsTick);
   // Screens rebuilt on panes; the others still scroll as one page inside the main area.
   const INSPECTOR = { transcript: "source", atoms: "atoms", document: "document", backlog: "backlog", skills: "skills" };
+  // The first run (5.0 C8) replaces the shell until it is done; #/onboarding opens it again from Help.
+  const onboarding = $derived(ready && (!onb.done || app.route.name === "onboarding"));
   function onKey(e) {
+    if (onboarding) return;
     const key = keyOf(e);
     if ((e.metaKey || e.ctrlKey) && !e.shiftKey && (key === "z" || key === "Z")
         && !e.target.closest?.("input:not([type=checkbox]), textarea, [contenteditable]")) {
@@ -73,6 +79,7 @@
   // macOS: the global hot keys and the menu-bar item (core/hotkeys.py) bring the window forward and send their
   // action here; the same handlers as the keys, plus "record_stop" from the menu while a meeting records.
   function onGlobalAction(e) {
+    if (onboarding) return;
     const action = e.detail?.action;
     if (action === "whisper") { go("/whisper"); toggleWhisper(); }
     else if (action === "record") recordFromShell();
@@ -102,6 +109,7 @@
       if (app.options.device === "cuda" && !device.cuda && device.mps) app.options.device = "mps";
       await loadProjects();
       await loadSources();
+      await loadOnboarding();
       ready = true;
     } catch (err) {
       error = err.message;
@@ -114,6 +122,9 @@
 
 {#if error}
   <div class="boot-error note danger">{t("err.generic", { error })}</div>
+{:else if onboarding}
+  <Onboarding />
+  <Toast />
 {:else if ready}
   <div class="shell">
     <Rail />
@@ -149,6 +160,7 @@
   <CommandPalette />
   <RecordingHud />
   <Toast />
+  {#if onb.tutorial}<Tutorial />{/if}
 {/if}
 
 <style>

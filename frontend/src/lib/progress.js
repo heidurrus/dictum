@@ -31,6 +31,7 @@ const MAP = [
   [/^Trying the skill…$/, "pg.try"],
   [/^Searching the project…$/, "pg.ask_search"],
   [/^Writing the answer…$/, "pg.ask_answer"],
+  [/^Waiting for the speech model download…$/, "pg.wait_asr"],
   [/^Starting…$/, "pg.starting"],
   [/^Done$/, "pg.done"],
 ];

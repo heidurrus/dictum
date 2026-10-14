@@ -1,13 +1,13 @@
 <script module>
-  // In rail order; the hotkeys nav1…nav8 (⌘1…⌘8 by default) follow it. `opt` items are left out of the phone bar.
+  // In rail order; `tid` is the tutorial's target id (5.0 C8). The hotkeys nav1…nav8 (⌘1…⌘8 by default) follow it. `opt` items are left out of the phone bar.
   export const RAIL_ITEMS = [
     { route: "meetings", path: "/meetings", icon: "meet", key: "nav.meetings" },
-    { route: "library", path: "/library", icon: "lib", key: "nav.library" },
+    { route: "library", path: "/library", icon: "lib", key: "nav.library", tid: "t-library" },
     { route: "atoms", path: "/atoms", icon: "req", key: "nav.atoms" },
     { route: "document", path: "/document", icon: "doc", key: "nav.document", opt: true },
     { route: "backlog", path: "/backlog", icon: "tree", key: "nav.decomposition", opt: true },
-    { route: "ask", path: "/ask", icon: "chat", key: "nav.ask", opt: true },
-    { route: "whisper", path: "/whisper", icon: "mic", key: "nav.whisper" },
+    { route: "ask", path: "/ask", icon: "chat", key: "nav.ask", opt: true, tid: "t-ask" },
+    { route: "whisper", path: "/whisper", icon: "mic", key: "nav.whisper", tid: "t-whisper" },
   ];
   export const RAIL_SETTINGS = { route: "settings", path: "/settings", icon: "set", key: "nav.settings" };
   export const RAIL_PATHS = [...RAIL_ITEMS, RAIL_SETTINGS].map(i => i.path);
@@ -75,10 +75,10 @@
       </g>
     </svg>
   </div>
-  <button class="rec-fab" onclick={recordFromShell} aria-label={t("shell.record")} title={t("shell.record_tip")}><span class="dot"></span></button>
+  <button class="rec-fab" id="t-rec" onclick={recordFromShell} aria-label={t("shell.record")} title={t("shell.record_tip")}><span class="dot"></span></button>
 
   {#each items as it, i (it.route)}
-    <button class="nav-item" class:active={current === it.route} class:opt={it.opt} aria-current={current === it.route ? "page" : undefined}
+    <button class="nav-item" id={it.tid} class:active={current === it.route} class:opt={it.opt} aria-current={current === it.route ? "page" : undefined}
             onclick={() => go(it.path)} title={`${t(it.key)} · ${hk(i + 1)}`}>
       <span class="pill">{@render glyph(it.icon)}</span>{t(it.key)}
       {#if it.route === "atoms" && review}<span class="nbadge num" title={t("nav.badge_review", { n: review })}>{review}</span>{/if}
