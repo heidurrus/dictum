@@ -14,6 +14,7 @@
   import Backlog from "./screens/Backlog.svelte";
   import Export from "./screens/Export.svelte";
   import Library from "./screens/Library.svelte";
+  import Ask from "./screens/Ask.svelte";
   import Soon from "./screens/Soon.svelte";
   import { api, setProgressTranslator, setLangSource, setJobStartedHook } from "./lib/api.js";
   import { actionFor } from "./lib/hotkeys.js";
@@ -53,7 +54,11 @@
       recordFromShell();
     } else if (action === "palette") { e.preventDefault(); app.palette = !app.palette; }
     else if (action === "theme") { e.preventDefault(); setTheme(isDark() ? "light" : "dark"); }
-    else if (action === "ask") { e.preventDefault(); go("/ask"); }
+    else if (action === "ask") {
+      e.preventDefault();
+      go("/ask");
+      requestAnimationFrame(() => window.dispatchEvent(new CustomEvent("dictum:ask-focus")));   // the composer
+    }
     else if (action === "whisper") { e.preventDefault(); go("/whisper"); }
     else if (/^nav\d$/.test(action)) {
       const path = RAIL_PATHS[Number(action.slice(3)) - 1];
@@ -117,7 +122,7 @@
         {:else if app.route.name === "library"}
           <Library />
         {:else if app.route.name === "ask"}
-          <Soon title={t("nav.ask")} icon="search" />
+          {#key app.currentProjectId}<Ask />{/key}
         {:else if app.route.name === "whisper"}
           <Soon title={t("nav.whisper")} icon="mic" />
         {/if}

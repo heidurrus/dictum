@@ -29,6 +29,8 @@ const MAP = [
   [/^Reading Jira…$/, "pg.jira_read"],
   [/^Connecting to Jira…$/, "pg.jira_connect"],
   [/^Trying the skill…$/, "pg.try"],
+  [/^Searching the project…$/, "pg.ask_search"],
+  [/^Writing the answer…$/, "pg.ask_answer"],
   [/^Starting…$/, "pg.starting"],
   [/^Done$/, "pg.done"],
 ];
