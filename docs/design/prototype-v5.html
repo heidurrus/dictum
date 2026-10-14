@@ -1,0 +1,811 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Workbench 5 Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ---------- Tokens (Material-style, tonal) ---------- */
+:root {
+  color-scheme: light;
+  --bg: #F3F2F8; --surface: #FFFFFF; --surface-2: #ECEAF2; --surface-3: #E2E0EA; --surface-4: #D8D6E0;
+  --text: #1B1B21; --text-2: #45464F; --text-3: #75767F;
+  --primary: #0B57D0; --on-primary: #FFFFFF; --primary-c: #D3E3FD; --on-primary-c: #041E49;
+  --secondary-c: #DEE3F5; --on-secondary-c: #171B2C;
+  --outline: #C4C6D0; --outline-2: #E1E2EC;
+  --ok: #1E8E3E; --ok-c: #DCF3E2; --warn: #9A5A00; --warn-c: #FFEBCC; --danger: #B3261E; --danger-c: #F9DEDC; --rec: #D93025;
+  --mark: #FFF1B8; --mic: #0B57D0; --sys: #1E8E3E;
+  --hud: #1F1F24; --hud-2: #2B2B31; --hud-text: #F2F1F7; --hud-text-2: #B6B5BF;
+  --shadow-1: 0 1px 2px rgba(27,27,33,.06), 0 1px 1px rgba(27,27,33,.03);
+  --shadow-2: 0 2px 6px rgba(27,27,33,.08), 0 8px 24px rgba(27,27,33,.08);
+  --shadow-3: 0 8px 28px rgba(27,27,33,.16), 0 24px 64px rgba(27,27,33,.18);
+  --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --r-s: 10px; --r-m: 16px; --r-l: 24px; --r-xl: 28px;
+  --rail: 88px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  color-scheme: dark;
+  --bg: #121216; --surface: #1C1C21; --surface-2: #26262C; --surface-3: #30303A; --surface-4: #3B3B46;
+  --text: #E5E2EC; --text-2: #C5C4CF; --text-3: #8F8F9A;
+  --primary: #A8C7FA; --on-primary: #062E6F; --primary-c: #0842A0; --on-primary-c: #D3E3FD;
+  --secondary-c: #3A3F52; --on-secondary-c: #DCE2F5;
+  --outline: #8E9099; --outline-2: #3A3A44;
+  --ok: #6DD58C; --ok-c: #0F3D20; --warn: #F0B548; --warn-c: #4A3000; --danger: #F2B8B5; --danger-c: #5C1A14; --rec: #FF6B5E;
+  --mark: #4D4218; --mic: #A8C7FA; --sys: #6DD58C;
+  --hud: #2A2A31; --hud-2: #35353D;
+  --shadow-1: 0 1px 2px rgba(0,0,0,.4); --shadow-2: 0 4px 16px rgba(0,0,0,.45); --shadow-3: 0 16px 48px rgba(0,0,0,.6);
+} }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121216; --surface: #1C1C21; --surface-2: #26262C; --surface-3: #30303A; --surface-4: #3B3B46;
+  --text: #E5E2EC; --text-2: #C5C4CF; --text-3: #8F8F9A;
+  --primary: #A8C7FA; --on-primary: #062E6F; --primary-c: #0842A0; --on-primary-c: #D3E3FD;
+  --secondary-c: #3A3F52; --on-secondary-c: #DCE2F5;
+  --outline: #8E9099; --outline-2: #3A3A44;
+  --ok: #6DD58C; --ok-c: #0F3D20; --warn: #F0B548; --warn-c: #4A3000; --danger: #F2B8B5; --danger-c: #5C1A14; --rec: #FF6B5E;
+  --mark: #4D4218; --mic: #A8C7FA; --sys: #6DD58C;
+  --hud: #2A2A31; --hud-2: #35353D;
+  --shadow-1: 0 1px 2px rgba(0,0,0,.4); --shadow-2: 0 4px 16px rgba(0,0,0,.45); --shadow-3: 0 16px 48px rgba(0,0,0,.6);
+}
+
+/* ---------- Base ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { font: 400 14px/20px var(--font); color: var(--text); background: var(--bg); -webkit-font-smoothing: antialiased; overflow: hidden; }
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; border: 0; background: none; padding: 0; }
+h1, h2, h3, h4, p { margin: 0; }
+svg { flex: none; }
+::placeholder { color: var(--text-3); }
+.hidden { display: none !important; }
+.mono { font-family: var(--mono); font-size: 12px; }
+.t2 { color: var(--text-2); } .t3 { color: var(--text-3); }
+.num { font-variant-numeric: tabular-nums; }
+.grow { flex: 1 1 0; min-width: 0; }
+.trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scroll { overflow: auto; scrollbar-width: thin; scrollbar-color: var(--surface-4) transparent; }
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 8px; }
+
+/* ---------- Shell ---------- */
+.shell { display: grid; grid-template-columns: var(--rail) minmax(0, 1fr); height: 100vh; }
+.rail { display: flex; flex-direction: column; align-items: center; padding: 14px 0 12px; gap: 4px; }
+.rail .logo { width: 40px; height: 40px; border-radius: 14px; background: var(--primary); color: var(--on-primary); display: grid; place-items: center; margin-bottom: 10px; }
+.rail .rec-fab { width: 56px; height: 56px; border-radius: 18px; background: var(--primary-c); color: var(--on-primary-c); display: grid; place-items: center; margin-bottom: 14px; box-shadow: var(--shadow-1); transition: transform .15s; }
+.rail .rec-fab:hover { transform: translateY(-1px); box-shadow: var(--shadow-2); }
+.rail .rec-fab .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--rec); box-shadow: 0 0 0 3px rgba(217,48,37,.2); }
+.nav-item { width: 76px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 0; color: var(--text-2); font-size: 12px; font-weight: 500; letter-spacing: .01em; position: relative; }
+.nav-item .pill { width: 56px; height: 32px; border-radius: 16px; display: grid; place-items: center; transition: background .15s, color .15s; }
+.nav-item:hover .pill { background: var(--surface-2); }
+.nav-item.active .pill { background: var(--secondary-c); color: var(--on-secondary-c); }
+.nav-item.active { color: var(--text); }
+.nav-item .badge { position: absolute; top: 4px; right: 14px; min-width: 16px; height: 16px; border-radius: 8px; background: var(--danger); color: #fff; font-size: 10px; line-height: 16px; padding: 0 5px; font-weight: 600; }
+.nav-item .dotb { position: absolute; top: 8px; right: 20px; width: 8px; height: 8px; border-radius: 50%; background: var(--warn); }
+.rail .spacer { flex: 1; }
+.main { min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 14px 20px 20px 0; }
+.topbar { display: flex; align-items: center; gap: 10px; height: 40px; margin-bottom: 8px; }
+.project-chip { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px 0 10px; border-radius: 18px; background: var(--surface); box-shadow: var(--shadow-1); font-weight: 600; }
+.project-chip .av { width: 22px; height: 22px; border-radius: 7px; background: linear-gradient(135deg, #7C4DFF, #0B57D0); }
+.status-chip { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px 0 12px; border-radius: 18px; background: var(--surface); box-shadow: var(--shadow-1); color: var(--text-2); font-weight: 500; }
+.status-chip .ring { width: 16px; height: 16px; border-radius: 50%; background: conic-gradient(var(--primary) calc(var(--p) * 1%), var(--surface-3) 0); position: relative; }
+.status-chip .ring::after { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: var(--surface); }
+.icon-btn { width: 36px; height: 36px; border-radius: 18px; display: grid; place-items: center; color: var(--text-2); }
+.icon-btn:hover { background: var(--surface-2); color: var(--text); }
+.icon-btn.sm { width: 28px; height: 28px; border-radius: 14px; }
+.page { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.page-head { display: flex; align-items: flex-end; gap: 16px; padding: 8px 4px 18px; }
+.page-head h1 { font-size: 32px; line-height: 40px; font-weight: 600; letter-spacing: -.02em; }
+.page-head .sub { color: var(--text-2); margin-top: 2px; }
+.page-head .actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.body { flex: 1; min-height: 0; }
+
+/* ---------- Components ---------- */
+.btn { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 20px; border-radius: 20px; font-weight: 600; font-size: 14px; background: var(--surface-2); color: var(--text); transition: background .15s, transform .1s, box-shadow .15s; white-space: nowrap; }
+.btn:hover { background: var(--surface-3); }
+.btn:active { transform: scale(.98); }
+.btn.filled { background: var(--primary); color: var(--on-primary); }
+.btn.filled:hover { box-shadow: var(--shadow-2); }
+.btn.tonal { background: var(--primary-c); color: var(--on-primary-c); }
+.btn.outlined { background: transparent; box-shadow: inset 0 0 0 1px var(--outline); }
+.btn.outlined:hover { background: var(--surface-2); }
+.btn.text { background: transparent; color: var(--primary); padding: 0 12px; }
+.btn.text:hover { background: var(--surface-2); }
+.btn.rec { background: var(--rec); color: #fff; }
+.btn.sm { height: 32px; padding: 0 14px; font-size: 13px; }
+.btn.lg { height: 48px; padding: 0 28px; font-size: 15px; border-radius: 24px; }
+.btn:disabled { opacity: .5; cursor: default; }
+.chip { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--outline); font-size: 13px; font-weight: 500; color: var(--text-2); white-space: nowrap; cursor: pointer; }
+.chip.on { background: var(--secondary-c); color: var(--on-secondary-c); box-shadow: none; }
+.chip.sm { height: 24px; padding: 0 8px; font-size: 12px; }
+.tag { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; font-size: 12px; font-weight: 500; background: var(--surface-2); color: var(--text-2); }
+.tag.ok { background: var(--ok-c); color: var(--ok); } .tag.warn { background: var(--warn-c); color: var(--warn); } .tag.danger { background: var(--danger-c); color: var(--danger); } .tag.prim { background: var(--primary-c); color: var(--on-primary-c); }
+.card { background: var(--surface); border-radius: var(--r-l); box-shadow: var(--shadow-1); }
+.card.flat { box-shadow: none; }
+.search { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 16px; border-radius: 22px; background: var(--surface-2); color: var(--text-2); min-width: 240px; }
+.search input { flex: 1; border: 0; background: none; outline: none; color: var(--text); }
+.search.sm { height: 36px; border-radius: 18px; min-width: 180px; }
+.seg { display: inline-flex; background: var(--surface-2); border-radius: 20px; padding: 3px; gap: 2px; }
+.seg button { height: 32px; padding: 0 14px; border-radius: 17px; font-weight: 500; color: var(--text-2); font-size: 13px; }
+.seg button.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow-1); }
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--outline-2); padding: 0 8px; }
+.tabs button { height: 44px; padding: 0 14px; font-weight: 500; color: var(--text-2); position: relative; font-size: 14px; }
+.tabs button.on { color: var(--primary); }
+.tabs button.on::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: 0; height: 3px; border-radius: 3px 3px 0 0; background: var(--primary); }
+.switch { width: 44px; height: 24px; border-radius: 12px; background: var(--surface-4); position: relative; transition: background .15s; flex: none; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: var(--shadow-1); }
+.switch.on { background: var(--primary); }
+.switch.on::after { transform: translateX(20px); }
+.cb { width: 18px; height: 18px; border-radius: 5px; box-shadow: inset 0 0 0 2px var(--outline); display: grid; place-items: center; flex: none; color: #fff; }
+.cb.on { background: var(--primary); box-shadow: none; }
+.field { display: grid; gap: 6px; }
+.field label { font-size: 12px; font-weight: 500; color: var(--text-2); }
+.input { height: 44px; border-radius: 12px; background: var(--surface-2); border: 0; padding: 0 14px; outline: none; width: 100%; }
+.input:focus { box-shadow: 0 0 0 2px var(--primary); }
+.kbd { font: 500 11px/16px var(--mono); padding: 1px 6px; border-radius: 5px; background: var(--surface-2); color: var(--text-2); }
+.spk { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 12px; }
+.spk i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.spk.mic { color: var(--mic); } .spk.sys { color: var(--sys); }
+.empty { text-align: center; padding: 48px 24px; color: var(--text-2); }
+.spinner { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--surface-4); border-top-color: var(--primary); animation: spin .8s linear infinite; display: inline-block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fade { from { opacity: 0; transform: translateY(4px); } }
+@keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(217,48,37,.35);} 50% { box-shadow: 0 0 0 10px rgba(217,48,37,0);} }
+.type { font: 600 11px/16px var(--mono); padding: 1px 6px; border-radius: 5px; background: var(--surface-2); }
+.type.fr { color: #0B57D0; } .type.br { color: #5B45C9; } .type.nfr { color: #0A6D66; } .type.q { color: #9A3A9E; } .type.rsk { color: #B0471B; }
+
+/* ---------- Meetings ---------- */
+.meetings { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 34%); gap: 16px; height: 100%; }
+.pipe { display: flex; gap: 8px; padding: 0 4px 14px; flex-wrap: wrap; }
+.pipe .step { display: inline-flex; align-items: center; gap: 10px; height: 44px; padding: 0 16px 0 12px; border-radius: 22px; background: var(--surface); box-shadow: var(--shadow-1); font-weight: 500; }
+.pipe .step .ring { width: 20px; height: 20px; border-radius: 50%; background: conic-gradient(var(--c, var(--primary)) calc(var(--p) * 1%), var(--surface-3) 0); position: relative; }
+.pipe .step .ring::after { content: ""; position: absolute; inset: 4px; border-radius: 50%; background: var(--surface); }
+.pipe .step .ring.done { background: var(--ok); } .pipe .step .ring.done::after { inset: 0; background: none; content: "✓"; color: #fff; font-size: 12px; font-weight: 700; display: grid; place-items: center; }
+.pipe .step small { color: var(--text-3); font-weight: 400; }
+.list-card { display: flex; flex-direction: column; min-height: 0; }
+.list-tools { display: flex; align-items: center; gap: 10px; padding: 14px 16px; }
+.mrow { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 12px 16px; border-radius: 16px; margin: 0 8px; cursor: pointer; transition: background .12s; }
+.mrow:hover { background: var(--surface-2); }
+.mrow.on { background: var(--secondary-c); }
+.mrow .ic { width: 44px; height: 44px; border-radius: 14px; background: var(--surface-2); display: grid; place-items: center; color: var(--text-2); }
+.mrow.on .ic { background: var(--surface); }
+.mrow h3 { font-size: 15px; font-weight: 600; line-height: 20px; }
+.mrow .meta { color: var(--text-3); font-size: 13px; margin-top: 2px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.mrow .right { text-align: right; color: var(--text-3); font-size: 13px; display: grid; gap: 4px; justify-items: end; }
+.panel { display: flex; flex-direction: column; min-height: 0; }
+.panel-head { padding: 18px 20px 8px; }
+.panel-head h2 { font-size: 20px; line-height: 26px; font-weight: 600; letter-spacing: -.01em; outline: none; border-radius: 6px; }
+.panel-head h2:focus { box-shadow: 0 0 0 2px var(--primary); padding: 0 4px; }
+.panel-head .meta { color: var(--text-3); font-size: 13px; margin-top: 4px; display: flex; gap: 10px; flex-wrap: wrap; }
+.panel-body { flex: 1; min-height: 0; padding: 16px 20px; }
+.panel-foot { display: flex; gap: 8px; padding: 12px 20px 16px; flex-wrap: wrap; }
+.summary h4 { font-size: 13px; font-weight: 600; color: var(--text-2); margin: 14px 0 6px; text-transform: uppercase; letter-spacing: .04em; }
+.summary ul { margin: 0; padding-left: 18px; } .summary li { margin: 4px 0; line-height: 20px; }
+.summary .ts { color: var(--primary); font-family: var(--mono); font-size: 12px; cursor: pointer; }
+.line { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 10px; padding: 8px 0; line-height: 22px; }
+.line .t { color: var(--text-3); font-family: var(--mono); font-size: 12px; padding-top: 3px; }
+.line .q { background: var(--mark); border-radius: 3px; padding: 0 2px; }
+.line .atoms { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.line .atom { display: inline-flex; gap: 6px; align-items: center; height: 24px; padding: 0 8px 0 4px; border-radius: 6px; background: var(--surface-2); font-size: 12px; color: var(--text-2); max-width: 100%; }
+.line.hit .q2 { background: var(--primary-c); color: var(--on-primary-c); border-radius: 3px; }
+.req { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--outline-2); align-items: start; }
+.req .st { font-size: 14px; line-height: 20px; } .req .qt { color: var(--text-3); font-size: 12px; margin-top: 3px; }
+.notes-view { white-space: pre-wrap; line-height: 22px; }
+
+/* ---------- Session ---------- */
+.session { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 14px; height: 100%; }
+.sess-head { display: flex; align-items: center; gap: 14px; padding: 14px 18px; }
+.sess-head .title { font-size: 20px; font-weight: 600; letter-spacing: -.01em; outline: none; border-radius: 6px; padding: 2px 6px; }
+.sess-head .title:focus { box-shadow: 0 0 0 2px var(--primary); }
+.sess-head .timer { font: 600 18px/1 var(--mono); color: var(--text-2); letter-spacing: .02em; }
+.audio-pill { display: inline-flex; align-items: center; gap: 4px; height: 48px; padding: 0 6px 0 16px; border-radius: 24px; background: var(--hud); color: var(--hud-text); }
+.audio-pill .live { width: 10px; height: 10px; border-radius: 50%; background: var(--rec); margin-right: 8px; animation: pulse 1.6s infinite; }
+.audio-pill.paused .live { animation: none; background: var(--warn); }
+.audio-pill button { width: 36px; height: 36px; border-radius: 18px; display: grid; place-items: center; color: var(--hud-text); }
+.audio-pill button:hover { background: var(--hud-2); }
+.audio-pill .stop { background: var(--rec); color: #fff; } .audio-pill .stop:hover { background: #c22a1f; }
+.levels { display: flex; gap: 3px; align-items: center; height: 24px; }
+.levels i { width: 3px; border-radius: 2px; background: var(--primary); animation: lv 1s ease-in-out infinite; }
+.levels i:nth-child(2) { animation-delay: .15s; } .levels i:nth-child(3) { animation-delay: .3s; } .levels i:nth-child(4) { animation-delay: .45s; } .levels i:nth-child(5) { animation-delay: .6s; }
+@keyframes lv { 0%,100% { height: 6px; } 50% { height: 22px; } }
+.sess-body { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(360px, 1fr); gap: 14px; min-height: 0; }
+.col { display: flex; flex-direction: column; min-height: 0; }
+.col-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--outline-2); }
+.col-head h2 { font-size: 15px; font-weight: 600; }
+.col-body { flex: 1; min-height: 0; padding: 8px 16px; }
+.listening { display: flex; gap: 10px; align-items: center; color: var(--text-3); padding: 10px 0; font-style: italic; }
+.notes-editor { flex: 1; min-height: 0; width: 100%; border: 0; background: none; resize: none; outline: none; line-height: 22px; padding: 12px 16px; font-family: var(--font); }
+.fmt { display: flex; gap: 2px; padding: 6px 10px; border-bottom: 1px solid var(--outline-2); }
+.fmt button { width: 30px; height: 30px; border-radius: 8px; color: var(--text-2); font-weight: 600; font-size: 13px; }
+.fmt button:hover { background: var(--surface-2); }
+.live-req { border-top: 1px solid var(--outline-2); }
+.live-req .req { border: 0; padding: 8px 16px; }
+.live-req .req:hover { background: var(--surface-2); }
+.q-card { position: absolute; left: 24px; bottom: 24px; width: 380px; background: var(--hud); color: var(--hud-text); border-radius: 20px; padding: 16px 18px; box-shadow: var(--shadow-3); animation: fade .25s; }
+.q-card h4 { font-size: 14px; display: flex; gap: 8px; align-items: center; }
+.q-card p { color: var(--hud-text-2); margin: 8px 0 12px; line-height: 20px; }
+.q-card .row { display: flex; gap: 8px; }
+.q-card .btn { background: var(--hud-2); color: var(--hud-text); height: 34px; }
+.q-card .btn.filled { background: var(--primary-c); color: var(--on-primary-c); }
+
+/* ---------- Library ---------- */
+.library { display: grid; grid-template-columns: 224px minmax(0, 1fr) minmax(300px, 26%); gap: 14px; height: 100%; }
+.tree { padding: 10px 8px; }
+.tree .node { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px; border-radius: 12px; color: var(--text-2); font-weight: 500; cursor: pointer; }
+.tree .node:hover { background: var(--surface-2); } .tree .node.on { background: var(--secondary-c); color: var(--on-secondary-c); }
+.tree .node .n { margin-left: auto; color: var(--text-3); font-size: 12px; font-weight: 400; }
+.tree .node.sub { padding-left: 30px; height: 32px; font-weight: 400; font-size: 13px; }
+.tree .sec { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); padding: 14px 10px 6px; }
+.tree .vault { padding: 10px; display: flex; gap: 10px; align-items: center; border-radius: 14px; background: var(--surface-2); margin: 4px 4px 8px; font-size: 12px; color: var(--text-2); }
+.tree .vault b { display: block; color: var(--text); font-size: 13px; }
+.files { display: flex; flex-direction: column; min-height: 0; }
+.ftable { width: 100%; border-collapse: collapse; }
+.ftable th { text-align: left; font-size: 12px; font-weight: 600; color: var(--text-3); padding: 8px 12px; border-bottom: 1px solid var(--outline-2); }
+.ftable td { padding: 10px 12px; border-bottom: 1px solid var(--outline-2); font-size: 13px; vertical-align: middle; }
+.ftable tr { cursor: pointer; } .ftable tbody tr:hover td { background: var(--surface-2); } .ftable tr.on td { background: var(--secondary-c); }
+.ftable td:first-child { border-radius: 10px 0 0 10px; } .ftable td:last-child { border-radius: 0 10px 10px 0; }
+.fname { display: flex; align-items: center; gap: 10px; font-weight: 500; color: var(--text); }
+.fico { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; font: 700 9px/1 var(--mono); color: #fff; }
+.fico.md { background: #5B45C9; } .fico.docx { background: #2B579A; } .fico.pdf { background: #D93025; } .fico.wav { background: #0A6D66; } .fico.url { background: #9A5A00; } .fico.txt { background: #5F6368; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; padding: 12px; }
+.fcard { background: var(--surface-2); border-radius: 18px; padding: 14px; cursor: pointer; display: grid; gap: 8px; }
+.fcard:hover { background: var(--surface-3); } .fcard.on { background: var(--secondary-c); }
+.fcard .name { font-weight: 600; line-height: 18px; }
+.fcard .meta { color: var(--text-3); font-size: 12px; }
+.fcard .ctx { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--text-2); }
+.drop { margin: 8px 12px 12px; padding: 18px; border-radius: 16px; border: 2px dashed var(--outline); text-align: center; color: var(--text-3); font-size: 13px; }
+.addrow { display: flex; gap: 8px; padding: 12px 12px 4px; flex-wrap: wrap; }
+.preview { padding: 16px 18px; }
+.preview .doc { background: var(--surface-2); border-radius: 14px; padding: 14px; font-size: 13px; line-height: 20px; color: var(--text-2); max-height: 180px; overflow: hidden; position: relative; }
+.preview .doc::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 50px; background: linear-gradient(transparent, var(--surface-2)); }
+.kv { display: grid; grid-template-columns: 110px 1fr; gap: 6px 10px; font-size: 13px; margin: 14px 0; }
+.kv dt { color: var(--text-3); } .kv dd { margin: 0; }
+.links h4 { font-size: 12px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: .04em; margin: 16px 0 8px; }
+.link { display: flex; gap: 8px; align-items: center; padding: 7px 10px; border-radius: 10px; font-size: 13px; cursor: pointer; }
+.link:hover { background: var(--surface-2); }
+.link .wl { color: var(--primary); font-weight: 500; }
+
+/* ---------- Ask ---------- */
+.ask { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; height: 100%; }
+.chat { display: flex; flex-direction: column; min-height: 0; }
+.msgs { flex: 1; min-height: 0; padding: 20px 24px; display: flex; flex-direction: column; gap: 18px; }
+.msg.me { align-self: flex-end; background: var(--primary-c); color: var(--on-primary-c); border-radius: 20px 20px 6px 20px; padding: 12px 16px; max-width: 70%; }
+.msg.ai { max-width: 80%; line-height: 22px; }
+.msg.ai .st { color: var(--text-3); font-size: 12px; margin-bottom: 8px; display: flex; gap: 8px; align-items: center; }
+.cite { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 10px; background: var(--surface-2); color: var(--primary); font-size: 11px; font-weight: 600; margin: 0 2px; cursor: pointer; vertical-align: 2px; }
+.cite:hover { background: var(--primary-c); }
+.composer { padding: 12px 16px 16px; display: grid; gap: 10px; }
+.composer .box { display: flex; align-items: center; gap: 10px; background: var(--surface-2); border-radius: 26px; padding: 6px 6px 6px 18px; min-height: 52px; }
+.composer input { flex: 1; border: 0; background: none; outline: none; font-size: 15px; }
+.composer .send { width: 40px; height: 40px; border-radius: 20px; background: var(--primary); color: var(--on-primary); display: grid; place-items: center; }
+.composer .opts { display: flex; gap: 14px; align-items: center; font-size: 13px; color: var(--text-2); padding: 0 8px; }
+.hist h4 { font-size: 12px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: .04em; padding: 16px 16px 8px; }
+.hist .h { padding: 10px 16px; font-size: 13px; cursor: pointer; border-radius: 12px; margin: 0 6px; }
+.hist .h:hover { background: var(--surface-2); } .hist .h small { display: block; color: var(--text-3); margin-top: 2px; }
+
+/* ---------- Generic tables (requirements, backlog) ---------- */
+.rtable { width: 100%; border-collapse: collapse; }
+.rtable th { text-align: left; font-size: 12px; font-weight: 600; color: var(--text-3); padding: 10px 14px; border-bottom: 1px solid var(--outline-2); }
+.rtable td { padding: 12px 14px; border-bottom: 1px solid var(--outline-2); vertical-align: top; }
+.rtable tr:hover td { background: var(--surface-2); }
+
+/* ---------- Settings ---------- */
+.settings { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 16px; height: 100%; }
+.setnav .node { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 14px; border-radius: 14px; color: var(--text-2); font-weight: 500; cursor: pointer; }
+.setnav .node.on { background: var(--secondary-c); color: var(--on-secondary-c); }
+.setcards { display: grid; gap: 14px; align-content: start; }
+.setcard { padding: 18px 20px; }
+.setcard h3 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+.setcard .d { color: var(--text-2); font-size: 13px; margin-bottom: 12px; }
+.row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--outline-2); }
+.row .l { flex: 1; } .row .l b { display: block; font-weight: 500; } .row .l small { color: var(--text-3); }
+.models { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.model { padding: 14px; border-radius: 16px; background: var(--surface-2); cursor: pointer; position: relative; display: grid; gap: 4px; }
+.model.on { box-shadow: inset 0 0 0 2px var(--primary); background: var(--primary-c); color: var(--on-primary-c); }
+.model b { font-size: 14px; } .model small { color: var(--text-2); font-size: 12px; } .model.on small { color: inherit; opacity: .8; }
+.model .tag { position: absolute; top: 12px; right: 12px; }
+
+/* ---------- Onboarding ---------- */
+.onb { position: fixed; inset: 0; background: var(--bg); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; z-index: 20; }
+.onb-top { display: flex; align-items: center; gap: 12px; padding: 20px 28px; }
+.onb-top .steps { margin-left: auto; display: flex; gap: 6px; }
+.onb-top .steps i { width: 28px; height: 4px; border-radius: 2px; background: var(--surface-4); }
+.onb-top .steps i.on { background: var(--primary); }
+.onb-body { overflow: auto; padding: 0 28px; }
+.onb-inner { max-width: 880px; margin: 0 auto; animation: fade .3s; }
+.onb h1 { font-size: 36px; line-height: 44px; letter-spacing: -.025em; font-weight: 600; margin: 24px 0 8px; }
+.onb .lead { color: var(--text-2); font-size: 16px; line-height: 24px; max-width: 620px; }
+.onb-bot { display: flex; align-items: center; gap: 10px; padding: 18px 28px 24px; max-width: 936px; margin: 0 auto; width: 100%; }
+.onb-bot .right { margin-left: auto; display: flex; gap: 8px; }
+.panels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 28px 0; }
+.panel-art { background: var(--surface); border-radius: 24px; padding: 20px; box-shadow: var(--shadow-1); min-height: 240px; display: grid; grid-template-rows: 1fr auto; gap: 14px; }
+.panel-art .art { border-radius: 16px; background: linear-gradient(160deg, #EEF2FF, #F7E9FF); position: relative; overflow: hidden; min-height: 140px; }
+:root[data-theme="dark"] .panel-art .art { background: linear-gradient(160deg, #22263A, #2D2340); }
+.panel-art .art .line { position: absolute; height: 10px; border-radius: 5px; background: rgba(27,27,33,.12); }
+:root[data-theme="dark"] .panel-art .art .line { background: rgba(255,255,255,.14); }
+.panel-art .art .hud { position: absolute; left: 14px; right: 14px; bottom: 12px; background: var(--hud); border-radius: 12px; padding: 10px; color: var(--hud-text); font-size: 11px; line-height: 15px; }
+.panel-art .art .hud b { display: block; font-size: 12px; margin-bottom: 2px; }
+.panel-art .art .cardlet { position: absolute; background: var(--surface); border-radius: 10px; padding: 8px 10px; font-size: 11px; box-shadow: var(--shadow-1); line-height: 14px; }
+.panel-art .art .cardlet b { display: block; font-size: 12px; }
+.panel-art h3 { font-size: 15px; font-weight: 600; } .panel-art p { color: var(--text-2); font-size: 13px; margin-top: 4px; }
+.perm { display: flex; align-items: center; gap: 14px; padding: 16px 18px; border-top: 1px solid var(--outline-2); }
+.perm:first-child { border-top: 0; }
+.perm .ic { width: 44px; height: 44px; border-radius: 14px; background: var(--surface-2); display: grid; place-items: center; color: var(--text-2); }
+.perm .l { flex: 1; } .perm .l b { display: block; } .perm .l small { color: var(--text-3); }
+.progress { height: 8px; border-radius: 4px; background: var(--surface-3); overflow: hidden; }
+.progress i { display: block; height: 100%; background: var(--primary); border-radius: 4px; transition: width .4s; }
+.disc { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--outline-2); cursor: pointer; }
+.disc:first-child { border-top: 0; }
+.disc .l { flex: 1; } .disc .l b { display: block; font-weight: 500; } .disc .l small { color: var(--text-3); }
+
+/* ---------- Tutorial spotlight ---------- */
+.tut { position: fixed; inset: 0; z-index: 30; }
+.tut .scrim { position: absolute; inset: 0; background: rgba(10,10,14,.55); }
+.tut .spot { position: absolute; border-radius: 20px; box-shadow: 0 0 0 9999px rgba(10,10,14,.55); transition: all .3s; pointer-events: none; }
+.tut .tip { position: absolute; width: 320px; background: var(--surface); border-radius: 20px; padding: 18px 20px; box-shadow: var(--shadow-3); animation: fade .25s; }
+.tut .tip h4 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+.tut .tip p { color: var(--text-2); font-size: 13px; line-height: 19px; }
+.tut .tip .row { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+.tut .tip .row .n { color: var(--text-3); font-size: 12px; }
+.tut .tip .row .right { margin-left: auto; display: flex; gap: 6px; }
+
+/* ---------- Toast ---------- */
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--hud); color: var(--hud-text); border-radius: 14px; padding: 12px 18px; box-shadow: var(--shadow-3); font-size: 13px; z-index: 40; animation: fade .2s; display: flex; gap: 14px; align-items: center; }
+.toast button { color: var(--primary-c); font-weight: 600; }
+:root[data-theme="dark"] .toast button, :root[data-theme="dark"] .q-card .btn.text { color: var(--primary); }
+
+/* ---------- Phone ---------- */
+@media (max-width: 760px) {
+  .shell { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) 72px; }
+  .rail { flex-direction: row; justify-content: space-around; order: 2; padding: 6px 8px; background: var(--surface); }
+  .rail .logo, .rail .spacer, .rail .rec-fab, .rail .nav-item.opt { display: none; }
+  .main { padding: 12px 16px 8px; }
+  .page-head { flex-wrap: wrap; align-items: flex-start; }
+  .page-head .actions { margin-left: 0; width: 100%; }
+  .page-head .actions .outlined, .topbar .status-chip span + *, .topbar .icon-btn[title^="Справка"] { display: none; }
+  .status-chip { font-size: 0; gap: 0; padding: 0 10px; } .status-chip .ring { width: 18px; height: 18px; }
+  .page-head h1 { font-size: 26px; line-height: 32px; }
+  .meetings, .library, .sess-body, .ask, .settings, .panels { grid-template-columns: 1fr; grid-template-rows: none; }
+  .meetings > .panel, .library > .panel, .ask > .hist, .library .tree, .settings .setnav { display: none; }
+  .search { min-width: 0; }
+  .onb-top, .onb-body, .onb-bot { padding-left: 16px; padding-right: 16px; }
+  .q-card { left: 16px; right: 16px; width: auto; }
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+/* ---------- Icons (Material-like, inline) ---------- */
+const I = {
+  mic: '<path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2Z"/>',
+  meet: '<path d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm1 2v10h14V7H5Zm2 2h6v2H7V9Zm0 4h10v2H7v-2Z"/>',
+  lib: '<path d="M4 4h5l2 2h9a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Zm1 4v10h14V8H5Z"/>',
+  req: '<path d="M4 6h10v2H4V6Zm0 5h16v2H4v-2Zm0 5h12v2H4v-2Zm13-11 2 2 4-4-1.4-1.4L19 4.2l-.6-.6L17 5Z"/>',
+  doc: '<path d="M6 2h8l5 5v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Zm1 2v16h10V8h-4V4H7Zm2 7h8v2H9v-2Zm0 4h8v2H9v-2Z"/>',
+  tree: '<path d="M3 4h8v4H3V4Zm2 6h2v8h4v2H5v-10Zm6 2h8v4h-8v-4Z"/>',
+  chat: '<path d="M4 3h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H8l-5 4V4a1 1 0 0 1 1-1Zm1 2v11.5L7.3 15H19V5H5Z"/>',
+  set: '<path d="M12 8a4 4 0 1 1 0 8 4 4 0 0 1 0-8Zm0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4Zm-2-7h4l.5 2.6 2.2 1.3 2.5-.9 2 3.4-2 1.7v2.6l2 1.7-2 3.4-2.5-.9-2.2 1.3L14 21h-4l-.5-2.6-2.2-1.3-2.5.9-2-3.4 2-1.7v-2.6l-2-1.7 2-3.4 2.5.9 2.2-1.3L10 3Z"/>',
+  search: '<path d="M10 3a7 7 0 0 1 5.6 11.2l5.1 5.1-1.4 1.4-5.1-5.1A7 7 0 1 1 10 3Zm0 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10Z"/>',
+  play: '<path d="M8 5v14l11-7L8 5Z"/>', pause: '<path d="M6 5h4v14H6V5Zm8 0h4v14h-4V5Z"/>', stop: '<path d="M6 6h12v12H6V6Z"/>',
+  plus: '<path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5Z"/>', check: '<path d="m9 16.2-3.5-3.5L4 14.2l5 5 11-11-1.4-1.4L9 16.2Z"/>',
+  close: '<path d="M18.3 5.7 12 12l6.3 6.3-1.4 1.4L12 13.4l-6.3 6.3-1.4-1.4L10.6 12 4.3 5.7l1.4-1.4L12 10.6l6.3-6.3 1.4 1.4Z"/>',
+  sort: '<path d="M3 6h18v2H3V6Zm3 5h12v2H6v-2Zm3 5h6v2H9v-2Z"/>', grid: '<path d="M3 3h8v8H3V3Zm10 0h8v8h-8V3ZM3 13h8v8H3v-8Zm10 0h8v8h-8v-8Z"/>',
+  list: '<path d="M4 6h16v2H4V6Zm0 5h16v2H4v-2Zm0 5h16v2H4v-2Z"/>', link: '<path d="M10 7h4a5 5 0 0 1 0 10h-4v-2h4a3 3 0 0 0 0-6h-4V7Zm4 10h-4a5 5 0 0 1 0-10h4v2h-4a3 3 0 0 0 0 6h4v2Zm-6-6h8v2H8v-2Z"/>',
+  down: '<path d="M11 3h2v10.2l3.6-3.6 1.4 1.4-6 6-6-6 1.4-1.4L11 13.2V3ZM4 19h16v2H4v-2Z"/>', bolt: '<path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z"/>',
+  bell: '<path d="M12 2a6 6 0 0 1 6 6v4l2 3v1H4v-1l2-3V8a6 6 0 0 1 6-6Zm0 20a2.5 2.5 0 0 1-2.4-2h4.8A2.5 2.5 0 0 1 12 22Z"/>',
+  shield: '<path d="m12 2 8 3v6c0 5-3.4 9.3-8 11-4.6-1.7-8-6-8-11V5l8-3Zm-1 13.2 5.3-5.3-1.4-1.4L11 12.4l-1.9-1.9-1.4 1.4L11 15.2Z"/>',
+  cpu: '<path d="M8 8h8v8H8V8Zm2 2v4h4v-4h-4ZM5 5h14v14H5V5Zm2 2v10h10V7H7ZM9 2h2v3H9V2Zm4 0h2v3h-2V2ZM9 19h2v3H9v-3Zm4 0h2v3h-2v-3ZM2 9h3v2H2V9Zm0 4h3v2H2v-2Zm17-4h3v2h-3V9Zm0 4h3v2h-3v-2Z"/>',
+  arrow: '<path d="m13 5 7 7-7 7-1.4-1.4L16.2 13H4v-2h12.2l-4.6-4.6L13 5Z"/>', back: '<path d="m11 5 1.4 1.4L7.8 11H20v2H7.8l4.6 4.6L11 19l-7-7 7-7Z"/>',
+  folder: '<path d="M3 5h6l2 2h10v12H3V5Z"/>', speaker: '<path d="M3 9v6h4l5 4V5L7 9H3Zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4Z"/>',
+  moon: '<path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z"/>', help: '<path d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20Zm0 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16Zm0 12a1.2 1.2 0 1 1 0 2.4 1.2 1.2 0 0 1 0-2.4Zm0-9a3.5 3.5 0 0 1 2 6.4c-.7.5-1 .8-1 1.6h-2c0-1.6.8-2.3 1.7-2.9.6-.5.8-.7.8-1.1a1.5 1.5 0 0 0-3 0H8.5A3.5 3.5 0 0 1 12 7Z"/>',
+  more: '<path d="M6 10a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm6 0a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm6 0a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z"/>', copy: '<path d="M8 2h10a2 2 0 0 1 2 2v12h-2V4H8V2ZM4 6h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Zm0 2v12h10V8H4Z"/>',
+  finder: '<path d="M4 4h16v16H4V4Zm2 2v12h12V6H6Zm2 2h2v4H8V8Zm6 0h2v4h-2V8Zm-6 6h8v2H8v-2Z"/>', edit: '<path d="M3 17.3V21h3.7l11-11-3.7-3.7-11 11Zm17.7-10.3a1 1 0 0 0 0-1.4l-2.3-2.3a1 1 0 0 0-1.4 0L15.2 5l3.7 3.7 1.8-1.7Z"/>',
+  upload: '<path d="M11 16h2V7.8l3.6 3.6 1.4-1.4-6-6-6 6 1.4 1.4L11 7.8V16ZM4 19h16v2H4v-2Z"/>', clip: '<path d="M16 2H8a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2Zm0 18H8V4h8v16Zm-6-2h4v-2h-4v2Z"/>',
+};
+const ic = (n, s = 20) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">${I[n] || ""}</svg>`;
+
+/* ---------- Data ---------- */
+const MEETINGS = [
+  { id: 1, title: "Звонок с дилерским центром: заявки", date: "14 окт, 11:30", dur: "52:04", kind: "rec", who: "Анна, Ирина, Олег", atoms: 17, status: "ready", tags: ["Запись"] },
+  { id: 2, title: "Интервью: менеджер по сервису", date: "13 окт, 15:00", kind: "rec", dur: "38:12", who: "Дмитрий", atoms: 9, status: "processing", p: 42, tags: ["Запись"] },
+  { id: 3, title: "Письмо от ИТ-директора о SLA", date: "12 окт", kind: "text", dur: "", who: "", atoms: 4, status: "ready", tags: ["Текст"] },
+  { id: 4, title: "Демо текущей системы (запись Zoom)", date: "10 окт, 10:00", kind: "import", dur: "1:14:30", who: "Анна, Сергей", atoms: 23, status: "ready", tags: ["Импорт"] },
+  { id: 5, title: "Воркшоп по бизнес-процессу продаж", date: "8 окт, 14:00", kind: "rec", dur: "1:42:08", who: "6 участников", atoms: 41, status: "ready", tags: ["Запись"] },
+  { id: 6, title: "Звонок без расшифровки", date: "6 окт, 09:12", kind: "rec", dur: "03:21", who: "", atoms: 0, status: "raw", tags: ["Запись"] },
+];
+const LINES = [
+  { t: "02:48", s: "mic", n: "Анна", text: "Давайте начнём с заявок. Сейчас дилер заводит заявку вручную в Excel, и <span class='q'>дубли появляются почти каждый день</span>.", atoms: [["br", "BR-3", "Дублирование заявок при ручном вводе"]] },
+  { t: "03:30", s: "sys", n: "Ирина", text: "Нам нужно, чтобы <span class='q'>система сама проверяла VIN и телефон клиента</span> и предупреждала, если такая заявка уже есть.", atoms: [["fr", "FR-12", "Проверка дублей по VIN и телефону"]] },
+  { t: "04:05", s: "mic", n: "Анна", text: "И важный момент: <span class='q'>ответ дилеру должен приходить не позже чем через два часа</span>, иначе клиент уходит." , atoms: [["nfr", "NFR-4", "Ответ дилеру в течение 2 часов"]] },
+  { t: "05:12", s: "sys", n: "Олег", text: "Кто будет утверждать изменение статуса? Сейчас это делает руководитель отдела, но его часто нет на месте.", atoms: [["q", "Q-7", "Кто утверждает смену статуса заявки?"]] },
+  { t: "06:40", s: "sys", n: "Ирина", text: "Ещё хотим видеть историю: кто и когда менял заявку. Сейчас это теряется.", atoms: [["fr", "FR-13", "История изменений заявки"]] },
+  { t: "08:15", s: "mic", n: "Анна", text: "Про интеграцию с 1С поговорим отдельно, там есть риски по срокам.", atoms: [["rsk", "RSK-2", "Сроки интеграции с 1С"]] },
+];
+const FILES = [
+  { id: 1, name: "2026-10-14 Звонок с дилерским центром", ext: "md", folder: "Встречи", labels: ["заявки"], imported: "сегодня", changed: "5 мин назад", size: "48 КБ", ctx: true, back: ["[[FR-12]]", "[[FR-13]]", "[[NFR-4]]", "[[ТЗ v3]]"], preview: "## Транскрипт\n\n**02:48 · Анна** Давайте начнём с заявок. Сейчас дилер заводит заявку вручную в Excel…\n\n**03:30 · Ирина** Нам нужно, чтобы система сама проверяла VIN…" },
+  { id: 2, name: "Регламент обработки заявок дилеров v2", ext: "docx", folder: "Материалы", labels: ["регламент", "заявки"], imported: "12 окт", changed: "12 окт", size: "1,2 МБ", ctx: true, back: ["[[AS-2]]", "[[AS-5]]"], preview: "1. Общие положения. Настоящий регламент определяет порядок приёма и обработки заявок от дилерских центров…" },
+  { id: 3, name: "Схема текущего процесса (AS-IS)", ext: "pdf", folder: "Материалы", labels: ["процесс"], imported: "10 окт", changed: "10 окт", size: "860 КБ", ctx: true, back: ["[[AS-1]]"], preview: "Диаграмма BPMN: Дилер → Заявка → Проверка → Назначение → Выполнение → Закрытие." },
+  { id: 4, name: "Заметки с воркшопа 8 окт", ext: "md", folder: "Заметки", labels: ["воркшоп"], imported: "8 окт", changed: "9 окт", size: "12 КБ", ctx: true, back: ["[[Встречи/2026-10-08 Воркшоп]]", "[[BR-1]]"], preview: "- Главная боль: дубли и потерянные заявки\n- Хотят SLA 2 часа\n- Вопрос: кто утверждает?" },
+  { id: 5, name: "SLA для дилерской сети (письмо)", ext: "txt", folder: "Материалы", labels: ["SLA"], imported: "12 окт", changed: "12 окт", size: "4 КБ", ctx: false, back: ["[[NFR-4]]"], preview: "Коллеги, напоминаю: по SLA ответ дилеру должен быть предоставлен не позднее 2 часов…" },
+  { id: 6, name: "Confluence: Архитектура портала дилера", ext: "url", folder: "Материалы", labels: ["архитектура"], imported: "11 окт", changed: "синхр. 2 ч назад", size: "—", ctx: false, back: [], preview: "Портал дилера построен на … (страница Confluence, 14 экранов)" },
+  { id: 7, name: "ТЗ v3 — Портал дилера", ext: "md", folder: "Документы", labels: ["ТЗ"], imported: "13 окт", changed: "вчера", size: "96 КБ", ctx: true, back: ["[[FR-12]]", "[[FR-13]]", "[[NFR-4]]", "[[BR-3]]"], preview: "# Техническое задание v3\n\n## 3. Функциональные требования\n\nFR-12. Система проверяет заявку на дубли по VIN и телефону…" },
+  { id: 8, name: "FR-12 Проверка дублей по VIN и телефону", ext: "md", folder: "Требования", labels: [], imported: "14 окт", changed: "5 мин назад", size: "1 КБ", ctx: true, back: ["[[Встречи/2026-10-14 Звонок]]", "[[ТЗ v3]]"], preview: "---\nid: FR-12\ntype: functional\nstatus: accepted\nsource: [[Встречи/2026-10-14 Звонок]]\n---\nСистема проверяет VIN и телефон клиента при создании заявки…" },
+];
+
+/* ---------- State ---------- */
+const S = {
+  page: "meetings", theme: localStorage.getItem("wb5.theme") || "", onb: 0, tut: 0,
+  sel: 1, tab: "summary", q: "", sort: "new",
+  file: 1, view: "list", folder: "Все", fq: "",
+  paused: false, secs: 1935, qcard: true, notes: "- Дубли заявок: VIN + телефон\n- SLA 2 часа (!)\n- Кто утверждает статус? → уточнить у Олега\n- История изменений",
+  perms: { mic: true, sys: false, notif: false }, model: "e4b", dl: 0, disc: { 1: true, 2: true, 3: false },
+  setsec: "models", ctxOnly: true, toast: "",
+};
+try { if (!localStorage.getItem("wb5.seen")) S.onb = 1; } catch (_) {}
+function theme() { document.documentElement.dataset.theme = S.theme; }
+theme();
+
+/* ---------- Helpers ---------- */
+const $ = s => document.querySelector(s);
+const html = (strings, ...v) => strings.reduce((a, s, i) => a + s + (v[i] ?? ""), "");
+function go(p) { location.hash = "#" + p; }
+function toast(m) { S.toast = m; render(); setTimeout(() => { S.toast = ""; render(); }, 2200); }
+const fmtSecs = n => `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
+
+/* ---------- Shell ---------- */
+const NAV = [
+  ["meetings", "meet", "Встречи"], ["library", "lib", "Материалы"], ["requirements", "req", "Требования", { badge: 9 }],
+  ["documents", "doc", "Документы", { dot: true }], ["backlog", "tree", "Бэклог"], ["ask", "chat", "Спросить"],
+];
+function shell(content) {
+  const act = S.page === "session" ? "meetings" : S.page;
+  return html`
+  <div class="shell">
+    <nav class="rail" aria-label="Разделы">
+      <div class="logo" title="Requirements Workbench">${ic("req", 22)}</div>
+      <button class="rec-fab" id="t-rec" title="Записать встречу (⌘R)" onclick="S.page='session';S.paused=false;go('session')"><span class="dot"></span></button>
+      ${NAV.map(([p, i, l, o = {}]) => html`<button class="nav-item ${act === p ? "active" : ""} ${["backlog", "documents"].includes(p) ? "opt" : ""}" id="t-${p}" onclick="go('${p}')">
+        <span class="pill">${ic(i, 22)}</span>${l}${o.badge ? `<span class="badge">${o.badge}</span>` : ""}${o.dot ? `<span class="dotb"></span>` : ""}</button>`).join("")}
+      <span class="spacer"></span>
+      <button class="nav-item ${act === "settings" ? "active" : ""}" onclick="go('settings')"><span class="pill">${ic("set", 22)}</span>Настройки</button>
+    </nav>
+    <div class="main">
+      <div class="topbar">
+        <button class="project-chip"><span class="av"></span>Портал дилера <span class="t3">▾</span></button>
+        <span class="grow"></span>
+        <button class="status-chip" id="t-status" title="Задачи"><span class="ring" style="--p:42"></span>Распознаю · 42% · 1 задача</button>
+        <button class="icon-btn" title="Тема (⌘⇧L)" onclick="S.theme = S.theme === 'dark' ? 'light' : 'dark'; localStorage.setItem('wb5.theme', S.theme); theme()">${ic("moon")}</button>
+        <button class="icon-btn" title="Справка и подсказки" onclick="S.tut=1;render()">${ic("help")}</button>
+      </div>
+      <div class="page">${content}</div>
+    </div>
+  </div>`;
+}
+function head(title, sub, actions = "") {
+  return html`<div class="page-head"><div><h1>${title}</h1>${sub ? `<p class="sub">${sub}</p>` : ""}</div><div class="actions">${actions}</div></div>`;
+}
+
+/* ---------- Meetings ---------- */
+function meetingRow(m) {
+  const st = m.status === "processing" ? `<span class="tag warn">Распознаю · ${m.p}%</span>` : m.status === "raw" ? `<span class="tag">Без расшифровки</span>` : `<span class="tag ok">Разобран</span>`;
+  const icon = m.kind === "text" ? "doc" : m.kind === "import" ? "upload" : "mic";
+  return html`<div class="mrow ${S.sel === m.id ? "on" : ""}" onclick="S.sel=${m.id};S.tab='summary';render()" ondblclick="go('session')">
+    <span class="ic">${ic(icon, 22)}</span>
+    <div class="grow"><h3 class="trunc">${m.title}</h3>
+      <div class="meta"><span>${m.date}</span>${m.dur ? `<span>·</span><span class="num">${m.dur}</span>` : ""}${m.who ? `<span>·</span><span>${m.who}</span>` : ""}${m.tags.map(t => `<span class="tag">${t}</span>`).join("")}</div></div>
+    <div class="right">${st}<span>${m.atoms ? `${m.atoms} треб.` : ""}</span></div>
+  </div>`;
+}
+function pageMeetings() {
+  let rows = MEETINGS.filter(m => !S.q || m.title.toLowerCase().includes(S.q.toLowerCase()));
+  if (S.sort === "az") rows = [...rows].sort((a, b) => a.title.localeCompare(b.title, "ru"));
+  if (S.sort === "old") rows = [...rows].reverse();
+  const m = MEETINGS.find(x => x.id === S.sel) || MEETINGS[0];
+  return html`
+  ${head("Встречи", "Портал дилера · 6 встреч · 94 требования", html`
+    <button class="btn outlined">${ic("upload", 18)} Импорт</button>
+    <button class="btn rec lg" onclick="S.paused=false;go('session')"><span style="width:10px;height:10px;border-radius:50%;background:#fff"></span> Записать встречу</button>`)}
+  <div class="pipe">
+    <span class="step"><span class="ring" style="--p:85"></span>Встречи <small>· 1 распознаётся</small></span>
+    <span class="step" onclick="go('requirements')"><span class="ring" style="--p:62;--c:var(--warn)"></span>Требования <small>· 9 на проверку · 2 конфликта</small></span>
+    <span class="step" onclick="go('documents')"><span class="ring" style="--p:50;--c:var(--warn)"></span>ТЗ v3 <small>· устарело, 4 изменения</small></span>
+    <span class="step" onclick="go('backlog')"><span class="ring done"></span>Бэклог <small>· 18 историй</small></span>
+    <span class="step"><span class="ring" style="--p:0"></span>Jira <small>· не выгружали</small></span>
+  </div>
+  <div class="body meetings">
+    <div class="card list-card" id="t-list">
+      <div class="list-tools">
+        <label class="search grow">${ic("search", 18)}<input placeholder="Искать по названию и тексту встреч" value="${S.q}" oninput="S.q=this.value;render();this.focus();this.setSelectionRange(99,99)"></label>
+        <div class="seg"><button class="${S.sort === "new" ? "on" : ""}" onclick="S.sort='new';render()">Новые</button><button class="${S.sort === "old" ? "on" : ""}" onclick="S.sort='old';render()">Старые</button><button class="${S.sort === "az" ? "on" : ""}" onclick="S.sort='az';render()">А–Я</button></div>
+      </div>
+      <div class="scroll grow" style="padding-bottom:8px">${rows.length ? rows.map(meetingRow).join("") : `<div class="empty">Ничего не найдено по «${S.q}»</div>`}</div>
+    </div>
+    <div class="card panel">
+      <div class="panel-head">
+        <h2 contenteditable="true" spellcheck="false" title="Переименовать: кликните и правьте" onblur="MEETINGS.find(x=>x.id===${m.id}).title=this.textContent.trim();render();toast('Название сохранено')">${m.title}</h2>
+        <div class="meta"><span>${m.date}</span>${m.dur ? `<span class="num">${m.dur}</span>` : ""}${m.who ? `<span>${m.who}</span>` : ""}<span>${m.atoms} требований</span></div>
+      </div>
+      <div class="tabs">${[["summary", "Резюме"], ["transcript", "Транскрипт"], ["notes", "Заметки"], ["atoms", "Требования"]].map(([k, l]) => `<button class="${S.tab === k ? "on" : ""}" onclick="S.tab='${k}';render()">${l}</button>`).join("")}</div>
+      <div class="panel-body scroll">${panelTab(m)}</div>
+      <div class="panel-foot">
+        <button class="btn filled" onclick="go('session')">Открыть встречу ${ic("arrow", 16)}</button>
+        <button class="btn" onclick="go('requirements')">Требования · ${m.atoms}</button>
+        <button class="icon-btn" title="Ещё: сохранить аудио, скопировать, удалить">${ic("more")}</button>
+      </div>
+    </div>
+  </div>`;
+}
+function panelTab(m) {
+  if (m.status === "processing") return `<div class="empty"><div class="spinner" style="margin-bottom:12px"></div><div>Распознаю · ${m.p}% · осталось около 6 мин</div><div class="t3" style="margin-top:6px">Можно работать дальше, резюме появится само</div></div>`;
+  if (m.status === "raw") return `<div class="empty">Запись ещё не расшифрована<div style="margin-top:14px"><button class="btn tonal">Расшифровать</button> <button class="btn">${ic("down", 16)} Сохранить аудио</button></div></div>`;
+  if (S.tab === "summary") return html`<div class="summary">
+    <div class="seg" style="margin-bottom:6px"><button class="on">Кратко</button><button>По пунктам</button><button>Действия</button></div>
+    <h4>Главное</h4><ul><li>Дилеры заводят заявки вручную, дубли возникают ежедневно <span class="ts">02:48</span></li><li>Нужна автоматическая проверка по VIN и телефону <span class="ts">03:30</span></li><li>SLA ответа дилеру: 2 часа <span class="ts">04:05</span></li></ul>
+    <h4>Открытые вопросы</h4><ul><li>Кто утверждает смену статуса заявки <span class="ts">05:12</span></li></ul>
+    <h4>Риски</h4><ul><li>Интеграция с 1С: сроки не подтверждены <span class="ts">08:15</span></li></ul>
+    <p class="t3" style="margin-top:14px;font-size:12px">Обновлено 5 мин назад · встроенная модель · <a href="#" onclick="toast('Резюме дополнено по новым репликам');return false" style="color:var(--primary)">Обновить по новым репликам</a></p></div>`;
+  if (S.tab === "transcript") return html`<label class="search sm" style="margin-bottom:8px">${ic("search", 16)}<input placeholder="Найти в транскрипте" oninput="hl(this.value)"></label><div id="tr">${LINES.map(line).join("")}</div>`;
+  if (S.tab === "notes") return html`<div class="notes-view">${S.notes}</div><p class="t3" style="margin-top:14px;font-size:12px">Заметки записаны во время встречи · <span style="color:var(--primary);cursor:pointer" onclick="go('session')">Редактировать</span></p>`;
+  return LINES.flatMap(l => l.atoms).map(([c, id, st]) => `<div class="req"><span class="type ${c}">${id}</span><div><div class="st">${st}</div><div class="qt">«…» · 1 цитата · принято</div></div><button class="icon-btn sm">${ic("arrow", 16)}</button></div>`).join("");
+}
+function line(l) {
+  return html`<div class="line"><span class="t">${l.t}</span><div><span class="spk ${l.s}"><i></i>${l.n}</span> <span class="tx">${l.text}</span>
+    ${l.atoms.length ? `<div class="atoms">${l.atoms.map(([c, id, st]) => `<span class="atom"><span class="type ${c}">${id}</span><span class="trunc">${st}</span></span>`).join("")}</div>` : ""}</div></div>`;
+}
+window.hl = q => {
+  document.querySelectorAll("#tr .tx").forEach(el => {
+    const raw = el.dataset.raw || (el.dataset.raw = el.innerHTML);
+    el.innerHTML = q.length > 1 ? raw.replace(new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi"), "<mark style='background:var(--primary-c);color:var(--on-primary-c);border-radius:3px'>$1</mark>") : raw;
+  });
+};
+
+/* ---------- Session ---------- */
+function pageSession() {
+  return html`
+  <div class="body session" style="position:relative">
+    <div class="card sess-head">
+      <button class="icon-btn" onclick="go('meetings')" title="К встречам">${ic("back")}</button>
+      <div class="grow"><div class="title" contenteditable="true" spellcheck="false" onblur="toast('Название сохранено')">Звонок с дилерским центром: заявки</div>
+        <div class="t3" style="font-size:12px;padding-left:6px">14 окт, 11:30 · микрофон MacBook + системный звук · встроенная модель</div></div>
+      <div class="levels">${"<i></i>".repeat(5)}</div>
+      <span class="timer num">${fmtSecs(S.secs)}</span>
+      <div class="audio-pill ${S.paused ? "paused" : ""}"><span class="live"></span><span style="font-weight:600;font-size:13px;margin-right:6px">${S.paused ? "Пауза" : "Идёт запись"}</span>
+        <button title="${S.paused ? "Продолжить" : "Пауза"}" onclick="S.paused=!S.paused;render()">${ic(S.paused ? "play" : "pause", 18)}</button>
+        <button class="stop" title="Завершить и расшифровать" onclick="go('meetings');toast('Запись сохранена · расшифровка запущена')">${ic("stop", 18)}</button></div>
+    </div>
+    <div class="sess-body">
+      <div class="card col">
+        <div class="col-head"><h2>Транскрипт</h2><span class="t3">·</span><span class="spk mic"><i></i>Микрофон</span><span class="spk sys"><i></i>Собеседники</span><span class="grow"></span>
+          <label class="search sm" style="min-width:120px;max-width:220px">${ic("search", 16)}<input placeholder="Найти" oninput="hl(this.value)"></label>
+          <span class="chip sm on">Все реплики</span><span class="chip sm">С требованиями</span></div>
+        <div class="col-body scroll" id="tr">${LINES.map(line).join("")}
+          ${S.paused ? `<div class="listening">${ic("pause", 16)} На паузе — звук не пишется</div>` : `<div class="listening"><span class="spinner"></span> Слушаю…</div>`}</div>
+      </div>
+      <div class="card col">
+        <div class="col-head"><h2>Заметки</h2><span class="t3" style="font-size:12px">Markdown · сохраняются сами</span><span class="grow"></span><span class="t3" style="font-size:12px">⌘B ⌘I</span></div>
+        <div class="fmt"><button><b>B</b></button><button><i>I</i></button><button>H</button><button>•</button><button>1.</button><button>☐</button></div>
+        <textarea class="notes-editor" placeholder="Пишите заметки здесь. Требования слева подхватят ваши пометки." oninput="S.notes=this.value">${S.notes}</textarea>
+        <div class="live-req">
+          <div class="col-head" style="border-top:1px solid var(--outline-2)"><h2>Требования на лету</h2><span class="tag prim">6 новых</span><span class="grow"></span><button class="btn sm text" onclick="go('requirements')">Все →</button></div>
+          <div class="scroll" style="max-height:220px;padding-bottom:6px">${LINES.flatMap(l => l.atoms.map(a => [l, a])).slice(0, 5).map(([l, [c, id, st]]) => `<div class="req"><span class="type ${c}">${id}</span><div><div class="st">${st}</div><div class="qt">${l.n} · ${l.t} · «…»</div></div><span class="cb on">${ic("check", 14)}</span></div>`).join("")}</div>
+        </div>
+      </div>
+    </div>
+    ${S.qcard ? html`<div class="q-card"><h4>${ic("bolt", 16)} В разговоре прозвучал вопрос</h4><p>«Кто будет утверждать изменение статуса?» — в регламенте v2, п. 4.3: статус утверждает руководитель отдела или его заместитель.</p>
+      <div class="row"><button class="btn filled" onclick="S.qcard=false;S.notes+='\\n- Утверждает руководитель или заместитель (регламент v2, 4.3)';render();toast('Добавлено в заметки')">Добавить в заметки</button><button class="btn text" onclick="S.qcard=false;render()">Скрыть</button></div></div>` : ""}
+  </div>`;
+}
+
+/* ---------- Library ---------- */
+function pageLibrary() {
+  const folders = ["Все", "Встречи", "Материалы", "Требования", "Документы", "Заметки"];
+  let files = FILES.filter(f => (S.folder === "Все" || f.folder === S.folder) && (!S.fq || f.name.toLowerCase().includes(S.fq.toLowerCase())));
+  const f = FILES.find(x => x.id === S.file) || FILES[0];
+  const count = n => n === "Все" ? FILES.length : FILES.filter(x => x.folder === n).length;
+  return html`
+  ${head("Материалы", "Хранилище проекта: папка на диске, каждая встреча и требование — файл Markdown", html`
+    <label class="search">${ic("search", 18)}<input placeholder="Искать по всем материалам" value="${S.fq}" oninput="S.fq=this.value;render();this.focus();this.setSelectionRange(99,99)"></label>
+    <button class="btn filled">${ic("plus", 18)} Добавить</button>`)}
+  <div class="body library">
+    <div class="card tree scroll" id="t-tree">
+      <div class="vault">${ic("folder", 22)}<div><b>Портал дилера</b>~/RequirementsWorkbench/…</div></div>
+      ${folders.map(n => `<div class="node ${S.folder === n ? "on" : ""}" onclick="S.folder='${n}';render()">${ic(n === "Все" ? "lib" : "folder", 18)}${n}<span class="n">${count(n)}</span></div>`).join("")}
+      <div class="sec">Метки</div>
+      ${["заявки", "регламент", "SLA", "процесс", "архитектура"].map(l => `<div class="node sub">#${l}</div>`).join("")}
+      <div class="sec">Открыть</div>
+      <div class="node sub" onclick="toast('Папка показана в Finder')">${ic("finder", 16)}В Finder</div>
+      <div class="node sub" onclick="toast('Открыто в Obsidian')">${ic("link", 16)}В Obsidian</div>
+    </div>
+    <div class="card files">
+      <div class="addrow"><button class="btn sm">${ic("upload", 16)} Файлы</button><button class="btn sm">${ic("link", 16)} Ссылка</button><button class="btn sm">${ic("clip", 16)} Вставить текст</button><button class="btn sm">${ic("folder", 16)} Импорт папки</button>
+        <span class="grow"></span><div class="seg"><button class="${S.view === "list" ? "on" : ""}" onclick="S.view='list';render()">${ic("list", 16)}</button><button class="${S.view === "grid" ? "on" : ""}" onclick="S.view='grid';render()">${ic("grid", 16)}</button></div></div>
+      <div class="scroll grow">
+      ${S.view === "list" ? html`<table class="ftable"><thead><tr><th>Имя</th><th>Метки</th><th>Изменён</th><th>Размер</th><th>Контекст</th></tr></thead><tbody>
+        ${files.map(x => `<tr class="${S.file === x.id ? "on" : ""}" onclick="S.file=${x.id};render()"><td><span class="fname"><span class="fico ${x.ext}">${x.ext.toUpperCase()}</span><span class="trunc">${x.name}</span></span></td>
+          <td style="white-space:nowrap">${x.labels.map(l => `<span class="tag">${l}</span>`).join(" ")}</td><td class="t2" style="white-space:nowrap">${x.changed}</td><td class="t2 num" style="white-space:nowrap">${x.size}</td><td><span class="cb ${x.ctx ? "on" : ""}" onclick="event.stopPropagation();FILES.find(y=>y.id===${x.id}).ctx=!${x.ctx};render()">${x.ctx ? ic("check", 14) : ""}</span></td></tr>`).join("")}</tbody></table>`
+      : html`<div class="grid">${files.map(x => `<div class="fcard ${S.file === x.id ? "on" : ""}" onclick="S.file=${x.id};render()"><span class="fico ${x.ext}">${x.ext.toUpperCase()}</span><div class="name">${x.name}</div><div class="meta">${x.folder} · изменён ${x.changed}</div><div class="ctx"><span class="cb ${x.ctx ? "on" : ""}">${x.ctx ? ic("check", 14) : ""}</span>В контексте ИИ</div></div>`).join("")}</div>`}
+      <div class="drop">Перетащите сюда аудио, .docx, .pdf, .md или текст — файл попадёт в папку проекта и проиндексируется локально</div>
+      </div>
+    </div>
+    <div class="card panel">
+      <div class="panel-head"><h2 class="trunc">${f.name}</h2><div class="meta"><span class="fico ${f.ext}" style="width:22px;height:22px;font-size:8px">${f.ext.toUpperCase()}</span><span>${f.folder}</span><span>${f.size}</span></div></div>
+      <div class="panel-body scroll preview">
+        <div class="doc">${f.preview.replace(/\n/g, "<br>")}</div>
+        <dl class="kv"><dt>Путь</dt><dd class="mono trunc">${f.folder}/${f.name}.${f.ext}</dd><dt>Добавлен</dt><dd>${f.imported}</dd><dt>Изменён</dt><dd>${f.changed}</dd><dt>Метки</dt><dd>${f.labels.map(l => `<span class="tag">${l}</span>`).join(" ")} <button class="chip sm">+ метка</button></dd></dl>
+        <div class="row" style="border-top:1px solid var(--outline-2)"><div class="l"><b>Включать в контекст ИИ</b><small>Извлечение и «Спросить» смогут цитировать этот файл</small></div><span class="switch ${f.ctx ? "on" : ""}" onclick="FILES.find(y=>y.id===${f.id}).ctx=!${f.ctx};render()"></span></div>
+        <div class="links"><h4>Ссылки на этот файл · ${f.back.length}</h4>${f.back.length ? f.back.map(b => `<div class="link">${ic("link", 14)}<span class="wl">${b}</span></div>`).join("") : `<div class="t3" style="font-size:13px">Пока ни одно требование не ссылается сюда</div>`}</div>
+      </div>
+      <div class="panel-foot"><button class="btn tonal">${ic("edit", 16)} Открыть</button><button class="btn">${ic("finder", 16)} Показать в Finder</button><button class="icon-btn" title="Ещё">${ic("more")}</button></div>
+    </div>
+  </div>`;
+}
+
+/* ---------- Ask ---------- */
+function pageAsk() {
+  return html`
+  ${head("Спросить", "Ответы по встречам, требованиям и материалам проекта · всё считается на этом компьютере")}
+  <div class="body ask">
+    <div class="card chat">
+      <div class="msgs scroll">
+        <div class="msg me">Какие сроки ответа дилеру мы обещаем и где это зафиксировано?</div>
+        <div class="msg ai"><div class="st">${ic("check", 14)} Найдено в 3 материалах · встроенная модель · 2,1 с</div>
+          Ответ дилеру должен быть предоставлен <b>не позднее чем через 2 часа</b> после создания заявки. Это прозвучало на звонке 14 октября <span class="cite" onclick="go('meetings')">Встреча 14 окт · 04:05</span> и совпадает с письмом ИТ-директора <span class="cite" onclick="go('library')">SLA для дилерской сети</span>. В ТЗ это требование оформлено как <span class="cite" onclick="go('requirements')">NFR-4</span>, статус «принято».<br><br>
+          Расхождение: регламент v2 <span class="cite" onclick="go('library')">Регламент обработки заявок, п. 2.4</span> говорит о 4 часах. Стоит уточнить, какой документ главнее.</div>
+        <div class="msg me">Сделай из этого вопрос для клиента</div>
+        <div class="msg ai"><div class="st">${ic("check", 14)} Создано</div>Добавил <span class="cite" onclick="go('requirements')">Q-9</span>: «Какой срок ответа дилеру считать целевым: 2 часа (звонок 14 окт, письмо) или 4 часа (регламент v2, п. 2.4)?» — с двумя цитатами.</div>
+      </div>
+      <div class="composer">
+        <div class="box"><input placeholder="Спросите о проекте…" onkeydown="if(event.key==='Enter'){this.value='';toast('Ищу в материалах проекта…')}"><button class="send">${ic("arrow", 20)}</button></div>
+        <div class="opts"><span class="switch ${S.ctxOnly ? "on" : ""}" onclick="S.ctxOnly=!S.ctxOnly;render()"></span><span>Только материалы «в контексте»</span><span class="t3">·</span><span class="t3">Без интернета, ничего не отправляется наружу</span></div>
+      </div>
+    </div>
+    <div class="card hist scroll"><h4>История</h4>
+      ${["Какие сроки ответа дилеру мы обещаем…", "Что говорили про интеграцию с 1С?", "Список всех открытых вопросов по заявкам", "Кто участвовал в воркшопе 8 октября?"].map((h, i) => `<div class="h">${h}<small>${["сегодня", "вчера", "12 окт", "9 окт"][i]}</small></div>`).join("")}
+    </div>
+  </div>`;
+}
+
+/* ---------- Requirements / Documents / Backlog (same style, thinner) ---------- */
+function pageRequirements() {
+  const rows = [["fr", "FR-12", "Система проверяет VIN и телефон клиента на дубли при создании заявки", "Встреча 14 окт", "принято"], ["fr", "FR-13", "История изменений заявки: кто, когда, что", "Встреча 14 окт", "на проверку"], ["nfr", "NFR-4", "Ответ дилеру не позднее 2 часов", "Встреча 14 окт · Письмо SLA", "конфликт"], ["br", "BR-3", "Исключить дублирование заявок при ручном вводе", "Встреча 14 окт", "принято"], ["q", "Q-7", "Кто утверждает смену статуса заявки?", "Встреча 14 окт", "на проверку"], ["rsk", "RSK-2", "Сроки интеграции с 1С не подтверждены", "Встреча 14 окт", "принято"]];
+  return html`${head("Требования", "94 всего · 9 на проверку · 2 конфликта", `<button class="btn">${ic("bolt", 18)} Извлечь из новых встреч</button><button class="btn filled">Проверить 9 ${ic("arrow", 16)}</button>`)}
+  <div style="display:flex;gap:8px;padding:0 4px 14px;flex-wrap:wrap"><div class="seg"><button class="on">На проверку · 9</button><button>Принятые · 71</button><button>Все · 94</button></div>${["BR", "FR", "NFR", "RSK", "AS", "Q"].map(t => `<span class="chip sm">${t}</span>`).join("")}<span class="chip sm" style="color:var(--danger)">В конфликте · 2</span></div>
+  <div class="card body scroll"><table class="rtable"><thead><tr><th style="width:80px">ID</th><th>Формулировка</th><th style="width:200px">Источник</th><th style="width:120px">Статус</th></tr></thead><tbody>
+    ${rows.map(([c, id, st, src, s]) => `<tr><td><span class="type ${c}">${id}</span></td><td>${st}</td><td class="t2">${src}</td><td><span class="tag ${s === "принято" ? "ok" : s === "конфликт" ? "danger" : "warn"}">${s}</span></td></tr>`).join("")}</tbody></table></div>`;
+}
+function pageDocuments() {
+  return html`${head("Документы", "ТЗ v3 устарело: 4 требования изменились после сборки", `<button class="btn">Сравнить с v2</button><button class="btn filled">Пересобрать ТЗ ${ic("arrow", 16)}</button>`)}
+  <div class="body" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;align-content:start">
+    ${[["ТЗ — Портал дилера", "v3 · вчера · 62 требования", "warn", "Устарело"], ["Протокол воркшопа 8 окт", "v1 · 9 окт", "ok", "Согласован"], ["Список вопросов клиенту", "v4 · сегодня · 11 вопросов", "", "Черновик"]].map(([t, m, c, s]) => `<div class="card" style="padding:20px;display:grid;gap:8px;cursor:pointer"><span style="width:40px;height:40px;border-radius:12px;background:var(--surface-2);display:grid;place-items:center;color:var(--text-2)">${ic("doc", 22)}</span><b style="font-size:16px">${t}</b><span class="t3" style="font-size:13px">${m}</span><span class="tag ${c}" style="justify-self:start">${s}</span></div>`).join("")}
+    <div class="card flat" style="padding:20px;display:grid;place-items:center;border:2px dashed var(--outline);color:var(--text-3);min-height:160px">+ Новый документ по скиллу</div>
+  </div>`;
+}
+function pageBacklog() {
+  return html`${head("Бэклог", "18 историй · 3 эпика · INVEST: 2 замечания", `<button class="btn">Проверить INVEST</button><button class="btn filled">В Jira · 18 ${ic("arrow", 16)}</button>`)}
+  <div class="card body scroll"><table class="rtable"><thead><tr><th style="width:60px"></th><th>История</th><th style="width:140px">Критерии</th><th style="width:120px">Требования</th></tr></thead><tbody>
+    ${[["E", "Эпик: Приём заявок от дилеров", "", ""], ["S", "Как дилер, я хочу создать заявку, чтобы…", "3 · ok", "FR-10, FR-12"], ["S", "Как система, я проверяю дубли по VIN и телефону", "2 · ok", "FR-12, BR-3"], ["S", "Как менеджер, я вижу историю изменений заявки", "1 · мало", "FR-13"], ["E", "Эпик: SLA и уведомления", "", ""], ["S", "Как дилер, я получаю ответ в течение 2 часов", "2 · ok", "NFR-4"]].map(([k, t, c, r]) => `<tr><td><span class="type ${k === "E" ? "br" : "fr"}">${k}</span></td><td style="${k === "E" ? "font-weight:600" : "padding-left:28px"}">${t}</td><td class="t2">${c}</td><td class="t2">${r}</td></tr>`).join("")}</tbody></table></div>`;
+}
+
+/* ---------- Settings ---------- */
+function pageSettings() {
+  const secs = [["models", "cpu", "Модели"], ["privacy", "shield", "Приватность"], ["storage", "folder", "Хранилище"], ["record", "mic", "Запись"], ["jira", "link", "Jira"], ["keys", "bolt", "Горячие клавиши"]];
+  const body = S.setsec === "models" ? html`
+    <div class="card setcard"><h3>Распознавание речи</h3><div class="d">Работает на этом компьютере, без интернета</div>
+      <div class="models"><div class="model on"><b>GigaAM v3 e2e</b><small>Русский · 1,1 ГБ · установлена</small><span class="tag ok">активна</span></div><div class="model"><b>GigaAM v3 CTC</b><small>Быстрее, менее точная · 0,9 ГБ</small></div></div></div>
+    <div class="card setcard"><h3>Языковая модель</h3><div class="d">Резюме, требования и ответы. Выберите размер под память этого Mac (32 ГБ)</div>
+      <div class="models">${[["e2b", "Gemma 4 E2B", "4 ГБ RAM · быстрая", ""], ["e4b", "Gemma 4 E4B", "8 ГБ RAM · рекомендуем", "ok"], ["12b", "Gemma 4 12B", "16 ГБ RAM · лучшее качество", ""], ["claude", "Claude (облако)", "Ключ API · отправляет текст наружу", "warn"]].map(([k, n, d, c]) => `<div class="model ${S.model === k ? "on" : ""}" onclick="S.model='${k}';render()"><b>${n}</b><small>${d}</small>${c ? `<span class="tag ${c}">${c === "ok" ? "рекомендуем" : "облако"}</span>` : ""}</div>`).join("")}</div>
+      <div class="row" style="margin-top:12px"><div class="l"><b>Статистика</b><small>За неделю на этом компьютере обработано 184 тыс. токенов · 6 встреч · 0 отправлено в облако</small></div></div></div>`
+  : S.setsec === "storage" ? html`
+    <div class="card setcard"><h3>Хранилище проекта</h3><div class="d">Папка, которую можно открыть в Finder или Obsidian. Приложение пишет в неё каждое изменение и подхватывает правки извне</div>
+      <div class="row"><div class="l"><b>~/RequirementsWorkbench/Портал дилера</b><small>8 встреч · 94 требования · 3 документа · 1,9 ГБ с аудио</small></div><button class="btn sm">Сменить папку</button><button class="btn sm">${ic("finder", 16)} Показать</button></div>
+      <div class="row"><div class="l"><b>Следить за изменениями на диске</b><small>Правки в Obsidian и Finder попадают в приложение</small></div><span class="switch on"></span></div>
+      <div class="row"><div class="l"><b>Хранить аудио рядом с транскриптом</b><small>mixed.wav, mic.wav, sys.wav в папке встречи</small></div><span class="switch on"></span></div></div>`
+  : S.setsec === "privacy" ? html`
+    <div class="card setcard"><h3>Приватность</h3><div class="d">Что покидает этот компьютер</div>
+      <div class="row"><div class="l"><b>Только локально</b><small>Запрещает облачные модели для этого проекта. Переключатель честный: без облачных запасных путей</small></div><span class="switch on"></span></div>
+      <div class="row"><div class="l"><b>Напоминать о согласии на запись</b><small>Перед началом записи встречи</small></div><span class="switch on"></span></div></div>`
+  : S.setsec === "record" ? html`
+    <div class="card setcard"><h3>Запись</h3><div class="d">Микрофон и системный звук пишутся раздельно</div>
+      <div class="row"><div class="l"><b>Микрофон</b><small>MacBook Pro Microphone</small></div><button class="btn sm">Сменить</button></div>
+      <div class="row"><div class="l"><b>Останавливать при тишине</b><small>Через 10 минут без речи · с уведомлением</small></div><span class="switch on"></span></div>
+      <div class="row"><div class="l"><b>Требования на лету</b><small>Извлекать требования из последних минут во время записи</small></div><span class="switch on"></span></div></div>`
+  : S.setsec === "keys" ? html`<div class="card setcard"><h3>Горячие клавиши</h3><div class="d">Дважды кликните, чтобы изменить</div>${[["Записать встречу", "⌘ R"], ["Показать окно", "⌘ ⇧ W"], ["Поиск по проекту", "⌘ K"], ["Спросить", "⌘ J"], ["Тема", "⌘ ⇧ L"]].map(([a, k]) => `<div class="row"><div class="l"><b>${a}</b></div><span class="kbd">${k}</span></div>`).join("")}</div>`
+  : html`<div class="card setcard"><h3>Jira</h3><div class="d">Вход через браузер, токены не хранятся в системной связке</div><div class="row"><div class="l"><b>sundocarme-1787295249165.atlassian.net</b><small>Проект SCRUM · подключено</small></div><button class="btn sm">Выйти</button></div></div>`;
+  return html`${head("Настройки", "")}<div class="body settings"><div class="card setnav" style="padding:10px 8px;align-self:start">${secs.map(([k, i, l]) => `<div class="node ${S.setsec === k ? "on" : ""}" onclick="S.setsec='${k}';render()">${ic(i, 18)}${l}</div>`).join("")}</div><div class="setcards scroll">${body}</div></div>`;
+}
+
+/* ---------- Onboarding ---------- */
+function onboarding() {
+  const step = S.onb, total = 6;
+  const steps = `<div class="steps">${Array.from({ length: total }, (_, i) => `<i class="${i < step ? "on" : ""}"></i>`).join("")}</div>`;
+  let body = "", next = "Далее", back = step > 1, nextFn = "S.onb++;render()", skip = "";
+  if (step === 1) {
+    next = "Начать"; back = false;
+    body = html`<h1>Добро пожаловать в Requirements Workbench</h1><p class="lead">Запишите встречу, получите требования с цитатами, соберите ТЗ и бэклог. Всё считается на этом Mac: ни звук, ни текст не покидают компьютер, пока вы сами не включите облако.</p>
+    <div class="panels">
+      <div class="panel-art"><div class="art"><div class="line" style="left:16px;top:18px;width:60%"></div><div class="line" style="left:16px;top:36px;width:40%"></div><div class="line" style="left:16px;top:54px;width:70%"></div><div class="hud"><b>Идёт запись · 24:10</b>Микрофон · Собеседники · требования на лету</div></div><h3>Записывайте встречи</h3><p>Два канала, заметки рядом с транскриптом</p></div>
+      <div class="panel-art"><div class="art"><div class="cardlet" style="left:14px;top:14px;right:40px"><b>FR-12 · принято</b>Проверка дублей по VIN и телефону</div><div class="cardlet" style="left:30px;top:66px;right:14px"><b>NFR-4 · конфликт</b>Ответ дилеру ≤ 2 ч · 2 цитаты</div><div class="cardlet" style="left:14px;top:118px;right:60px"><b>Q-7 · вопрос</b>Кто утверждает статус?</div></div><h3>Проверяйте требования</h3><p>Каждое — с цитатой из источника</p></div>
+      <div class="panel-art"><div class="art"><div class="cardlet" style="left:14px;top:14px;right:14px;bottom:14px;padding:12px"><b>ТЗ v3 → Бэклог → Jira</b><div class="line" style="position:static;margin:8px 0 6px;width:80%"></div><div class="line" style="position:static;margin:0 0 6px;width:60%"></div><div class="line" style="position:static;width:70%"></div></div></div><h3>Собирайте документы</h3><p>ТЗ, бэклог и выгрузка в Jira из одних данных</p></div>
+    </div>
+    <p class="t3" style="font-size:13px">Продолжая, вы соглашаетесь с <a href="#" style="color:var(--primary)">условиями</a>. Модели (около 3 ГБ) будут загружены на следующих шагах.</p>`;
+  } else if (step === 2) {
+    const all = S.perms.mic && S.perms.sys && S.perms.notif;
+    body = html`<h1>Разрешения</h1><p class="lead">Без микрофона и системного звука нечего записывать. Уведомления подскажут, когда расшифровка готова.</p>
+    <div class="card" style="margin:24px 0 16px">
+      ${[["mic", "mic", "Микрофон", "Ваш голос на встрече"], ["sys", "speaker", "Системный звук", "Собеседники в Zoom, Meet, Teams — без виртуальных устройств"], ["notif", "bell", "Уведомления", "«Расшифровка готова», «запись остановлена по тишине»"]].map(([k, i, n, d]) => html`<div class="perm"><span class="ic">${ic(i, 22)}</span><div class="l"><b>${n}</b><small>${d}</small></div>
+        ${S.perms[k] ? `<span class="tag ok">Разрешено</span>` : `<span class="tag">Не разрешено</span><button class="btn sm tonal" onclick="S.perms.${k}=true;render()">Разрешить</button><button class="btn sm text" onclick="toast('Открываю Системные настройки → Конфиденциальность')">Системные настройки</button>`}</div>`).join("")}
+    </div>
+    ${all ? "" : `<button class="btn filled" onclick="S.perms={mic:true,sys:true,notif:true};render()">Разрешить всё</button>`}
+    <p class="t3" style="font-size:13px;margin-top:16px">${ic("shield", 14)} Звук пишется в папку проекта и никуда не отправляется.</p>`;
+    skip = `<button class="btn text" onclick="S.onb++;render()">Позже</button>`;
+  } else if (step === 3) {
+    body = html`<h1>Модели</h1><p class="lead">На этом Mac 32 ГБ памяти и чип M3 Pro. Отметили то, что подойдёт лучше всего. Всё можно поменять в настройках.</p>
+    <div class="card setcard" style="margin-top:24px"><h3>Распознавание речи</h3><div class="d">GigaAM v3, русский язык, работает без интернета</div><div class="models"><div class="model on"><b>GigaAM v3 e2e</b><small>1,1 ГБ · точнее</small><span class="tag ok">рекомендуем</span></div><div class="model"><b>GigaAM v3 CTC</b><small>0,9 ГБ · быстрее</small></div></div></div>
+    <div class="card setcard" style="margin-top:14px"><h3>Языковая модель для резюме и требований</h3><div class="d">Локальная модель бесплатна и приватна. Облако — по вашему ключу и только если нужно</div>
+      <div class="models">${[["e2b", "Gemma 4 E2B", "4 ГБ RAM · 1,5 ГБ на диске", ""], ["e4b", "Gemma 4 E4B", "8 ГБ RAM · 2,6 ГБ на диске", "ok"], ["12b", "Gemma 4 12B", "16 ГБ RAM · 7 ГБ на диске", ""], ["claude", "Claude (облако)", "Нужен ключ API", "warn"]].map(([k, n, d, c]) => `<div class="model ${S.model === k ? "on" : ""}" onclick="S.model='${k}';render()"><b>${n}</b><small>${d}</small>${c ? `<span class="tag ${c}">${c === "ok" ? "рекомендуем" : "облако"}</span>` : ""}</div>`).join("")}</div></div>`;
+    next = "Загрузить"; nextFn = "S.onb=4;S.dl=0;render();dlTick()";
+  } else if (step === 4) {
+    const done = S.dl >= 100;
+    body = html`<h1>${done ? "Готово" : "Готовим Workbench…"}</h1><p class="lead">${done ? "Модели на месте. Дальше всё работает без интернета." : "Загружаем модели. Это один раз; можно свернуть окно — загрузка продолжится."}</p>
+    <div class="card setcard" style="margin-top:24px;display:grid;gap:14px">
+      <div><div style="display:flex;justify-content:space-between;margin-bottom:6px"><b>GigaAM v3 e2e</b><span class="t2 num">${Math.min(100, S.dl * 2)}% · 1,1 ГБ</span></div><div class="progress"><i style="width:${Math.min(100, S.dl * 2)}%"></i></div></div>
+      <div><div style="display:flex;justify-content:space-between;margin-bottom:6px"><b>Gemma 4 E4B</b><span class="t2 num">${S.dl}% · 2,6 ГБ</span></div><div class="progress"><i style="width:${S.dl}%"></i></div></div>
+      <div class="t3" style="font-size:13px">${done ? ic("check", 14) + " Проверка моделей пройдена" : `<span class="spinner" style="vertical-align:-3px"></span> Осталось около ${Math.max(1, Math.round((100 - S.dl) / 12))} мин · 24 МБ/с`}</div></div>`;
+    next = done ? "Далее" : "В фоне";
+  } else if (step === 5) {
+    const cands = [[1, "wav", "Звонок с дилером 2026-10-06.m4a", "Загрузки · 52 МБ · 6 окт"], [2, "docx", "Регламент обработки заявок дилеров v2.docx", "Документы · 1,2 МБ · 12 окт"], [3, "pdf", "Схема текущего процесса.pdf", "Рабочий стол · 860 КБ"], [4, "md", "Заметки с воркшопа.md", "Документы · 12 КБ"]];
+    body = html`<h1>Материалы</h1><p class="lead">Нашли в Загрузках, Документах и на Рабочем столе файлы, похожие на материалы проекта. Отметьте, что добавить в папку проекта.</p>
+    <div class="card" style="margin:24px 0 14px">${cands.map(([id, ext, n, d]) => `<div class="disc" onclick="S.disc[${id}]=!S.disc[${id}];render()"><span class="cb ${S.disc[id] ? "on" : ""}">${S.disc[id] ? ic("check", 14) : ""}</span><span class="fico ${ext}">${ext.toUpperCase()}</span><div class="l"><b>${n}</b><small>${d}</small></div></div>`).join("")}</div>
+    <div style="display:flex;gap:8px"><button class="btn">${ic("folder", 16)} Выбрать папку</button><button class="btn text">Ничего не добавлять</button></div>
+    <p class="t3" style="font-size:13px;margin-top:16px">Файлы копируются в ~/RequirementsWorkbench/Портал дилера. Оригиналы остаются на месте.</p>`;
+    next = `Добавить ${Object.values(S.disc).filter(Boolean).length} и продолжить`;
+  } else {
+    body = html`<h1>Всё готово</h1><p class="lead">Покажем четыре места, с которых начинается работа. Подсказки можно вызвать снова из справки.</p>
+    <div class="panels" style="grid-template-columns:repeat(2,1fr)">${[["mic", "Записать встречу", "Кнопка слева сверху или ⌘R"], ["meet", "Встречи", "Список, резюме, транскрипт и заметки"], ["lib", "Материалы", "Папка проекта: файлы, ссылки, метки"], ["chat", "Спросить", "Вопросы по всему проекту с цитатами"]].map(([i, t, d]) => `<div class="card" style="padding:20px;display:flex;gap:14px;align-items:center"><span style="width:44px;height:44px;border-radius:14px;background:var(--primary-c);color:var(--on-primary-c);display:grid;place-items:center">${ic(i, 22)}</span><div><b>${t}</b><div class="t2" style="font-size:13px">${d}</div></div></div>`).join("")}</div>`;
+    next = "Показать подсказки"; nextFn = "finishOnb(true)"; skip = `<button class="btn text" onclick="finishOnb(false)">Пропустить</button>`;
+  }
+  return html`<div class="onb"><div class="onb-top"><span style="width:32px;height:32px;border-radius:10px;background:var(--primary);color:var(--on-primary);display:grid;place-items:center">${ic("req", 18)}</span><b>Requirements Workbench</b><span class="t3">· первый запуск</span>${steps}</div>
+    <div class="onb-body"><div class="onb-inner">${body}</div></div>
+    <div class="onb-bot">${back ? `<button class="btn text" onclick="S.onb--;render()">${ic("back", 16)} Назад</button>` : ""}<div class="right">${skip}<button class="btn filled lg" onclick="${nextFn}">${next} ${ic("arrow", 16)}</button></div></div></div>`;
+}
+window.dlTick = () => { if (S.onb !== 4 || S.dl >= 100) return; S.dl = Math.min(100, S.dl + 7); render(); setTimeout(dlTick, 350); };
+window.finishOnb = tut => { S.onb = 0; try { localStorage.setItem("wb5.seen", "1"); } catch (_) {} S.tut = tut ? 1 : 0; go("meetings"); render(); };
+
+/* ---------- Tutorial ---------- */
+const TUT = [["t-rec", "Записать встречу", "Одна кнопка: микрофон и системный звук пишутся раздельно, транскрипт и требования появляются по ходу встречи."], ["t-list", "Встречи", "Все записи, импорты и тексты проекта. Переименуйте прямо в списке, ищите по словам из разговора."], ["t-library", "Материалы", "Папка проекта на диске. Добавляйте документы и ссылки — ИИ будет их цитировать."], ["t-ask", "Спросить", "Вопрос по всему проекту: ответ с цитатами из встреч и файлов, всё считается локально."]];
+function tutorial() {
+  const [id, t, d] = TUT[S.tut - 1];
+  const el = document.getElementById(id);
+  const r = el ? el.getBoundingClientRect() : { left: 20, top: 20, width: 60, height: 60, right: 80, bottom: 80 };
+  const pad = 8, left = r.right + 20 + 320 < innerWidth ? r.right + 20 : Math.max(16, r.left - 340), top = Math.min(innerHeight - 200, Math.max(16, r.top));
+  return html`<div class="tut"><div class="spot" style="left:${r.left - pad}px;top:${r.top - pad}px;width:${r.width + pad * 2}px;height:${r.height + pad * 2}px"></div>
+    <div class="tip" style="left:${left}px;top:${top}px"><h4>${t}</h4><p>${d}</p><div class="row"><span class="n">${S.tut} из ${TUT.length}</span><div class="right"><button class="btn sm text" onclick="S.tut=0;render()">Закрыть</button><button class="btn sm filled" onclick="S.tut=${S.tut < TUT.length ? S.tut + 1 : 0};render()">${S.tut < TUT.length ? "Дальше" : "Готово"}</button></div></div></div></div>`;
+}
+
+/* ---------- Router ---------- */
+const PAGES = { meetings: pageMeetings, session: pageSession, library: pageLibrary, ask: pageAsk, requirements: pageRequirements, documents: pageDocuments, backlog: pageBacklog, settings: pageSettings };
+function render() {
+  const h = location.hash.replace("#", "") || "meetings";
+  if (h === "onboarding") { S.onb = S.onb || 1; }
+  else if (PAGES[h]) S.page = h;
+  const app = $("#app");
+  if (S.onb) { app.innerHTML = onboarding(); return; }
+  app.innerHTML = shell(PAGES[S.page]()) + (S.toast ? `<div class="toast">${S.toast}</div>` : "");
+  if (S.tut) app.insertAdjacentHTML("beforeend", tutorial());
+}
+addEventListener("hashchange", () => { if (location.hash === "#onboarding") S.onb = 1; render(); });
+addEventListener("resize", () => { if (S.tut) render(); });
+addEventListener("keydown", e => {
+  if ((e.metaKey || e.ctrlKey) && e.key >= "1" && e.key <= "8") { e.preventDefault(); go(["meetings", "library", "requirements", "documents", "backlog", "ask", "settings", "session"][+e.key - 1]); }
+  if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "l") { e.preventDefault(); S.theme = S.theme === "dark" ? "light" : "dark"; localStorage.setItem("wb5.theme", S.theme); theme(); }
+  if (e.key === "Escape" && S.tut) { S.tut = 0; render(); }
+});
+setInterval(() => { if (S.page === "session" && !S.paused && !S.onb) { S.secs++; const t = document.querySelector(".timer"); if (t) t.textContent = fmtSecs(S.secs); } }, 1000);
+if (location.hash === "#onboarding") S.onb = 1;
+render();
+</script>
+</body>
+</html>
