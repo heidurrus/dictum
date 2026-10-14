@@ -265,6 +265,70 @@ if os.getenv("FAKE_RECORDER"):
                                                          generate=fake_ask_generate(None, None))
     app_module.app.view_functions["audio_devices"] = lambda: app_module.jsonify([{"index": 0, "name": "Fake microphone"}])
 
+# Шепнуть (5.0 C7, e2e/whisper.mjs): with FAKE_RECORDER=1 the whisper capture records the fake microphone through the
+# real recorder into <data>/whispers/<id>/mic.wav, the live words are scripted (one word every 150 ms) and the capture
+# stops by itself after the script, as after two seconds of silence; the final pass returns the scripted sentence and
+# the parse finds one reminder for tomorrow 10:00 and one task.
+WHISPER_SAID = {
+    "ru": "Напомни завтра в десять позвонить Ирине насчёт истории заявки и ещё надо отправить Олегу регламент",
+    "en": "Remind me tomorrow at ten to call Irina about the request history and also send Oleg the policy",
+}
+WHISPER_ITEMS = {
+    "ru": [("remind", "Позвонить Ирине насчёт истории заявки", "завтра в десять позвонить Ирине насчёт истории заявки"),
+           ("task", "Отправить Олегу регламент", "отправить Олегу регламент")],
+    "en": [("remind", "Call Irina about the request history", "tomorrow at ten call Irina about the request history"),
+           ("task", "Send Oleg the policy", "send Oleg the policy")],
+}
+NOTIFIED = []
+
+
+class FakeWhisperWords:
+    def __init__(self, capture, words):
+        self.capture, self._stop = capture, threading.Event()
+        threading.Thread(target=self._run, args=(words,), daemon=True).start()
+
+    def _run(self, words):
+        for w in words:
+            if self._stop.wait(0.15):
+                return
+            self.capture.words.append_provisional_segments(self.capture.id, [{"text": w}])
+        if not self._stop.wait(0.6):
+            self.capture._auto("silence")
+
+    def stop(self, join_timeout=2.0):
+        self._stop.set()
+
+
+def fake_whisper_capture(mic, opts):
+    from core import whisper as whisper_mod
+
+    class Capture(whisper_mod.Capture):
+        def start(self):
+            super().start()
+            self.live = FakeWhisperWords(self, WHISPER_SAID[app_module._whisper.get("lang") or "ru"].split())
+            return self
+    return Capture(mic)
+
+
+def fake_whisper_complete(prefs, api_key):
+    def complete(system, user, schema):
+        lang = "ru" if "interface language: Russian" in user else "en"
+        now = re.search(r"^now: (\d{4}-\d{2}-\d{2})", user, flags=re.M).group(1)
+        import datetime
+        tomorrow = (datetime.date.fromisoformat(now) + datetime.timedelta(days=1)).isoformat()
+        return {"items": [{"kind": kind, "title": title, "text": text,
+                           "due": f"{tomorrow}T10:00" if kind == "remind" else None, "project_hint": None}
+                          for kind, title, text in WHISPER_ITEMS[lang]]}
+    return complete
+
+
+app_module._whisper_complete = fake_whisper_complete
+app_module.notify = lambda title, text: NOTIFIED.append({"title": title, "text": text}) or True
+app_module.app.add_url_rule("/__fake/notified", "fake_notified", lambda: app_module.jsonify(NOTIFIED))
+if os.getenv("FAKE_RECORDER"):
+    app_module._new_whisper_capture = fake_whisper_capture
+    app_module._whisper_final_text = lambda path, opts: WHISPER_SAID[app_module._whisper.get("lang") or "ru"]
+
 # Pretend to be another machine for screenshots: FAKE_GPU="none" or a size in GB.
 if os.getenv("FAKE_GPU"):
     fake = {} if os.environ["FAKE_GPU"] == "none" else {"name": "NVIDIA GeForce RTX 2060", "backend": "Vulkan0",
@@ -272,4 +336,5 @@ if os.getenv("FAKE_GPU"):
     app_module.local_llm.gpu_info = lambda refresh=False: fake
 
 if __name__ == "__main__":
+    app_module.start_background()               # the reminder check, as the launcher starts it
     app_module.app.run(host="127.0.0.1", port=int(sys.argv[1]) if len(sys.argv) > 1 else 5098, threaded=True)
