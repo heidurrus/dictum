@@ -35,7 +35,11 @@ JIRA_QUOTES = {"auto", "full", "link", "none"}
 DOC_STATUSES = {"draft", "review", "approved"}
 ACTION_STATUSES = {"open", "done"}
 RECAP_STYLES = ("brief", "bullets", "actions")
-SOURCE_KINDS = {"recording", "audio", "transcript", "document", "email", "material"}
+# "note": the hidden source that holds the words of whispers turned into questions (5.0 C7); not a meeting.
+SOURCE_KINDS = {"recording", "audio", "transcript", "document", "email", "material", "note"}
+WHISPER_KINDS = ("task", "note", "remind", "idea")
+WHISPER_FILTERS = ("all", "open", "task", "note", "remind", "idea")
+WHISPER_SOURCE_TITLE = "Шепнуть"
 MATERIAL_KINDS = ("file", "url", "note")
 # The label palette (prototype-v5 LABELS): a new label takes the next colour, then the palette repeats.
 LABEL_COLORS = ("#0B57D0", "#5B45C9", "#0A6D66", "#B0471B", "#9A3A9E", "#1E8E3E", "#6A5A36", "#8F5200")
@@ -150,6 +154,13 @@ CREATE TABLE IF NOT EXISTS ask_history (
   id TEXT PRIMARY KEY, project_id TEXT NOT NULL, question TEXT NOT NULL, answer TEXT NOT NULL,
   citations_json TEXT NOT NULL, context_only INTEGER NOT NULL, created_at REAL NOT NULL);
 CREATE INDEX IF NOT EXISTS ask_by_project ON ask_history(project_id, created_at);
+-- Шепнуть (5.0 C7): the personal voice inbox. Not project-scoped: project_id is a soft link (a tag) with no foreign
+-- key, so an item survives its project; atom_id is the question it was turned into. Never exported with a project.
+CREATE TABLE IF NOT EXISTS whispers (
+  id TEXT PRIMARY KEY, kind TEXT NOT NULL, text TEXT NOT NULL, title TEXT NOT NULL, transcript TEXT NOT NULL,
+  audio_file TEXT, due_at REAL, done_at REAL, project_id TEXT, notified_at REAL, deleted_at REAL,
+  created_at REAL NOT NULL, updated_at REAL NOT NULL, atom_id TEXT);
+CREATE INDEX IF NOT EXISTS whispers_by_time ON whispers(created_at);
 """
 
 PROJECT_FIELDS = ("id", "name", "local_only", "archived", "language", "jira_quotes", "auto_extract",
@@ -423,6 +434,7 @@ class Store:
         where, args = "s.project_id = ? AND s.deleted_at IS NULL", [project_id]
         if not include_materials:                     # materials live in Материалы, not among the meetings
             where += " AND s.kind != 'material'"
+        where += " AND s.kind != 'note'"              # the hidden Шепнуть source is never a meeting
         if needle:
             where += """ AND (ci_has(s.title, ?) OR ci_has(s.text, ?)
                          OR EXISTS (SELECT 1 FROM segments g WHERE g.source_id = s.id AND ci_has(g.text, ?)))"""
@@ -2416,6 +2428,161 @@ class Store:
                           (None if restore else now, now, by, iid))
             self._audit(c, "backlog", item_id, "restore" if restore else "delete", after={"items": len(ids)})
         return ids
+
+    # ── Шепнуть: the personal inbox (5.0 C7) ─────────────────────────────────
+    WHISPER_FIELDS = ("id", "kind", "text", "title", "transcript", "audio_file", "due_at", "done_at", "project_id",
+                      "notified_at", "deleted_at", "created_at", "updated_at", "atom_id")
+
+    def _whisper_row(self, r):
+        if r is None:
+            return None
+        w = {f: r[f] for f in self.WHISPER_FIELDS}
+        w["done"] = w["done_at"] is not None
+        return w
+
+    @staticmethod
+    def _whisper_item(item):
+        kind = item.get("kind") or "note"
+        if kind not in WHISPER_KINDS:
+            raise StoreError(f"unknown whisper kind {kind}")
+        text = (item.get("text") or "").strip()
+        title = (item.get("title") or "").strip() or text
+        if not title:
+            raise StoreError("a whisper needs some text")
+        due = item.get("due_at")
+        return kind, (text or title)[:4000], title[:300], float(due) if due not in (None, "") else None
+
+    def add_whispers(self, items, transcript, audio_file=None):
+        """One row per parsed item, all with the same transcript and audio. Returns the rows."""
+        transcript = (transcript or "").strip()
+        rows = [self._whisper_item(i) + (i.get("project_id") or None,) for i in items or []]
+        if not rows:
+            raise StoreError("nothing to save")
+        ids = []
+        with self._write() as c:
+            now = self._clock()
+            for n, (kind, text, title, due, project_id) in enumerate(rows):
+                wid = str(uuid.uuid4())
+                # the first item said is listed first among the newest (rows are shown newest first)
+                c.execute("INSERT INTO whispers (id, kind, text, title, transcript, audio_file, due_at, project_id, "
+                          "created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                          (wid, kind, text, title, transcript or text, audio_file, due, project_id,
+                           now - n * 1e-3, now))
+                ids.append(wid)
+        return [self.get_whisper(i) for i in ids]
+
+    def get_whisper(self, whisper_id, include_deleted=False):
+        with self._conn() as c:
+            w = self._whisper_row(c.execute("SELECT * FROM whispers WHERE id = ?", (whisper_id,)).fetchone())
+        if w is None or (w["deleted_at"] and not include_deleted):
+            raise StoreError("whisper not found")
+        return w
+
+    def list_whispers(self, filter="all", q=None):
+        """The inbox, newest first, whatever project is current. `filter`: all | open (tasks and reminders not done)
+        | task | note | remind | idea; `q` matches the title, text and transcript, case-insensitively."""
+        filter = filter or "all"
+        if filter not in WHISPER_FILTERS:
+            raise StoreError(f"unknown filter {filter}")
+        where, args = ["deleted_at IS NULL"], []
+        if filter == "open":
+            where.append("kind IN ('task', 'remind') AND done_at IS NULL")
+        elif filter != "all":
+            where.append("kind = ?")
+            args.append(filter)
+        needle = (q or "").strip().casefold()
+        if needle:
+            where.append("(ci_has(title, ?) OR ci_has(text, ?) OR ci_has(transcript, ?))")
+            args += [needle] * 3
+        with self._conn() as c:
+            c.create_function("ci_has", 2, lambda hay, n: int(bool(hay) and n in hay.casefold()), deterministic=True)
+            rows = c.execute(f"SELECT * FROM whispers WHERE {' AND '.join(where)} ORDER BY created_at DESC", args)
+            return [self._whisper_row(r) for r in rows.fetchall()]
+
+    def open_whispers(self):
+        """How many tasks and reminders are not done yet."""
+        with self._conn() as c:
+            return c.execute("SELECT COUNT(*) FROM whispers WHERE deleted_at IS NULL AND kind IN ('task', 'remind') "
+                             "AND done_at IS NULL").fetchone()[0]
+
+    def update_whisper(self, whisper_id, **changes):
+        """kind, title, text, due_at, done (bool), project_id. A new due time can fire again (notified_at clears)."""
+        unknown = set(changes) - {"kind", "title", "text", "due_at", "done", "project_id"}
+        if unknown:
+            raise StoreError(f"can't change {', '.join(sorted(unknown))}")
+        w = self.get_whisper(whisper_id)
+        cols = {}
+        if "kind" in changes:
+            if changes["kind"] not in WHISPER_KINDS:
+                raise StoreError(f"unknown whisper kind {changes['kind']}")
+            cols["kind"] = changes["kind"]
+        for key, limit in (("title", 300), ("text", 4000)):
+            if key in changes:
+                value = (changes[key] or "").strip()
+                if not value:
+                    raise StoreError(f"the {key} must not be empty")
+                cols[key] = value[:limit]
+        if "due_at" in changes:
+            due = changes["due_at"]
+            cols["due_at"] = float(due) if due not in (None, "") else None
+            if cols["due_at"] != w["due_at"]:
+                cols["notified_at"] = None
+        if "done" in changes:
+            cols["done_at"] = (w["done_at"] or self._clock()) if changes["done"] else None
+        if "project_id" in changes:
+            cols["project_id"] = changes["project_id"] or None
+        if cols:
+            cols["updated_at"] = self._clock()
+            with self._write() as c:
+                c.execute(f"UPDATE whispers SET {', '.join(k + ' = ?' for k in cols)} WHERE id = ?",
+                          [*cols.values(), whisper_id])
+        return self.get_whisper(whisper_id)
+
+    def delete_whisper(self, whisper_id, restore=False):
+        """Soft: the row (and its audio file, always) stays; restore=True undoes it."""
+        self.get_whisper(whisper_id, include_deleted=True)
+        with self._write() as c:
+            now = self._clock()
+            c.execute("UPDATE whispers SET deleted_at = ?, updated_at = ? WHERE id = ?",
+                      (None if restore else now, now, whisper_id))
+        return self.get_whisper(whisper_id, include_deleted=True)
+
+    def due_whispers(self, now):
+        """Tasks and reminders whose time has come that were neither done nor announced yet."""
+        with self._conn() as c:
+            rows = c.execute("SELECT * FROM whispers WHERE due_at IS NOT NULL AND due_at <= ? AND done_at IS NULL "
+                             "AND notified_at IS NULL AND deleted_at IS NULL AND kind IN ('remind', 'task') "
+                             "ORDER BY due_at", (now,)).fetchall()
+            return [self._whisper_row(r) for r in rows]
+
+    def mark_whisper_notified(self, whisper_id, at=None):
+        with self._write() as c:
+            c.execute("UPDATE whispers SET notified_at = ? WHERE id = ?", (at or self._clock(), whisper_id))
+
+    def set_whisper_atom(self, whisper_id, atom_id):
+        with self._write() as c:
+            c.execute("UPDATE whispers SET atom_id = ?, updated_at = ? WHERE id = ?", (atom_id, self._clock(), whisper_id))
+        return self.get_whisper(whisper_id)
+
+    def whisper_source(self, project_id):
+        """The project's hidden "Шепнуть" source (kind note), created on first use: the words of whispers turned into
+        questions are its lines, so each question quotes them like any other evidence."""
+        with self._conn() as c:
+            r = c.execute("SELECT id FROM sources WHERE project_id = ? AND kind = 'note' AND deleted_at IS NULL "
+                          "ORDER BY created_at LIMIT 1", (project_id,)).fetchone()
+        if r is not None:
+            return self.get_source(r["id"])
+        return self.create_source(project_id, "note", WHISPER_SOURCE_TITLE, status="ready")
+
+    def add_note_line(self, source_id, text):
+        """Append one line to a note source; returns its idx. The line is not put in the keyword index: the question
+        that quotes it is."""
+        with self._write() as c:
+            r = c.execute("SELECT MAX(idx) AS m FROM segments WHERE source_id = ?", (source_id,)).fetchone()
+            idx = (r["m"] + 1) if r["m"] is not None else 0
+            c.execute('INSERT INTO segments (source_id, idx, speaker, start, "end", text) VALUES (?,?,?,?,?,?)',
+                      (source_id, idx, None, None, None, text))
+        return idx
 
     # ── files ────────────────────────────────────────────────────────────────
     def attach_file(self, source, src_path, name, move=False):
