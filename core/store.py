@@ -36,7 +36,7 @@ DOC_STATUSES = {"draft", "review", "approved"}
 ACTION_STATUSES = {"open", "done"}
 RECAP_STYLES = ("brief", "bullets", "actions")
 SOURCE_KINDS = {"recording", "audio", "transcript", "document", "email"}
-SOURCE_STATUSES = {"recorded", "processing", "ready", "failed"}
+SOURCE_STATUSES = {"recording", "recorded", "processing", "ready", "failed"}
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -190,7 +190,9 @@ class Store:
                             ("segments", ("original_text TEXT",)),
                             # v9 (5.0 C3): meeting notes and recap styles, one summary row per style.
                             ("sources", ("notes TEXT", "recap_style TEXT")),
-                            ("summaries", ("style TEXT NOT NULL DEFAULT 'brief'", "through_idx INTEGER"))):
+                            ("summaries", ("style TEXT NOT NULL DEFAULT 'brief'", "through_idx INTEGER")),
+                            # v9 part 2 (5.0 C4.1): lines from the live pass while recording, replaced on stop.
+                            ("segments", ("provisional INTEGER NOT NULL DEFAULT 0",))):
             have = {r["name"] for r in c.execute(f"PRAGMA table_info({table})")}
             for col in cols:
                 if col.split()[0] not in have:
@@ -554,6 +556,45 @@ class Store:
                 self._audit(c, "source", r["id"], "interrupted", after={"status": status})
         return len(rows)
 
+    def recover_interrupted_recordings(self):
+        """A source still "recording" when the app starts lost its recorder (quit, crash). Its mic.wav / sys.wav
+        are on disk and untouched: offer it as an untranscribed recording, so the BA can press Расшифровать.
+        Only reads the folder; never opens, moves or rewrites an audio file."""
+        with self._write() as c:
+            rows = c.execute("SELECT * FROM sources WHERE status = 'recording' AND deleted_at IS NULL").fetchall()
+            now, by = self._stamp()
+            for r in rows:
+                folder = self.source_dir(r)
+                have = [n for n in ("mixed.wav", "sys.wav", "mic.wav")
+                        if os.path.exists(os.path.join(folder, n)) and os.path.getsize(os.path.join(folder, n)) > 44]
+                if have:
+                    status, error, audio = "recorded", None, have[0]
+                else:
+                    status, error, audio = "failed", "Interrupted before any audio was captured", r["audio_file"]
+                c.execute("UPDATE sources SET status = ?, error = ?, audio_file = ?, updated_at = ?, updated_by = ? "
+                          "WHERE id = ?", (status, error, audio, now, by, r["id"]))
+                self._audit(c, "source", r["id"], "interrupted", after={"status": status, "audio_file": audio})
+        return len(rows)
+
+    # ── live transcript (5.0 C4.1) ───────────────────────────────────────────
+    def append_provisional_segments(self, source_id, segments):
+        """Append live-pass lines ({speaker, start, end, text}) after the existing ones; returns them with idx."""
+        out = []
+        with self._write() as c:
+            r = c.execute("SELECT MAX(idx) AS m FROM segments WHERE source_id = ?", (source_id,)).fetchone()
+            nxt = (r["m"] + 1) if r["m"] is not None else 0
+            for s in segments:
+                c.execute('INSERT INTO segments (source_id, idx, speaker, start, "end", text, provisional) '
+                          'VALUES (?,?,?,?,?,?,1)', (source_id, nxt, s.get("speaker"), s.get("start"), s.get("end"),
+                                                     s.get("text", "")))
+                out.append({**s, "idx": nxt, "provisional": True})
+                nxt += 1
+        return out
+
+    def delete_provisional_segments(self, source_id):
+        with self._write() as c:
+            return c.execute("DELETE FROM segments WHERE source_id = ? AND provisional = 1", (source_id,)).rowcount
+
     def fail_source(self, source_id, error):
         return self.update_source(source_id, status="failed", error=str(error)[:1000])
 
@@ -563,8 +604,8 @@ class Store:
             names = {r["label"]: r["name"] for r in c.execute(
                 "SELECT label, name FROM speakers WHERE source_id = ?", (source_id,))}
             segs = [dict(idx=r["idx"], speaker=r["speaker"], start=r["start"], end=r["end"], text=r["text"],
-                         corrected=r["original_text"] is not None)
-                    for r in c.execute('SELECT idx, speaker, start, "end", text, original_text FROM segments '
+                         corrected=r["original_text"] is not None, provisional=bool(r["provisional"]))
+                    for r in c.execute('SELECT idx, speaker, start, "end", text, original_text, provisional FROM segments '
                                        'WHERE source_id = ? ORDER BY idx', (source_id,))]
         for s in segs:
             s["speaker_name"] = names.get(s["speaker"], s["speaker"])
