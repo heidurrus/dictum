@@ -945,7 +945,10 @@ def api_sources(project_id):
         library.get_project(project_id)
     except StoreError as e:
         return jsonify({"error": str(e)}), 404
-    return jsonify({"sources": library.list_sources(project_id)})
+    sort = request.args.get("sort") or "new"
+    if sort not in library.SOURCE_SORTS:
+        return jsonify({"error": f"unknown sort {sort}"}), 400
+    return jsonify({"sources": library.list_sources(project_id, q=request.args.get("q"), sort=sort)})
 
 
 @app.route("/api/projects/<project_id>/status")

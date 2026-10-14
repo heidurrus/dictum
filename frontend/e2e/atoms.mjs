@@ -15,7 +15,7 @@ writeFileSync(vttPath, "WEBVTT\n\n" +
   "00:00:13.000 --> 00:00:16.000\n<v SPEAKER_01>А кто переносит старые обращения?</v>\n");
 
 const browser = await chromium.launch({ channel: "chrome", headless: true });
-const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+const page = await browser.newPage({ locale: "ru-RU", viewport: { width: 1280, height: 900 } });
 const errors = [];
 const EXPECTED_HTTP_ERRORS = [/\/summarize$/];
 page.on("pageerror", e => errors.push(e.message));

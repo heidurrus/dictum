@@ -18,7 +18,7 @@ const call = vtt("Созвон.vtt", ["Карточка открывается �
 const mail = vtt("Письмо.vtt", ["Нужна выгрузка в Excel", "Нужен экспорт в PDF"]);
 
 const browser = await chromium.launch({ channel: "chrome", headless: true });
-const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+const page = await browser.newPage({ locale: "ru-RU", viewport: { width: 1280, height: 900 } });
 const errors = [];
 page.on("pageerror", e => errors.push(e.message));
 page.on("response", r => {

@@ -11,7 +11,7 @@ writeFileSync(vttPath, "WEBVTT\n\n00:00:01.000 --> 00:00:04.000\n<v SPEAKER_00>�
   "00:00:05.000 --> 00:00:08.000\n<v SPEAKER_01>Не дольше двух секунд</v>\n");
 
 const browser = await chromium.launch({ channel: "chrome", headless: true });
-const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+const page = await browser.newPage({ locale: "ru-RU", viewport: { width: 1280, height: 900 } });
 const errors = [];
 const EXPECTED_HTTP_ERRORS = [/\/summarize$/];   // no API key in the test profile → 400 by design
 page.on("pageerror", e => errors.push(e.message));
@@ -25,9 +25,9 @@ page.on("console", m => {
 });
 const step = (name) => console.log("✓", name);
 
-await page.goto(base + "/#/sources");
-await page.getByRole("heading", { name: "Источники", exact: true }).waitFor();
-step("sources screen loads");
+await page.goto(base + "/#/sources");                 // the 4.x address opens Встречи
+await page.getByRole("heading", { name: "Встречи", exact: true }).waitFor();
+step("meetings screen loads");
 
 // Import a transcript: button says "import and summarize", then we land on the transcript.
 await page.locator('input[type=file]').setInputFiles(vttPath);
@@ -47,26 +47,29 @@ await page.locator(".seg-row .spk", { hasText: "Иван Петров" }).first(
 step("speaker rename shows in the transcript");
 
 // Back to the list, the import is there; delete it and undo.
-await page.locator(".screen-head").getByRole("button", { name: "Назад: Источники", exact: true }).click();
-await page.locator(".workspace").getByRole("button", { name: "Встреча с заказчиком", exact: true }).waitFor();
-await page.locator(".item", { hasText: "Встреча с заказчиком" }).locator(".kind").click();
-await page.locator(".inspector").getByRole("button", { name: "Удалить источник" }).click();
+await page.locator(".screen-head").getByRole("button", { name: "Назад: Встречи", exact: true }).click();
+const row = page.locator(".item", { hasText: "Встреча с заказчиком" });
+await row.waitFor();
+await row.click();
+await row.getByText("Разобран").waitFor();
+await page.locator(".panel-foot").getByRole("button", { name: "Ещё" }).click();
+await page.getByRole("menuitem", { name: "Удалить" }).click();
 await page.getByRole("status").getByText("удалён").waitFor();
 await page.getByRole("button", { name: "Вернуть" }).click();
-await page.locator(".workspace").getByRole("button", { name: "Встреча с заказчиком", exact: true }).waitFor();
+await row.waitFor();
 step("delete + undo restores the source");
 
 // Import an email: it opens as a letter with sender details and paragraphs.
 const emlPath = join(mkdtempSync(join(tmpdir(), "wb-")), "letter.eml");
 writeFileSync(emlPath, "From: Ivan Petrov <ivan@client.ru>\nTo: Anna <anna@us.example>\nSubject: Card requirements\n" +
   "Content-Type: text/plain; charset=utf-8\n\nКарточка клиента должна открываться до ответа.\n\nСпасибо, Иван\n");
-await page.locator('input[type=file]').setInputFiles(emlPath);            // already on Sources
+await page.locator('input[type=file]').setInputFiles(emlPath);            // already on Встречи
 await page.getByText("Карточка клиента должна открываться до ответа.").waitFor();
 await page.getByText("От: Ivan Petrov").waitFor();
 await page.locator(".block-title", { hasText: "Письмо" }).waitFor();
 if (await page.locator(".seg-meta").count()) throw new Error("an email must render as paragraphs, not timed segments");
 step("email import opens as a letter with sender and paragraphs");
-await page.locator(".screen-head").getByRole("button", { name: "Назад: Источники", exact: true }).click();
+await page.locator(".screen-head").getByRole("button", { name: "Назад: Встречи", exact: true }).click();
 
 // Create a project and switch to it: the list is empty there.
 await page.locator(".proj").click();

@@ -4,9 +4,8 @@
   import TopBar from "./components/TopBar.svelte";
   import CommandPalette from "./components/CommandPalette.svelte";
   import RecordingHud from "./components/RecordingHud.svelte";
-  import Overview from "./screens/Overview.svelte";
   import Toast from "./components/Toast.svelte";
-  import Sources from "./screens/Sources.svelte";
+  import Meetings from "./screens/Meetings.svelte";
   import Transcript from "./screens/Transcript.svelte";
   import Settings from "./screens/Settings.svelte";
   import Atoms from "./screens/Atoms.svelte";
@@ -29,7 +28,7 @@
   setLangSource(() => app.lang);
   setJobStartedHook(jobsTick);
   // Screens rebuilt on panes; the others still scroll as one page inside the main area.
-  const INSPECTOR = { transcript: "source", atoms: "atoms", document: "document", backlog: "backlog", skills: "skills", sources: "sources" };
+  const INSPECTOR = { transcript: "source", atoms: "atoms", document: "document", backlog: "backlog", skills: "skills" };
   function onKey(e) {
     const key = keyOf(e);
     if ((e.metaKey || e.ctrlKey) && !e.shiftKey && (key === "z" || key === "Z")
@@ -60,9 +59,9 @@
       if (path) { e.preventDefault(); app.palette = false; go(path); }
     }
   }
-  // The empty address opens the overview, or Sources while the project has nothing in it.
+  // The empty address opens Встречи, the home page.
   $effect(() => {
-    if (ready && app.route.name === "home") go(app.sources.length ? "/overview" : "/sources");
+    if (ready && app.route.name === "home") go("/meetings");
   });
   $effect(() => { app.atomsVersion; loadStatus(); });
 
@@ -98,12 +97,10 @@
     <main class="main">
       <TopBar />
       <div class="page">
-        {#if app.route.name === "overview"}
-          <Overview />
+        {#if app.route.name === "meetings"}
+          <Meetings />
         {:else if app.route.name === "atoms"}
           <Atoms />
-        {:else if app.route.name === "sources"}
-          <Sources />
         {:else if app.route.name === "document"}
           <DocumentScreen />
         {:else if app.route.name === "backlog"}

@@ -14,7 +14,7 @@ writeFileSync(vttPath, "WEBVTT\n\n" +
   "00:00:09.000 --> 00:00:12.000\n<v SPEAKER_00>Оператор видит историю заказов</v>\n");
 
 const browser = await chromium.launch({ channel: "chrome", headless: true });
-const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, acceptDownloads: true });
+const page = await browser.newPage({ locale: "ru-RU", viewport: { width: 1280, height: 900 }, acceptDownloads: true });
 const errors = [];
 page.on("pageerror", e => errors.push(e.message));
 page.on("response", r => {

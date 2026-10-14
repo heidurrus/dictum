@@ -262,7 +262,7 @@
 
 <svelte:window onkeydown={onKey} />
 
-<Page title={source?.title || ""} crumb={t("sources.title")} crumbPath="/sources" {sub} inspector={source?.status === "ready" ? "source" : ""}>
+<Page title={source?.title || ""} crumb={t("nav.meetings")} crumbPath="/meetings" {sub} inspector={source?.status === "ready" ? "source" : ""}>
   {#snippet heading()}
     {#if source && editingTitle}
       <!-- svelte-ignore a11y_autofocus -->

@@ -359,18 +359,68 @@ class Store:
             raise StoreError("source not found")
         return s
 
-    def list_sources(self, project_id):
+    # Timed transcripts (Teams/Zoom exports) are imports of a call; other text sources are text.
+    TIMED_IMPORT_FORMATS = ("vtt", "srt")
+    SOURCE_SORTS = {"new": "s.created_at DESC", "old": "s.created_at ASC", "az": "s.created_at DESC"}   # az: sorted below
+
+    @classmethod
+    def source_tag(cls, kind, import_format):
+        """The list tag key: recording | import | text (the UI translates it)."""
+        if kind == "recording":
+            return "recording"
+        if kind == "audio" or (kind == "transcript" and (import_format or "").lower() in cls.TIMED_IMPORT_FORMATS):
+            return "import"
+        return "text"
+
+    def list_sources(self, project_id, q=None, sort="new"):
+        """The project's sources, newest first by default. `q` matches the title, the source text and the
+        segment text, case-insensitively (any script). Each row carries `people`, `atoms` and `tags`."""
+        order = self.SOURCE_SORTS.get(sort or "new")
+        if order is None:
+            raise StoreError(f"unknown sort {sort}")
+        needle = (q or "").strip().casefold()
+        where, args = "s.project_id = ? AND s.deleted_at IS NULL", [project_id]
+        if needle:
+            where += """ AND (ci_has(s.title, ?) OR ci_has(s.text, ?)
+                         OR EXISTS (SELECT 1 FROM segments g WHERE g.source_id = s.id AND ci_has(g.text, ?)))"""
+            args += [needle] * 3
         with self._conn() as c:
-            rows = c.execute("""SELECT s.*, (SELECT COUNT(*) FROM summaries m WHERE m.source_id = s.id) AS summary_count,
+            c.create_function("ci_has", 2, lambda hay, n: int(bool(hay) and n in hay.casefold()), deterministic=True)
+            rows = c.execute(f"""SELECT s.*, (SELECT COUNT(*) FROM summaries m WHERE m.source_id = s.id) AS summary_count,
                                   (SELECT COUNT(DISTINCT e.atom_id) FROM evidence e JOIN atoms a ON a.id = e.atom_id
-                                   WHERE e.source_id = s.id AND a.status != 'merged' AND a.deleted_at IS NULL) AS atom_count
-                                FROM sources s WHERE s.project_id = ? AND s.deleted_at IS NULL
-                                ORDER BY s.created_at DESC""", (project_id,)).fetchall()
+                                   WHERE e.source_id = s.id AND a.status != 'merged' AND a.deleted_at IS NULL) AS atom_count,
+                                  (SELECT COUNT(DISTINCT e.atom_id) FROM evidence e JOIN atoms a ON a.id = e.atom_id
+                                   WHERE e.source_id = s.id AND a.status NOT IN ('merged', 'rejected')
+                                   AND a.deleted_at IS NULL) AS live_atoms
+                                FROM sources s WHERE {where}
+                                ORDER BY {order}""", args).fetchall()
+            if sort == "az":      # SQLite's NOCASE folds ASCII only; Cyrillic titles sort here
+                rows.sort(key=lambda r: (r["title"] or "").casefold())
+            ids = [r["id"] for r in rows]
+            renamed, labels = {}, {}
+            if ids:
+                marks = ",".join("?" * len(ids))
+                for r in c.execute(f"SELECT source_id, label, name FROM speakers WHERE source_id IN ({marks}) "
+                                   "ORDER BY updated_at", ids):
+                    renamed.setdefault(r["source_id"], {})[r["label"]] = r["name"]
+                for r in c.execute(f"""SELECT source_id, speaker FROM segments WHERE source_id IN ({marks})
+                                       AND speaker IS NOT NULL AND speaker != ''
+                                       GROUP BY source_id, speaker ORDER BY source_id, MIN(idx)""", ids):
+                    labels.setdefault(r["source_id"], []).append(r["speaker"])
         out = []
         for r in rows:
             s = self._row(r, SOURCE_FIELDS)
             s["has_summary"] = r["summary_count"] > 0
             s["atom_count"] = r["atom_count"]
+            s["atoms"] = r["live_atoms"]
+            names = renamed.get(s["id"], {})
+            order_labels = labels.get(s["id"], [])
+            # Renamed speakers first (in the order they speak), then the others by their label.
+            people = [names[l] for l in order_labels if l in names]
+            people += [n for l, n in names.items() if l not in order_labels]
+            people += [l for l in order_labels if l not in names]
+            s["people"] = ", ".join(people[:4])
+            s["tags"] = self.source_tag(s["kind"], s.get("import_format"))
             out.append(s)
         return out
 

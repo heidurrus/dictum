@@ -10,8 +10,14 @@ export function writePref(key, value) {
   try { localStorage.setItem("wb." + key, JSON.stringify(value)); } catch (_) { /* private mode */ }
 }
 
-// 5.0 names of the rail items that still open a 4.x screen.
-const ALIASES = { meetings: "sources", requirements: "atoms", documents: "document" };
+// First start: the interface follows the OS (Russian for ru-*, English otherwise); a stored choice wins afterwards.
+function osLang() {
+  const l = (typeof navigator !== "undefined" && (navigator.language || navigator.languages?.[0])) || "";
+  return /^ru\b/i.test(l) ? "ru" : "en";
+}
+
+// 5.0 names of the rail items that still open a 4.x screen; the 4.x Sources and Overview addresses open Встречи.
+const ALIASES = { sources: "meetings", overview: "meetings", requirements: "atoms", documents: "document" };
 
 export function parseRoute(hash = location.hash) {
   const parts = hash.replace(/^#\/?/, "").split("/").filter(Boolean);
@@ -27,17 +33,16 @@ export function parseRoute(hash = location.hash) {
                                     atom: parts[1] === "atom" ? parts[2] : null };
   if (parts[0] === "settings") return { name: "settings" };
   if (parts[0] === "transcript") return { name: "transcript", id: null };
-  if (parts[0] === "overview") return { name: "overview" };
-  if (parts[0] === "sources") return { name: "sources" };
+  if (parts[0] === "meetings") return { name: "meetings" };
   if (parts[0] === "library") return { name: "library" };
   if (parts[0] === "ask") return { name: "ask" };
   if (parts[0] === "whisper") return { name: "whisper" };
-  return { name: "home" };            // resolved by the app: the overview, or Sources for an empty project
+  return { name: "home" };            // resolved by the app: Встречи
 }
 
 export const app = $state({
   route: parseRoute(),
-  lang: readPref("lang", "ru"),
+  lang: readPref("lang", osLang()),
   projects: [],
   archivedProjects: [],
   currentProjectId: null,
@@ -75,7 +80,7 @@ window.addEventListener("hashchange", e => {
   const prev = app.route.name;
   // Remember where Settings was opened from, so it can send the BA back (PM-26).
   if (parseRoute().name === "settings" && prev !== "settings") {
-    app.returnTo = { hash: new URL(e.oldURL).hash.slice(1) || "/sources", name: prev };
+    app.returnTo = { hash: new URL(e.oldURL).hash.slice(1) || "/meetings", name: prev };
   }
   app.route = parseRoute();
   if (app.route.name !== prev) { app.toasts = []; app.inspectorOverlay = false; }   // toasts belong to the screen that raised them
@@ -161,7 +166,7 @@ export async function switchProject(id) {
   await loadSources();
   app.status = null;
   loadStatus();
-  go(app.sources.length ? "/overview" : "/sources");
+  go("/meetings");
 }
 
 let toastSeq = 0;
