@@ -26,7 +26,7 @@
     untrack(() => {
       if (!id || id === forId) return;
       forId = id;
-      style = source.recap_style || "brief";
+      style = source.recap_style || app.settings?.recap_style || "brief";   // Settings → Запись: the default style
       fresh = {};
       error = null;
       if (auto && source.status === "ready" && !Object.keys(source.summaries || {}).length && source.segments?.length) legacy();
