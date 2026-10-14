@@ -122,10 +122,15 @@ Decisions:
 - **Wikilinks and backlinks.** Requirements link to their meeting (`[[Встречи/2026-10-14 Звонок]]`),
   documents link to requirements (`[[FR-12]]`). The library shows backlinks for the selected
   file: "Цитируется в FR-12, FR-30 · Входит в ТЗ v3".
-- **Library page** (Материалы): a folder tree on the left (the vault), list or grid in the middle
-  (name, labels, imported, changed, size), the selected file on the right with a preview,
-  labels, backlinks, "Включать в контекст" and "Показать в Finder". Add files by drop, "Добавить
-  файлы", "Добавить ссылку", "Вставить текст", "Импорт папки". Search across everything.
+- **Library page** (Материалы) shows only what the user brought in: files, links, pasted text and
+  notes. Its left column is kinds (Все · Файлы · Ссылки · Заметки), labels, and the project folder
+  with "Показать в Finder" / "Открыть в Obsidian". Meetings, requirements and documents never appear
+  here as folders; they have their own rail items and show up on a material only as "Где
+  используется" backlinks. Whole-vault browsing is Obsidian's and Finder's job, which is why the
+  vault is written for them. List or grid in the middle (name, labels, changed, size, in context),
+  the selected file on the right with a preview, labels, backlinks and "Включать в контекст".
+  Add by drop, "Добавить файлы", "Добавить ссылку", "Вставить текст", "Импорт папки". Audio is
+  added on Встречи, not here.
 - **Context for AI.** Files marked "в контексте" are chunked and embedded locally; the extractor
   and Спросить cite them as `[Источник N]` the way Foresight does.
 - **Спросить** page: ask across the project's meetings, requirements and materials; answers with

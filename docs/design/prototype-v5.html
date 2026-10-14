@@ -459,15 +459,15 @@ const LINES = [
   { t: "08:15", s: "mic", n: "Анна", text: "Про интеграцию с 1С поговорим отдельно, там есть риски по срокам.", atoms: [["rsk", "RSK-2", "Сроки интеграции с 1С"]] },
 ];
 const FILES = [
-  { id: 1, name: "2026-10-14 Звонок с дилерским центром", ext: "md", folder: "Встречи", labels: ["заявки"], imported: "сегодня", changed: "5 мин назад", size: "48 КБ", ctx: true, back: ["[[FR-12]]", "[[FR-13]]", "[[NFR-4]]", "[[ТЗ v3]]"], preview: "## Транскрипт\n\n**02:48 · Анна** Давайте начнём с заявок. Сейчас дилер заводит заявку вручную в Excel…\n\n**03:30 · Ирина** Нам нужно, чтобы система сама проверяла VIN…" },
-  { id: 2, name: "Регламент обработки заявок дилеров v2", ext: "docx", folder: "Материалы", labels: ["регламент", "заявки"], imported: "12 окт", changed: "12 окт", size: "1,2 МБ", ctx: true, back: ["[[AS-2]]", "[[AS-5]]"], preview: "1. Общие положения. Настоящий регламент определяет порядок приёма и обработки заявок от дилерских центров…" },
-  { id: 3, name: "Схема текущего процесса (AS-IS)", ext: "pdf", folder: "Материалы", labels: ["процесс"], imported: "10 окт", changed: "10 окт", size: "860 КБ", ctx: true, back: ["[[AS-1]]"], preview: "Диаграмма BPMN: Дилер → Заявка → Проверка → Назначение → Выполнение → Закрытие." },
-  { id: 4, name: "Заметки с воркшопа 8 окт", ext: "md", folder: "Заметки", labels: ["воркшоп"], imported: "8 окт", changed: "9 окт", size: "12 КБ", ctx: true, back: ["[[Встречи/2026-10-08 Воркшоп]]", "[[BR-1]]"], preview: "- Главная боль: дубли и потерянные заявки\n- Хотят SLA 2 часа\n- Вопрос: кто утверждает?" },
-  { id: 5, name: "SLA для дилерской сети (письмо)", ext: "txt", folder: "Материалы", labels: ["SLA"], imported: "12 окт", changed: "12 окт", size: "4 КБ", ctx: false, back: ["[[NFR-4]]"], preview: "Коллеги, напоминаю: по SLA ответ дилеру должен быть предоставлен не позднее 2 часов…" },
-  { id: 6, name: "Confluence: Архитектура портала дилера", ext: "url", folder: "Материалы", labels: ["архитектура"], imported: "11 окт", changed: "синхр. 2 ч назад", size: "—", ctx: false, back: [], preview: "Портал дилера построен на … (страница Confluence, 14 экранов)" },
-  { id: 7, name: "ТЗ v3 — Портал дилера", ext: "md", folder: "Документы", labels: ["ТЗ"], imported: "13 окт", changed: "вчера", size: "96 КБ", ctx: true, back: ["[[FR-12]]", "[[FR-13]]", "[[NFR-4]]", "[[BR-3]]"], preview: "# Техническое задание v3\n\n## 3. Функциональные требования\n\nFR-12. Система проверяет заявку на дубли по VIN и телефону…" },
-  { id: 8, name: "FR-12 Проверка дублей по VIN и телефону", ext: "md", folder: "Требования", labels: [], imported: "14 окт", changed: "5 мин назад", size: "1 КБ", ctx: true, back: ["[[Встречи/2026-10-14 Звонок]]", "[[ТЗ v3]]"], preview: "---\nid: FR-12\ntype: functional\nstatus: accepted\nsource: [[Встречи/2026-10-14 Звонок]]\n---\nСистема проверяет VIN и телефон клиента при создании заявки…" },
+  { id: 2, kind: "file", name: "Регламент обработки заявок дилеров v2", ext: "docx", labels: ["регламент", "заявки"], imported: "12 окт", changed: "12 окт", size: "1,2 МБ", ctx: true, back: ["AS-2", "AS-5", "Встреча 14 окт"], preview: "1. Общие положения. Настоящий регламент определяет порядок приёма и обработки заявок от дилерских центров…" },
+  { id: 3, kind: "file", name: "Схема текущего процесса (AS-IS)", ext: "pdf", labels: ["процесс"], imported: "10 окт", changed: "10 окт", size: "860 КБ", ctx: true, back: ["AS-1"], preview: "Диаграмма BPMN: Дилер → Заявка → Проверка → Назначение → Выполнение → Закрытие." },
+  { id: 4, kind: "note", name: "Заметки с воркшопа 8 окт", ext: "md", labels: ["воркшоп"], imported: "8 окт", changed: "9 окт", size: "12 КБ", ctx: true, back: ["BR-1", "Встреча 8 окт"], preview: "- Главная боль: дубли и потерянные заявки\n- Хотят SLA 2 часа\n- Вопрос: кто утверждает?" },
+  { id: 5, kind: "note", name: "SLA для дилерской сети (письмо)", ext: "txt", labels: ["SLA"], imported: "12 окт", changed: "12 окт", size: "4 КБ", ctx: false, back: ["NFR-4"], preview: "Коллеги, напоминаю: по SLA ответ дилеру должен быть предоставлен не позднее 2 часов…" },
+  { id: 6, kind: "url", name: "Confluence: Архитектура портала дилера", ext: "url", labels: ["архитектура"], imported: "11 окт", changed: "синхр. 2 ч назад", size: "—", ctx: false, back: [], preview: "Портал дилера построен на … (страница Confluence, 14 экранов)" },
+  { id: 9, kind: "file", name: "Презентация для совета директоров, сентябрь", ext: "pdf", labels: ["стратегия"], imported: "9 окт", changed: "9 окт", size: "3,4 МБ", ctx: false, back: ["BR-2"], preview: "Цели 2027: рост дилерской сети на 30 %, единое окно для заявок, SLA как KPI…" },
+  { id: 10, kind: "url", name: "Jira: эпик «Приём заявок» (текущая система)", ext: "url", labels: ["as-is"], imported: "13 окт", changed: "синхр. вчера", size: "—", ctx: true, back: ["AS-3"], preview: "QAAS-120 Приём заявок: 14 задач, 9 закрыто. Комментарии менеджеров о дублях…" },
 ];
+
 
 
 const WHISPERS = [
@@ -484,7 +484,7 @@ const WKIND = { task: ["Задача", "check"], note: ["Заметка", "edit"
 const S = {
   page: "meetings", theme: localStorage.getItem("wb5.theme") || "", onb: 0, tut: 0,
   sel: 1, tab: "summary", q: "", sort: "new",
-  file: 1, view: "list", folder: "Все", fq: "",
+  file: 2, view: "list", kind: "all", fq: "",
   paused: false, secs: 1935, qcard: true, notes: "- Дубли заявок: VIN + телефон\n- SLA 2 часа (!)\n- Кто утверждает статус? → уточнить у Олега\n- История изменений",
   perms: { mic: true, sys: false, notif: false }, model: "35b", dl: 0, disc: { 1: true, 2: true, 3: false },
   setsec: "models", ctxOnly: true, toast: "",
@@ -647,23 +647,25 @@ function pageSession() {
 
 /* ---------- Library ---------- */
 function pageLibrary() {
-  const folders = ["Все", "Встречи", "Материалы", "Требования", "Документы", "Заметки"];
-  let files = FILES.filter(f => (S.folder === "Все" || f.folder === S.folder) && (!S.fq || f.name.toLowerCase().includes(S.fq.toLowerCase())));
+  const KINDS = [["all", "lib", "Все материалы"], ["file", "doc", "Файлы"], ["url", "link", "Ссылки"], ["note", "edit", "Заметки"]];
+  const KLABEL = { file: "Файл", url: "Ссылка", note: "Заметка" };
+  let files = FILES.filter(f => (S.kind === "all" || f.kind === S.kind) && (!S.fq || f.name.toLowerCase().includes(S.fq.toLowerCase())));
   const f = FILES.find(x => x.id === S.file) || FILES[0];
-  const count = n => n === "Все" ? FILES.length : FILES.filter(x => x.folder === n).length;
+  const count = k => k === "all" ? FILES.length : FILES.filter(x => x.kind === k).length;
+  const linkTo = b => /^(FR|BR|NFR|AS|Q|RSK)-/.test(b) ? "requirements" : "meetings";
   return html`
-  ${head("Материалы", "Хранилище проекта: папка на диске, каждая встреча и требование — файл Markdown", html`
-    <label class="search">${ic("search", 18)}<input placeholder="Искать по всем материалам" value="${S.fq}" oninput="S.fq=this.value;render();this.focus();this.setSelectionRange(99,99)"></label>
+  ${head("Материалы", "Документы, ссылки и заметки, которые вы принесли в проект. ИИ цитирует их в требованиях и в «Спросить»", html`
+    <label class="search">${ic("search", 18)}<input placeholder="Искать в материалах" value="${S.fq}" oninput="S.fq=this.value;render();this.focus();this.setSelectionRange(99,99)"></label>
     <button class="btn filled">${ic("plus", 18)} Добавить</button>`)}
   <div class="body library">
     <div class="card tree scroll" id="t-tree">
-      <div class="vault">${ic("folder", 22)}<div><b>Портал дилера</b>~/RequirementsWorkbench/…</div></div>
-      ${folders.map(n => `<div class="node ${S.folder === n ? "on" : ""}" onclick="S.folder='${n}';render()">${ic(n === "Все" ? "lib" : "folder", 18)}${n}<span class="n">${count(n)}</span></div>`).join("")}
+      ${KINDS.map(([k, i, l]) => `<div class="node ${S.kind === k ? "on" : ""}" onclick="S.kind='${k}';render()">${ic(i, 18)}${l}<span class="n">${count(k)}</span></div>`).join("")}
       <div class="sec">Метки</div>
-      ${["заявки", "регламент", "SLA", "процесс", "архитектура"].map(l => `<div class="node sub">#${l}</div>`).join("")}
-      <div class="sec">Открыть</div>
-      <div class="node sub" onclick="toast('Папка показана в Finder')">${ic("finder", 16)}В Finder</div>
-      <div class="node sub" onclick="toast('Открыто в Obsidian')">${ic("link", 16)}В Obsidian</div>
+      ${["заявки", "регламент", "SLA", "процесс", "архитектура", "стратегия"].map(l => `<div class="node sub">#${l}</div>`).join("")}
+      <div class="sec">Папка проекта</div>
+      <div class="vault">${ic("folder", 22)}<div><b>Портал дилера</b>~/RequirementsWorkbench/…</div></div>
+      <div class="node sub" onclick="toast('Папка показана в Finder')">${ic("finder", 16)}Показать в Finder</div>
+      <div class="node sub" onclick="toast('Открыто в Obsidian')">${ic("link", 16)}Открыть в Obsidian</div>
     </div>
     <div class="card files">
       <div class="addrow"><button class="btn sm">${ic("upload", 16)} Файлы</button><button class="btn sm">${ic("link", 16)} Ссылка</button><button class="btn sm">${ic("clip", 16)} Вставить текст</button><button class="btn sm">${ic("folder", 16)} Импорт папки</button>
@@ -672,23 +674,23 @@ function pageLibrary() {
       ${S.view === "list" ? html`<table class="ftable"><thead><tr><th>Имя</th><th>Метки</th><th>Изменён</th><th>Размер</th><th>Контекст</th></tr></thead><tbody>
         ${files.map(x => `<tr class="${S.file === x.id ? "on" : ""}" onclick="S.file=${x.id};render()"><td><span class="fname"><span class="fico ${x.ext}">${x.ext.toUpperCase()}</span><span class="trunc">${x.name}</span></span></td>
           <td style="white-space:nowrap">${x.labels.map(l => `<span class="tag">${l}</span>`).join(" ")}</td><td class="t2" style="white-space:nowrap">${x.changed}</td><td class="t2 num" style="white-space:nowrap">${x.size}</td><td><span class="cb ${x.ctx ? "on" : ""}" onclick="event.stopPropagation();FILES.find(y=>y.id===${x.id}).ctx=!${x.ctx};render()">${x.ctx ? ic("check", 14) : ""}</span></td></tr>`).join("")}</tbody></table>`
-      : html`<div class="grid">${files.map(x => `<div class="fcard ${S.file === x.id ? "on" : ""}" onclick="S.file=${x.id};render()"><span class="fico ${x.ext}">${x.ext.toUpperCase()}</span><div class="name">${x.name}</div><div class="meta">${x.folder} · изменён ${x.changed}</div><div class="ctx"><span class="cb ${x.ctx ? "on" : ""}">${x.ctx ? ic("check", 14) : ""}</span>В контексте ИИ</div></div>`).join("")}</div>`}
-      <div class="drop">Перетащите сюда аудио, .docx, .pdf, .md или текст — файл попадёт в папку проекта и проиндексируется локально</div>
+      : html`<div class="grid">${files.map(x => `<div class="fcard ${S.file === x.id ? "on" : ""}" onclick="S.file=${x.id};render()"><span class="fico ${x.ext}">${x.ext.toUpperCase()}</span><div class="name">${x.name}</div><div class="meta">${KLABEL[x.kind]} · изменён ${x.changed}</div><div class="ctx"><span class="cb ${x.ctx ? "on" : ""}">${x.ctx ? ic("check", 14) : ""}</span>В контексте ИИ</div></div>`).join("")}</div>`}
+      ${files.length ? "" : `<div class="empty">Ничего не найдено</div>`}
+      <div class="drop">Перетащите сюда .docx, .pdf, .md, ссылку или текст — файл попадёт в папку проекта и проиндексируется локально. Аудио добавляйте во Встречах</div>
       </div>
     </div>
     <div class="card panel">
-      <div class="panel-head"><h2 class="trunc">${f.name}</h2><div class="meta"><span class="fico ${f.ext}" style="width:22px;height:22px;font-size:8px">${f.ext.toUpperCase()}</span><span>${f.folder}</span><span>${f.size}</span></div></div>
+      <div class="panel-head"><h2 class="trunc">${f.name}</h2><div class="meta"><span class="fico ${f.ext}" style="width:22px;height:22px;font-size:8px">${f.ext.toUpperCase()}</span><span>${KLABEL[f.kind]}</span><span>${f.size}</span></div></div>
       <div class="panel-body scroll preview">
         <div class="doc">${f.preview.replace(/\n/g, "<br>")}</div>
-        <dl class="kv"><dt>Путь</dt><dd class="mono trunc">${f.folder}/${f.name}.${f.ext}</dd><dt>Добавлен</dt><dd>${f.imported}</dd><dt>Изменён</dt><dd>${f.changed}</dd><dt>Метки</dt><dd>${f.labels.map(l => `<span class="tag">${l}</span>`).join(" ")} <button class="chip sm">+ метка</button></dd></dl>
+        <dl class="kv"><dt>Путь</dt><dd class="mono trunc">Материалы/${f.name}.${f.ext}</dd><dt>Добавлен</dt><dd>${f.imported}</dd><dt>Изменён</dt><dd>${f.changed}</dd><dt>Метки</dt><dd>${f.labels.map(l => `<span class="tag">${l}</span>`).join(" ")} <button class="chip sm">+ метка</button></dd></dl>
         <div class="row" style="border-top:1px solid var(--outline-2)"><div class="l"><b>Включать в контекст ИИ</b><small>Извлечение и «Спросить» смогут цитировать этот файл</small></div><span class="switch ${f.ctx ? "on" : ""}" onclick="FILES.find(y=>y.id===${f.id}).ctx=!${f.ctx};render()"></span></div>
-        <div class="links"><h4>Ссылки на этот файл · ${f.back.length}</h4>${f.back.length ? f.back.map(b => `<div class="link">${ic("link", 14)}<span class="wl">${b}</span></div>`).join("") : `<div class="t3" style="font-size:13px">Пока ни одно требование не ссылается сюда</div>`}</div>
+        <div class="links"><h4>Где используется · ${f.back.length}</h4>${f.back.length ? f.back.map(b => `<div class="link" onclick="go('${linkTo(b)}')">${ic(linkTo(b) === "requirements" ? "req" : "meet", 14)}<span class="wl">${b}</span></div>`).join("") : `<div class="t3" style="font-size:13px">Пока ни одно требование не ссылается сюда</div>`}</div>
       </div>
       <div class="panel-foot"><button class="btn tonal">${ic("edit", 16)} Открыть</button><button class="btn">${ic("finder", 16)} Показать в Finder</button><button class="icon-btn" title="Ещё">${ic("more")}</button></div>
     </div>
   </div>`;
 }
-
 
 /* ---------- Whisper: press, speak, get a task / note / reminder. Never touches requirements. ---------- */
 const WSAMPLE = "Напомни завтра в десять позвонить Ирине насчёт истории изменений заявки, и ещё надо отправить Олегу регламент до вечера";
@@ -872,7 +874,7 @@ window.dlTick = () => { if (S.onb !== 4 || S.dl >= 100) return; S.dl = Math.min(
 window.finishOnb = tut => { S.onb = 0; try { localStorage.setItem("wb5.seen", "1"); } catch (_) {} S.tut = tut ? 1 : 0; go("meetings"); render(); };
 
 /* ---------- Tutorial ---------- */
-const TUT = [["t-rec", "Записать встречу", "Одна кнопка: микрофон и системный звук пишутся раздельно, транскрипт и требования появляются по ходу встречи."], ["t-whisper", "Шепнуть", "Скажите задачу, заметку или напоминание — они лягут в личный ящик и не смешаются с требованиями. ⌥ Пробел из любого окна."], ["t-list", "Встречи", "Все записи, импорты и тексты проекта. Переименуйте прямо в списке, ищите по словам из разговора."], ["t-library", "Материалы", "Папка проекта на диске. Добавляйте документы и ссылки — ИИ будет их цитировать."], ["t-ask", "Спросить", "Вопрос по всему проекту: ответ с цитатами из встреч и файлов, всё считается локально."]];
+const TUT = [["t-rec", "Записать встречу", "Одна кнопка: микрофон и системный звук пишутся раздельно, транскрипт и требования появляются по ходу встречи."], ["t-whisper", "Шепнуть", "Скажите задачу, заметку или напоминание — они лягут в личный ящик и не смешаются с требованиями. ⌥ Пробел из любого окна."], ["t-list", "Встречи", "Все записи, импорты и тексты проекта. Переименуйте прямо в списке, ищите по словам из разговора."], ["t-library", "Материалы", "Документы, ссылки и заметки, которые вы приносите в проект. ИИ цитирует их; встречи и требования живут в своих разделах."], ["t-ask", "Спросить", "Вопрос по всему проекту: ответ с цитатами из встреч и файлов, всё считается локально."]];
 function tutorial() {
   const [id, t, d] = TUT[S.tut - 1];
   const el = document.getElementById(id);
