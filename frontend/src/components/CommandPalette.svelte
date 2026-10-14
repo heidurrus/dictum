@@ -3,7 +3,7 @@
   // ⌘K: every screen, source, document, requirement and command, by name (redesign §5.15).
   import Icon from "./Icon.svelte";
   import { api } from "../lib/api.js";
-  import { app, t, go, setTheme, isDark, toggleSidebar, switchProject } from "../lib/state.svelte.js";
+  import { app, t, go, setTheme, isDark, switchProject } from "../lib/state.svelte.js";
 
   let query = $state("");
   let index = $state(0);
@@ -19,19 +19,22 @@
     if (pid) api(`/api/projects/${pid}/atoms`).then(b => { atoms = (b.atoms || []).filter(a => a.status !== "rejected"); }).catch(() => { atoms = []; });
   });
 
+  // In rail order, with the rail's shortcuts; Skills, Export and Overview are reached from here.
   const screens = $derived([
-    { icon: "home", label: t("nav.overview"), keys: [mod + "0"], run: () => go("/overview") },
-    { icon: "sources", label: t("nav.sources"), keys: [mod + "1"], run: () => go("/sources") },
-    { icon: "atoms", label: t("nav.atoms"), keys: [mod + "2"], run: () => go("/atoms") },
-    { icon: "doc", label: t("nav.document"), keys: [mod + "3"], run: () => go("/document") },
-    { icon: "tree", label: t("nav.decomposition"), keys: [mod + "4"], run: () => go("/backlog") },
-    { icon: "export", label: t("nav.export"), keys: [mod + "5"], run: () => go("/export") },
+    { icon: "sources", label: t("nav.meetings"), keys: [mod + "1"], run: () => go("/sources") },
+    { icon: "file", label: t("nav.library"), keys: [mod + "2"], run: () => go("/library") },
+    { icon: "atoms", label: t("nav.atoms"), keys: [mod + "3"], run: () => go("/atoms") },
+    { icon: "doc", label: t("nav.document"), keys: [mod + "4"], run: () => go("/document") },
+    { icon: "tree", label: t("nav.decomposition"), keys: [mod + "5"], run: () => go("/backlog") },
+    { icon: "search", label: t("nav.ask"), keys: [mod + "6"], run: () => go("/ask") },
+    { icon: "mic", label: t("nav.whisper"), keys: [mod + "7"], run: () => go("/whisper") },
+    { icon: "gear", label: t("nav.settings"), keys: [mod + "8"], run: () => go("/settings") },
     { icon: "skills", label: t("nav.skills"), run: () => go("/skills") },
-    { icon: "gear", label: t("nav.settings"), keys: [mod + ","], run: () => go("/settings") },
+    { icon: "export", label: t("nav.export"), run: () => go("/export") },
+    { icon: "home", label: t("nav.overview"), keys: [mod + "0"], run: () => go("/overview") },
   ]);
   const commands = $derived([
     { icon: isDark() ? "sun" : "moon", label: t(isDark() ? "cmd.light" : "cmd.dark"), keys: [mod + "⇧L"], run: () => setTheme(isDark() ? "light" : "dark") },
-    { icon: "sidebar", label: t("nav.toggle"), keys: [mod + "\\"], run: toggleSidebar },
   ]);
 
   const groups = $derived.by(() => {

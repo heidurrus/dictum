@@ -1,6 +1,6 @@
 <script>
   import Icon from "../components/Icon.svelte";
-  import Screen from "../components/Screen.svelte";
+  import Page from "../components/Page.svelte";
   import Panes from "../components/Panes.svelte";
   import PopMenu from "../components/PopMenu.svelte";
   import { api, pollJob } from "../lib/api.js";
@@ -218,7 +218,7 @@
 
 <svelte:window onkeydown={onKey} />
 
-<Screen title={t("nav.export")} {sub}>
+<Page title={t("nav.export")} {sub}>
   {#snippet actions()}
     {#if dest === "jira" && connected && target && !editingTarget}
       <button class="btn" disabled={!!busy} onclick={runPreview}>
@@ -485,7 +485,7 @@
       </div>
     {/if}
   </Panes>
-</Screen>
+</Page>
 
 {#if confirming && target}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->

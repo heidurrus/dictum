@@ -10,8 +10,12 @@ export function writePref(key, value) {
   try { localStorage.setItem("wb." + key, JSON.stringify(value)); } catch (_) { /* private mode */ }
 }
 
+// 5.0 names of the rail items that still open a 4.x screen.
+const ALIASES = { meetings: "sources", requirements: "atoms", documents: "document" };
+
 export function parseRoute(hash = location.hash) {
   const parts = hash.replace(/^#\/?/, "").split("/").filter(Boolean);
+  if (ALIASES[parts[0]]) parts[0] = ALIASES[parts[0]];
   if (parts[0] === "source" && parts[1]) return { name: "transcript", id: parts[1], summarize: parts[2] === "summarize",
                                                   seg: parts[2] === "seg" ? Number(parts[3]) : null };
   if (parts[0] === "document") return { name: "document", doc: parts[1] && parts[1] !== "new" ? parts[1] : null,
@@ -25,6 +29,9 @@ export function parseRoute(hash = location.hash) {
   if (parts[0] === "transcript") return { name: "transcript", id: null };
   if (parts[0] === "overview") return { name: "overview" };
   if (parts[0] === "sources") return { name: "sources" };
+  if (parts[0] === "library") return { name: "library" };
+  if (parts[0] === "ask") return { name: "ask" };
+  if (parts[0] === "whisper") return { name: "whisper" };
   return { name: "home" };            // resolved by the app: the overview, or Sources for an empty project
 }
 
@@ -45,9 +52,8 @@ export const app = $state({
   models: [],
   options: readPref("asrOptions", { model: "v3_e2e_rnnt", device: "cpu", diarize: false, word_timestamps: false }),
   toasts: [],               // at most 2; they belong to the screen that raised them
-  status: null,             // per-step counts for the sidebar badges
+  status: null,             // per-step counts for the rail badges
   theme: readPref("theme", "auto"),
-  sidebarCollapsed: readPref("sidebarCollapsed", null),   // null = automatic by width
   // source id → { jobId, progress, message } for work started in this session
   jobs: {},
   // source id → { jobId, progress, message } for atom extraction
@@ -104,17 +110,6 @@ export function loadStatus() {
   }, 150);
 }
 
-// Sidebar: a 60-px rail below 1180 px of window, unless the BA chose otherwise (⌘\).
-const narrowWindow = typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(max-width: 1179px)") : null;
-const win = $state({ narrow: narrowWindow ? narrowWindow.matches : false });
-narrowWindow && narrowWindow.addEventListener("change", e => { win.narrow = e.matches; });
-export function sidebarIsRail() {
-  return app.sidebarCollapsed === null ? win.narrow : app.sidebarCollapsed;
-}
-export function toggleSidebar() {
-  app.sidebarCollapsed = !sidebarIsRail();
-  writePref("sidebarCollapsed", app.sidebarCollapsed);
-}
 export function inspectorOn(screen) { return app.inspector[screen] !== false; }
 export function toggleInspector(screen) {
   // Narrow workspace (< 900 px): the inspector is an overlay, so the button opens and closes that.
@@ -147,6 +142,11 @@ export async function loadSources() {
   if (!app.currentProjectId) return;
   const body = await api(`/api/projects/${app.currentProjectId}/sources`);
   app.sources = body.sources;
+}
+
+export async function restoreProject(id) {
+  await api(`/api/projects/${id}`, { method: "PATCH", body: { archived: false } });
+  await loadProjects();
 }
 
 export async function switchProject(id) {

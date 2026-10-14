@@ -3,7 +3,7 @@
   // Sources (redesign §8.2): a table of everything the project was given, a preview of the selected
   // source, and two ways in: record a call or import files (the whole window takes a drop).
   import Icon from "../components/Icon.svelte";
-  import Screen from "../components/Screen.svelte";
+  import Page from "../components/Page.svelte";
   import Panes from "../components/Panes.svelte";
   import FirstRun from "../components/FirstRun.svelte";
   import AsrOptions from "../components/AsrOptions.svelte";
@@ -111,7 +111,7 @@
 <input type="file" multiple class="hidden" bind:this={fileInput} aria-label={t("src.import")}
        onchange={e => { importFiles(e.currentTarget.files); e.currentTarget.value = ""; }} />
 
-<Screen title={t("sources.title")} inspector={rows.length ? "sources" : ""}
+<Page title={t("sources.title")} inspector={rows.length ? "sources" : ""}
         sub={t("sources.count", { n: app.sources.length }) + (busy ? " · " + t("sources.busy", { busy }) : "")}>
   {#snippet actions()}
     <span class="rec-wrap" bind:this={recWrap}>
@@ -260,7 +260,7 @@
       {/snippet}
     </Panes>
   {/if}
-</Screen>
+</Page>
 
 {#if dragging}
   <div class="dropzone"><div><Icon name="upload" size={20} /><h3>{t("src.drop_now")}</h3><p>{t("sources.upload.formats")}</p></div></div>

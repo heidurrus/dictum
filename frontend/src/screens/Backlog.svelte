@@ -1,7 +1,7 @@
 <script>
   import { keyOf } from "../lib/keys.js";
   import Icon from "../components/Icon.svelte";
-  import Screen from "../components/Screen.svelte";
+  import Page from "../components/Page.svelte";
   import Panes from "../components/Panes.svelte";
   import PopMenu from "../components/PopMenu.svelte";
   import { explain } from "../lib/errors.js";
@@ -200,7 +200,7 @@
 
 <svelte:window onkeydown={onKey} />
 
-<Screen title={t("nav.decomposition")} {sub} inspector={items.length ? "backlog" : ""}>
+<Page title={t("nav.decomposition")} {sub} inspector={items.length ? "backlog" : ""}>
   {#snippet actions()}
     {#if body && body.latest}
       {#if items.length}
@@ -416,7 +416,7 @@
       {/snippet}
     </Panes>
   {/if}
-</Screen>
+</Page>
 
 {#if refineOpen}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->

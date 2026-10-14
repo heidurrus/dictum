@@ -34,7 +34,8 @@ await page.locator(".screen-sub", { hasText: "на ревью" }).waitFor();
 for (let i = 0; i < 2; i++) await page.keyboard.press("a");
 await page.getByText("Все требования разобраны").waitFor();
 
-await page.locator(".rail").getByRole("button", { name: "Скиллы" }).click();
+await page.locator(".rail").getByRole("button", { name: "Ещё" }).click();          // Skills sit under "Ещё" in the rail
+await page.locator(".rail").getByRole("menuitem", { name: "Скиллы" }).click();
 await list.getByText("Типы документов").waitFor();
 await list.getByRole("button", { name: /SRS — спецификация требований/ }).click();
 await page.locator(".e-title h2", { hasText: "SRS" }).waitFor();
