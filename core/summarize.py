@@ -12,7 +12,7 @@ import urllib.request
 
 import anthropic
 
-from core import local_llm, skills
+from core import local_llm, skills, usage
 from core.llm import LLMError, claude_errors, claude_params, local_model_id
 
 def default_prompt():
@@ -40,6 +40,7 @@ def summarize_with_claude(transcript, model, api_key, on_delta, title=None, clie
             for text in stream.text_stream:
                 on_delta(text)
             message = stream.get_final_message()
+    usage.record("llm_cloud", *usage.claude_tokens(message))
 
     if message.stop_reason == "refusal":
         raise SummaryError("Claude declined to summarise this transcript.")
@@ -88,7 +89,7 @@ def summarize_with_ollama(transcript, model, on_delta, url, title=None, opener=u
     }).encode()
     req = urllib.request.Request(url.rstrip("/") + "/api/chat", data=body,
                                  headers={"Content-Type": "application/json"})
-    parts, think = [], _ThinkFilter()
+    parts, think, counted = [], _ThinkFilter(), False
     try:
         with opener(req, timeout=600) as resp:
             for line in resp:
@@ -102,6 +103,8 @@ def summarize_with_ollama(transcript, model, on_delta, url, title=None, opener=u
                     parts.append(piece)
                     on_delta(piece)
                 if event.get("done"):
+                    usage.record("llm_local", event.get("prompt_eval_count"), event.get("eval_count"))
+                    counted = True
                     break
     except urllib.error.HTTPError as e:
         detail = e.read().decode(errors="replace")
@@ -110,16 +113,18 @@ def summarize_with_ollama(transcript, model, on_delta, url, title=None, opener=u
         raise SummaryError(f"Ollama error ({e.code}): {detail[:200]}")
     except (urllib.error.URLError, ConnectionError, TimeoutError):
         raise SummaryError("Ollama isn't running. Start the Ollama app, or choose Claude in Settings.")
+    if not counted:
+        usage.record("llm_local")
     return re.sub(r"^\s+", "", "".join(parts))
 
 
 # ── built-in local model ─────────────────────────────────────────────────────
 
 def summarize_with_local(transcript, model_id, on_delta, title=None, opener=None, system=None, user=None):
-    body = {"stream": True, "temperature": 0.3,
+    body = {"stream": True, "temperature": 0.3, "stream_options": {"include_usage": True},   # counts for the stats
             "messages": [{"role": "system", "content": system or default_prompt()},
                          {"role": "user", "content": user or _user_content(transcript, title)}]}
-    parts, think = [], _ThinkFilter()
+    parts, think, tokens = [], _ThinkFilter(), (None, None)
     kwargs = {"opener": opener} if opener else {}
     try:
         with local_llm.chat(model_id, body, **kwargs) as resp:
@@ -133,6 +138,9 @@ def summarize_with_local(transcript, model_id, on_delta, title=None, opener=None
                 event = json.loads(data)
                 if event.get("error"):
                     raise SummaryError(f"Local model error: {event['error']}")
+                found = usage.openai_tokens(event)     # the last event carries the counts
+                if found != (None, None):
+                    tokens = found
                 delta = ((event.get("choices") or [{}])[0].get("delta") or {}).get("content") or ""
                 piece = think.feed(delta)
                 if piece:
@@ -140,6 +148,7 @@ def summarize_with_local(transcript, model_id, on_delta, title=None, opener=None
                     on_delta(piece)
     except local_llm.LocalModelError as e:
         raise SummaryError(str(e))
+    usage.record("llm_local", *tokens)
     return re.sub(r"^\s+", "", "".join(parts))
 
 

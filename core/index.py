@@ -15,7 +15,7 @@ import urllib.request
 
 import numpy as np
 
-from core import local_llm, settings
+from core import local_llm, settings, usage
 
 EMBED_BATCH = 16                 # texts per /v1/embeddings request
 CHUNK_CHARS = 800                # a material chunk
@@ -84,6 +84,7 @@ def embed(texts, opener=urllib.request.urlopen):
             if len(data) != len(batch):
                 raise IndexUnavailable("the index model returned the wrong number of vectors")
             out += [_unit(d["embedding"]).tolist() for d in data]
+            usage.record("embed", tokens_in=len(batch))
     except (urllib.error.URLError, ConnectionError, TimeoutError, ValueError, KeyError) as e:
         raise IndexUnavailable(f"the index model did not answer ({getattr(e, 'reason', e)})")
     finally:

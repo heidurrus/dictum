@@ -31,6 +31,8 @@ DEFAULTS = {
     "silence_stop_minutes": 10,        # stop the recording after this much silence; 0 = never (5.0 C4.3)
     "menubar": True,                   # the macOS menu-bar item (5.0 C7, core/hotkeys.py)
     "embed_model": "",                 # the index's embedding model id; empty = the downloaded one (5.0 C5)
+    "recap_style": "brief",            # the recap style a meeting opens with until one is chosen there (5.0 C9)
+    "notes_style": "standard",         # "standard" | "concise": how much a recap says (5.0 C9)
     # Index thresholds (spec §9 A4): cosine for auto labels and graph edges, chunks retrieved per question.
     # Starting points, kept out of the UI; settings.json can override them.
     "tuning": {"label_assign": 0.45, "graph_edge": 0.30, "retrieve_k": 12},
@@ -45,6 +47,13 @@ CLAUDE_MODELS = [
     ("claude-haiku-4-5", "Claude Haiku 4.5 (fastest, cheapest)"),
 ]
 PROVIDERS = {"claude", "local", "ollama"}
+RECAP_STYLES = ("brief", "bullets", "actions")
+NOTES_STYLES = ("standard", "concise")
+# Taken by macOS for every app: never offered as a binding (spec 5.0 C9).
+SYSTEM_HOTKEYS = {"cmd+space", "cmd+tab", "cmd+q", "cmd+h", "cmd+m", "cmd+alt+esc", "ctrl+space"}
+_MOD_ALIASES = {"cmd": "cmd", "command": "cmd", "meta": "cmd", "ctrl": "ctrl", "control": "ctrl",
+                "alt": "alt", "opt": "alt", "option": "alt", "shift": "shift"}
+_MOD_ORDER = ("cmd", "ctrl", "alt", "shift")
 _save_hooks = []
 
 
@@ -123,8 +132,31 @@ def load_settings():
     return data
 
 
+def normalize_combo(combo):
+    """"Shift+Cmd+L" → "cmd+shift+l": modifiers in one order and spelling, then the key. ValueError when it has no
+    key, repeats a modifier, or is a plain key (only F-keys may go without a modifier)."""
+    parts = [p.strip() for p in combo.strip().lower().split("+")]
+    if not parts or any(not p for p in parts):
+        raise ValueError(f"malformed hot key {combo!r}")
+    *mods, key = parts
+    names = []
+    for m in mods:
+        name = _MOD_ALIASES.get(m)
+        if name is None:
+            raise ValueError(f"unknown modifier {m!r} in {combo!r}")
+        if name in names:
+            raise ValueError(f"repeated modifier {m!r} in {combo!r}")
+        names.append(name)
+    if key in _MOD_ALIASES:
+        raise ValueError(f"{combo!r} has no key")
+    if not names and not (key.startswith("f") and key[1:].isdigit()):
+        raise ValueError(f"{combo!r} needs a modifier")
+    return "+".join([m for m in _MOD_ORDER if m in names] + [key])
+
+
 def _hotkeys(current, value):
-    """Merge a partial {action: combo} map; unknown actions and non-text combos are refused."""
+    """Merge a partial {action: combo} map. Refused: unknown actions, non-text or malformed combos, a combo macOS
+    keeps for itself (⌘Space, ⌘Tab, ⌘Q…), and a combo another action already has (spec 5.0 C9)."""
     if not isinstance(value, dict):
         raise ValueError("hotkeys must be an object")
     unknown = sorted(set(value) - set(DEFAULTS["hotkeys"]))
@@ -133,7 +165,15 @@ def _hotkeys(current, value):
     for action, combo in value.items():
         if not isinstance(combo, str):
             raise ValueError(f"hotkey {action} must be text")
-    return {**current, **{a: c.strip().lower() for a, c in value.items()}}
+    merged = {**current, **{a: normalize_combo(c) for a, c in value.items()}}
+    for action in value:
+        combo = merged[action]
+        if combo in SYSTEM_HOTKEYS:
+            raise ValueError(f"{combo} is used by the system")
+        other = next((a for a, c in merged.items() if a != action and c == combo), None)
+        if other:
+            raise ValueError(f"{combo} is already used by {other}")
+    return merged
 
 
 def save_settings(updates):
@@ -166,6 +206,10 @@ def save_settings(updates):
             data[key] = number
             continue
         value = str(value).strip()
+        if key == "recap_style" and value not in RECAP_STYLES:
+            raise ValueError(f"recap_style must be one of {list(RECAP_STYLES)}")
+        if key == "notes_style" and value not in NOTES_STYLES:
+            raise ValueError(f"notes_style must be one of {list(NOTES_STYLES)}")
         if key == "llm_provider" and value not in PROVIDERS:
             raise ValueError(f"llm_provider must be one of {sorted(PROVIDERS)}")
         if key == "claude_model" and value not in dict(CLAUDE_MODELS):

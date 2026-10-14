@@ -12,10 +12,18 @@ import webbrowser
 
 
 class DesktopApi:
-    def __init__(self, base_url, ask_path, opener=urllib.request.urlopen):
+    def __init__(self, base_url, ask_path, opener=urllib.request.urlopen, ask_folder=None):
         self._base = base_url.rstrip("/")
         self._ask = ask_path            # filename -> chosen path or None
         self._open = opener
+        self._ask_folder = ask_folder   # () -> chosen folder or None (Settings → Хранилище → Сменить папку…)
+
+    def choose_folder(self):
+        """A native folder picker: {"path"} or {"cancelled": True}."""
+        if self._ask_folder is None:
+            return {"error": "folder picker unavailable"}
+        path = self._ask_folder()
+        return {"path": path} if path else {"cancelled": True}
 
     def open_in_browser(self):
         webbrowser.open(self._base)
@@ -74,6 +82,18 @@ def pywebview_asker(webview):
         if window is None:
             return None
         result = window.create_file_dialog(webview.FileDialog.SAVE, save_filename=filename)
+        if not result:
+            return None
+        return result if isinstance(result, str) else result[0]
+    return ask
+
+
+def pywebview_folder_asker(webview):
+    def ask():
+        window = webview.windows[0] if webview.windows else None
+        if window is None:
+            return None
+        result = window.create_file_dialog(webview.FileDialog.FOLDER)
         if not result:
             return None
         return result if isinstance(result, str) else result[0]

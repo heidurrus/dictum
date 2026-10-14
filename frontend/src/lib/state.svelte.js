@@ -32,7 +32,7 @@ export function parseRoute(hash = location.hash) {
   if (parts[0] === "skills") return { name: "skills", skill: parts[1] || null };
   if (parts[0] === "atoms") return { name: "atoms", source: parts[1] === "source" ? parts[2] : null,
                                     atom: parts[1] === "atom" ? parts[2] : null };
-  if (parts[0] === "settings") return { name: "settings" };
+  if (parts[0] === "settings") return { name: "settings", section: parts[1] || null };   // #/settings opens the first section
   if (parts[0] === "transcript") return { name: "transcript", id: null };
   if (parts[0] === "meetings") return { name: "meetings" };
   if (parts[0] === "library") return { name: "library", id: parts[1] || null };

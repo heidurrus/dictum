@@ -35,6 +35,8 @@ JIRA_QUOTES = {"auto", "full", "link", "none"}
 DOC_STATUSES = {"draft", "review", "approved"}
 ACTION_STATUSES = {"open", "done"}
 RECAP_STYLES = ("brief", "bullets", "actions")
+USAGE_KINDS = ("llm_local", "llm_cloud", "asr", "embed")
+MEETING_SOURCE_KINDS = ("recording", "audio", "transcript")   # what Встречи and the stats count as a meeting
 # "note": the hidden source that holds the words of whispers turned into questions (5.0 C7); not a meeting.
 SOURCE_KINDS = {"recording", "audio", "transcript", "document", "email", "material", "note"}
 WHISPER_KINDS = ("task", "note", "remind", "idea")
@@ -161,6 +163,11 @@ CREATE TABLE IF NOT EXISTS whispers (
   audio_file TEXT, due_at REAL, done_at REAL, project_id TEXT, notified_at REAL, deleted_at REAL,
   created_at REAL NOT NULL, updated_at REAL NOT NULL, atom_id TEXT);
 CREATE INDEX IF NOT EXISTS whispers_by_time ON whispers(created_at);
+-- Settings → stats (5.0 C9): one row per model call, embedding batch or transcription; never exported with a project.
+CREATE TABLE IF NOT EXISTS usage (
+  id INTEGER PRIMARY KEY, at REAL NOT NULL, kind TEXT NOT NULL,
+  tokens_in INTEGER, tokens_out INTEGER, seconds REAL, project_id TEXT);
+CREATE INDEX IF NOT EXISTS usage_by_time ON usage(at);
 """
 
 PROJECT_FIELDS = ("id", "name", "local_only", "archived", "language", "jira_quotes", "auto_extract",
@@ -2611,3 +2618,43 @@ class Store:
         dest = os.path.join(dest_dir, os.path.basename(name))
         (shutil.move if move else shutil.copy2)(src_path, dest)
         return dest
+
+    # ── usage and storage (5.0 C9) ───────────────────────────────────────────
+    def add_usage(self, kind, tokens_in=None, tokens_out=None, seconds=None, project_id=None, at=None):
+        if kind not in USAGE_KINDS:
+            raise StoreError(f"unknown usage kind {kind}")
+        with self._write() as c:
+            c.execute("INSERT INTO usage (at, kind, tokens_in, tokens_out, seconds, project_id) VALUES (?,?,?,?,?,?)",
+                      (self._clock() if at is None else at, kind, tokens_in, tokens_out, seconds, project_id))
+
+    def usage_stats(self, since=None):
+        """Totals since a time (None: everything) → {tokens_local, tokens_cloud, cloud_calls, meetings,
+        seconds_transcribed, embeddings}. Unknown token counts (null) count as 0."""
+        since = since or 0
+        with self._conn() as c:
+            rows = {r["kind"]: r for r in c.execute(
+                "SELECT kind, COUNT(*) AS n, SUM(COALESCE(tokens_in, 0) + COALESCE(tokens_out, 0)) AS tokens, "
+                "SUM(COALESCE(tokens_in, 0)) AS tin, SUM(COALESCE(seconds, 0)) AS secs FROM usage WHERE at >= ? "
+                "GROUP BY kind", (since,))}
+            meetings = c.execute(
+                f"SELECT COUNT(*) FROM sources WHERE deleted_at IS NULL AND created_at >= ? AND kind IN "
+                f"({','.join('?' * len(MEETING_SOURCE_KINDS))})", (since, *MEETING_SOURCE_KINDS)).fetchone()[0]
+        get = lambda kind, col: (rows[kind][col] or 0) if kind in rows else 0  # noqa: E731
+        return {"tokens_local": int(get("llm_local", "tokens")), "tokens_cloud": int(get("llm_cloud", "tokens")),
+                "cloud_calls": int(get("llm_cloud", "n")), "meetings": int(meetings),
+                "seconds_transcribed": round(float(get("asr", "secs")), 1), "embeddings": int(get("embed", "tin"))}
+
+    def storage_counts(self):
+        """For Settings → Хранилище: {projects, meetings, materials, whispers} (deleted rows left out)."""
+        with self._conn() as c:
+            one = lambda sql, *a: c.execute(sql, a).fetchone()[0]  # noqa: E731
+            return {"projects": one("SELECT COUNT(*) FROM projects"),
+                    "meetings": one(f"SELECT COUNT(*) FROM sources WHERE deleted_at IS NULL AND kind IN "
+                                    f"({','.join('?' * len(MEETING_SOURCE_KINDS))})", *MEETING_SOURCE_KINDS),
+                    "materials": one("SELECT COUNT(*) FROM sources WHERE deleted_at IS NULL AND kind = 'material'"),
+                    "whispers": one("SELECT COUNT(*) FROM whispers WHERE deleted_at IS NULL")}
+
+    def checkpoint(self):
+        """Fold the write-ahead log into the database file, before the data folder is moved."""
+        with self._conn() as c:
+            c.execute("PRAGMA wal_checkpoint(TRUNCATE)")

@@ -1,9 +1,12 @@
 <script>
   // Speech recognition: the model (what is on disk, what can be downloaded), the device, who-said-what.
+  // `list={false}`: only the device and who-said-what (Settings → Модели shows the models as cards).
   import Icon from "./Icon.svelte";
   import PopMenu from "./PopMenu.svelte";
   import { api } from "../lib/api.js";
   import { app, t, saveOptions, toast } from "../lib/state.svelte.js";
+
+  let { list = true } = $props();
 
   let st = $state(null);                 // {models, download}
   let timer = null;
@@ -45,6 +48,7 @@
 </script>
 
 <div class="opts">
+  {#if list}
   <div class="field">
     <span class="label">{t("opt.model")}</span>
     {#if st}
@@ -91,6 +95,7 @@
       </ul>
       <p class="hint">{t("asr.note")}</p>
     </div>
+  {/if}
   {/if}
 
   <div class="field">
