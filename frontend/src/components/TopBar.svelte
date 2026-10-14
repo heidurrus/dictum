@@ -6,6 +6,7 @@
   import StatusChip from "./StatusChip.svelte";
   import { DEFAULT_HOTKEYS, comboLabel } from "../lib/hotkeys.js";
   import { api } from "../lib/api.js";
+  import { reopenOnboarding, startTutorial } from "../lib/onboarding.svelte.js";
   import { app, t, go, currentProject, switchProject, loadProjects, restoreProject, toast, setTheme, isDark } from "../lib/state.svelte.js";
 
   let menuOpen = $state(false);
@@ -16,12 +17,21 @@
   let wrap = $state(null);
   const mod = typeof navigator !== "undefined" && /Mac/.test(navigator.platform) ? "⌘" : "Ctrl+";
 
+  // Help (5.0 C8): the commands, the tips again, the first run again.
+  let helpOpen = $state(false);
+  let helpWrap = $state(null);
+  function helpPick(fn) { helpOpen = false; fn(); }
+
   function onKey(e) {
     const key = keyOf(e);
+    if (key === "Escape" && helpOpen) { helpOpen = false; return; }
     if (key === "Escape" && menuOpen) { menuOpen = false; return; }
     if ((e.metaKey || e.ctrlKey) && !e.altKey && e.shiftKey && (key === "p" || key === "P")) { e.preventDefault(); menuOpen = !menuOpen; }
   }
-  function onDoc(e) { if (menuOpen && wrap && !wrap.contains(e.target)) menuOpen = false; }
+  function onDoc(e) {
+    if (menuOpen && wrap && !wrap.contains(e.target)) menuOpen = false;
+    if (helpOpen && helpWrap && !helpWrap.contains(e.target)) helpOpen = false;
+  }
   $effect(() => { if (!menuOpen) { showArchive = false; query = ""; } });
 
   async function createProject(e) {
@@ -130,8 +140,18 @@
   <button class="icon-btn-m" onclick={() => setTheme(isDark() ? "light" : "dark")}
           aria-label={t("shell.theme")} title={`${t("shell.theme")} · ${comboLabel(hk.theme)}`}>
     <Icon name={isDark() ? "sun" : "moon"} size={18} /></button>
-  <button class="icon-btn-m help" onclick={() => (app.palette = true)} aria-label={t("shell.help")} title={`${t("shell.help")} · ${comboLabel(hk.palette)}`}>
-    <Icon name="help" size={18} /></button>
+  <div class="help-wrap help" bind:this={helpWrap}>
+    <button class="icon-btn-m" onclick={() => (helpOpen = !helpOpen)} aria-label={t("shell.help")} aria-haspopup="menu" aria-expanded={helpOpen}
+            title={t("shell.help")}><Icon name="help" size={18} /></button>
+    {#if helpOpen}
+      <div class="menu right help-menu" role="menu">
+        <button class="menu-item" role="menuitem" onclick={() => helpPick(() => (app.palette = true))}>
+          <span class="grow">{t("help.commands")}</span><span class="t3">{comboLabel(hk.palette)}</span></button>
+        <button class="menu-item" role="menuitem" onclick={() => helpPick(startTutorial)}><span class="grow">{t("help.tips")}</span></button>
+        <button class="menu-item" role="menuitem" onclick={() => helpPick(reopenOnboarding)}><span class="grow">{t("help.onboarding")}</span></button>
+      </div>
+    {/if}
+  </div>
 </div>
 
 <style>
@@ -150,5 +170,7 @@
   .icon-btn-m { width: 36px; height: 36px; border: 0; border-radius: 18px; display: grid; place-items: center; background: none;
     color: var(--text-2); cursor: pointer; flex: none; }
   .icon-btn-m:hover { background: var(--surface-2); color: var(--text); }
+  .help-wrap { position: relative; }
+  .help-menu { top: calc(100% + 6px); }
   @media (max-width: 760px) { .help { display: none; } }
 </style>

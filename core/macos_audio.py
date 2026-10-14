@@ -139,3 +139,25 @@ class SystemAudioTap:
         if self._tap_id is not None:
             ca.AudioHardwareDestroyProcessTap(self._tap_id)
             self._tap_id = None
+
+
+def dry_run(seconds=1.0, tap_factory=SystemAudioTap, clock=None):
+    """Open the tap and read it for about a second, so macOS asks for "system audio recording" permission (5.0 C8).
+    The audio is dropped as it arrives: nothing is kept and nothing is written. Raises OSError when the tap fails."""
+    import threading
+    import time
+    clock = clock or time.monotonic
+    tap = tap_factory().open()
+    stop = threading.Event()
+    chunks = None
+    try:
+        until = clock() + seconds
+        chunks = tap(stop)
+        for _chunk in chunks:
+            if clock() >= until:
+                break
+    finally:
+        stop.set()
+        if chunks is not None:
+            chunks.close()             # closes the input stream before the device goes away
+        tap.close()

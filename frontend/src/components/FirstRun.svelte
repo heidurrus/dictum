@@ -1,5 +1,6 @@
 <script>
-  // First run (redesign §8.10): not a wizard. Three rows in the empty Sources pane.
+  // The empty state of Встречи (redesign §8.10; 5.0 C8 keeps it for projects created after the first run): three rows,
+  // name, AI check, first source, in the tonal 5.0 look.
   import Icon from "./Icon.svelte";
   import { api } from "../lib/api.js";
   import { explain } from "../lib/errors.js";
@@ -99,20 +100,24 @@
 </div>
 
 <style>
-  .first { width: min(560px, 100%); margin: 0 auto; padding: var(--s-11) var(--s-6) var(--s-11); display: grid; grid-template-columns: minmax(0, 1fr); }
-  .empty-glyph { margin: 0 auto var(--s-5); }
-  h2 { font: var(--w-semibold) var(--t-title-1)/var(--lh-title-1) var(--font-display); letter-spacing: -.016em; text-align: center; }
-  .lead { text-align: center; color: var(--c-text-2); font-size: var(--t-item); line-height: var(--lh-item); margin: var(--s-2) 0 var(--s-9); }
-  ol { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--c-line); }
-  li { display: flex; gap: var(--s-6); padding: var(--s-6) 0; border-bottom: 1px solid var(--c-line); }
-  .n { width: 24px; height: 24px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--c-line-control); display: grid; place-items: center; flex: none;
-    font: var(--w-semibold) var(--t-foot)/1 var(--font); color: var(--c-text-2); }
-  li.done .n { background: var(--c-ok); box-shadow: none; color: #fff; }
-  h3 { font: var(--w-medium) var(--t-item)/24px var(--font); }
-  li.done h3 { color: var(--c-text-2); }
-  form, .acts { display: flex; gap: var(--s-4); margin-top: var(--s-5); flex-wrap: wrap; }
+  .first { width: min(560px, 100%); margin: 0 auto; padding: 48px 24px; display: grid; grid-template-columns: minmax(0, 1fr); }
+  .empty-glyph { margin: 0 auto 16px; width: 56px; height: 56px; border-radius: 18px; background: var(--primary-c); color: var(--on-primary-c); }
+  h2 { font-size: 24px; line-height: 32px; font-weight: 600; letter-spacing: -.016em; text-align: center; color: var(--text); }
+  .lead { text-align: center; color: var(--text-2); font-size: 15px; line-height: 22px; margin: 4px 0 24px; }
+  ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  li { display: flex; gap: 16px; padding: 16px 18px; border-radius: 20px; background: var(--surface-2); }
+  .n { width: 28px; height: 28px; border-radius: 50%; background: var(--surface); display: grid; place-items: center; flex: none;
+    font-size: 13px; font-weight: 600; color: var(--text-2); box-shadow: var(--shadow-1); }
+  li.done { background: none; box-shadow: inset 0 0 0 1px var(--outline-2); }
+  li.done .n { background: var(--ok-c); color: var(--ok); box-shadow: none; }
+  h3 { font-size: 15px; line-height: 24px; font-weight: 500; color: var(--text); }
+  li.done h3 { color: var(--text-2); }
+  .t3 { color: var(--text-3); }
+  form, .acts { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
   form .input { flex: 1; min-width: 200px; }
-  .check { margin-top: var(--s-3); color: var(--c-danger); font-size: var(--t-foot); }
-  .check.ok { color: var(--c-ok); }
-  .recdot { width: 10px; height: 10px; border-radius: 50%; background: var(--c-rec); }
+  .acts .btn, form .btn { border-radius: 20px; }
+  .acts .btn:not(.primary) { background: var(--primary-c); color: var(--on-primary-c); box-shadow: none; }
+  .check { margin-top: 8px; color: var(--danger); font-size: 13px; }
+  .check.ok { color: var(--ok); }
+  .recdot { width: 10px; height: 10px; border-radius: 50%; background: var(--rec); }
 </style>

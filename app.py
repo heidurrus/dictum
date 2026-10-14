@@ -4,6 +4,7 @@ import io
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -30,7 +31,7 @@ from core import notes as meeting_notes, summarize as summarize_mod
 from core import ask as ask_mod, live_questions as live_questions_mod, whisper as whisper_mod
 from core import hotkeys as hotkeys_mod
 from core.atoms import extract_atoms
-from core import backlog, exports, frd, jira, materials, skills, suggest
+from core import backlog, discover, exports, frd, jira, materials, permissions, skills, suggest
 from core import index as local_index
 from core.atlassian_auth import MCP_URL, AtlassianAuth, AuthError, AuthRequired
 from core.mcp_client import McpError, McpSession
@@ -43,6 +44,7 @@ from core.realtime import realtime
 from core.recorder import (SAMPLE_RATE as REC_SAMPLE_RATE, DualChannelRecorder, mix_wavs, speech_bounds,
                            wav_duration, wav_peak)
 from core.security import install_local_only_guard
+from core.setup_plan import StateFile
 from core.store import ATOM_PREFIX, Store, StoreError
 from core.emails import EMAIL_EXTENSIONS, parse_email_file
 from core.transcripts import (MAX_BYTES as MAX_TRANSCRIPT_BYTES, TranscriptError,
@@ -213,6 +215,14 @@ def do_longform(model, audio_path, job_id=None):
     return {"text": full_text, "segments": result_segments}, None
 
 
+def _wait_for_speech_model(job_id, poll=1.0):
+    """A speech model download in progress (first run, Settings → Модели) holds the queue: the transcription
+    starts once the model is in place instead of fetching it a second time (5.0 C8)."""
+    while asr_downloads.busy():
+        set_progress(job_id, 0, "Waiting for the speech model download…")
+        time.sleep(poll)
+
+
 def run_job(job_id, upload_path, audio_path, model_name, diarize, word_timestamps, device,
             source_id=None, channels=None):
     """Queue and run one transcription.
@@ -224,10 +234,14 @@ def run_job(job_id, upload_path, audio_path, model_name, diarize, word_timestamp
     def on_wait(ahead):
         set_progress(job_id, 0, f"Queued — waiting for {ahead} job(s) to finish…")
 
+    def work():
+        _wait_for_speech_model(job_id)
+        if channels:
+            return _transcribe_channels(job_id, *channels, model_name, diarize, device)
+        return _transcribe(job_id, audio_path, model_name, diarize, word_timestamps, device)
+
     result, error = None, None
     try:
-        work = ((lambda: _transcribe_channels(job_id, *channels, model_name, diarize, device)) if channels
-                else (lambda: _transcribe(job_id, audio_path, model_name, diarize, word_timestamps, device)))
         result = transcription_queue.run(job_id, work, on_wait=on_wait)
     except JobCancelled:
         jobs.cancel(job_id)             # replaced by a newer request for the same source; it owns the source now
@@ -487,6 +501,7 @@ def _system_source():
             tap = macos_audio.SystemAudioTap().open()
         except Exception as e:
             return f"system audio unavailable: {e}"
+        _remember_permission("system_audio")
         # The tap delivers nothing while nothing plays: fill that with silence so the
         # system channel stays in step with the mic, and Stop never waits on it.
         wrapped = realtime(tap, REC_SAMPLE_RATE, fill_silence=True)
@@ -1354,16 +1369,32 @@ def transcribe():
     opts, error = _transcription_options(request.form)
     if error:
         return jsonify({"error": error}), 400
+    kind = "recording" if request.form.get("kind") == "recording" else "audio"
+    try:
+        source, job_id = _import_audio(project, filename, upload.save, opts, kind)
+    except _ImportFailed as e:
+        return jsonify({"error": str(e), **({"source_id": e.source_id} if e.source_id else {})}), e.status
+    return jsonify({"job_id": job_id, "source_id": source["id"]})
+
+
+class _ImportFailed(Exception):
+    def __init__(self, message, status=400, source_id=None):
+        super().__init__(message)
+        self.status, self.source_id = status, source_id
+
+
+def _import_audio(project, filename, save, opts, kind="audio"):
+    """An audio or video file → a meeting with its transcription queued: (source, job_id). `save(path)` writes the
+    file's bytes there (a dropped file's upload, or a copy of a file found on disk)."""
     suffix = os.path.splitext(filename)[1].lower() or ".wav"
     if suffix not in AUDIO_VIDEO_EXTENSIONS:
-        return jsonify({"error": f"{filename}: unsupported file type. Use audio or video "
-                        "(WAV, MP3, M4A, WebM, MP4…) or a transcript (.vtt, .srt, .docx, .pdf, .txt)."}), 400
-
-    kind = "recording" if request.form.get("kind") == "recording" else "audio"
+        raise _ImportFailed(f"{filename}: unsupported file type. Use audio or video "
+                            "(WAV, MP3, M4A, WebM, MP4…) or a transcript (.vtt, .srt, .docx, .pdf, .txt).")
+    title = os.path.splitext(filename)[0] or filename
     source = library.create_source(project["id"], kind, title, original_filename=filename,
                                    asr_model=opts["model_name"])
     original = os.path.join(library.source_dir(source), "original" + suffix)
-    upload.save(original)
+    save(original)
     if suffix in NEEDS_CONVERSION:
         try:
             converted = convert_to_wav(original)
@@ -1371,12 +1402,11 @@ def transcribe():
             os.replace(converted, audio_path)
         except Exception as e:
             library.fail_source(source["id"], e)
-            return jsonify({"error": str(e), "source_id": source["id"]}), 500
+            raise _ImportFailed(str(e), 500, source["id"])
     else:
         audio_path = original
     library.update_source(source["id"], audit=False, audio_file=os.path.basename(audio_path))
-    job_id = _start_transcription(source, audio_path, opts)
-    return jsonify({"job_id": job_id, "source_id": source["id"]})
+    return source, _start_transcription(source, audio_path, opts)
 
 
 @app.route("/job/<job_id>")
@@ -1413,6 +1443,135 @@ def api_jobs():
     with _recorder_lock:
         rec = _recorder.status() if _recorder is not None else None
     return jsonify({"jobs": out, "recording": rec if rec and rec.get("recording") else None})
+
+
+# ── First run (5.0 C8): onboarding state, permissions, discovery ─────────────
+
+ONBOARDING_KEY = "onboarding:v5"
+ONBOARDING_STEPS = 6
+READY_NOTIFICATION = {"ru": "Dictum готов", "en": "Dictum is ready"}
+
+
+def _setup_state():
+    return StateFile()               # <app data>/setup-state.json, read fresh every time
+
+
+def _remember_permission(which):
+    """A tap or a notification just worked: from now on that permission reads as granted."""
+    try:
+        _setup_state().set(permissions.STATE_KEY.format(which), permissions.GRANTED)
+    except OSError:
+        pass
+
+
+@app.route("/api/onboarding")
+def api_onboarding():
+    state = _setup_state()
+    return jsonify({"done": bool(state.get(ONBOARDING_KEY)), "step": state.get(ONBOARDING_KEY + ":step") or 1})
+
+
+@app.route("/api/onboarding", methods=["POST"])
+def api_onboarding_save():
+    """{done: true} after the last step or Пропустить; {step} on every step, so a restart resumes there."""
+    data = request.get_json(silent=True) or {}
+    state = _setup_state()
+    if "step" in data:
+        step = data["step"]
+        if not isinstance(step, int) or isinstance(step, bool) or not 1 <= step <= ONBOARDING_STEPS:
+            return jsonify({"error": f"step must be 1…{ONBOARDING_STEPS}"}), 400
+        state.set(ONBOARDING_KEY + ":step", step)
+    if "done" in data:
+        state.set(ONBOARDING_KEY, bool(data["done"]))
+    return api_onboarding()
+
+
+def _system_tap_dry_run():
+    """About a second of the system-audio tap, dropped as it arrives; refused while something records, because
+    opening a tap makes PortAudio re-scan its devices."""
+    with _recorder_lock:
+        if _recorder is not None and (_recorder.status() or {}).get("recording"):
+            raise OSError("a recording is running")
+    macos_audio.dry_run(1.0)
+
+
+@app.route("/api/permissions")
+def api_permissions():
+    return jsonify(permissions.read(_setup_state()))
+
+
+@app.route("/api/permissions/request/<which>", methods=["POST"])
+def api_permissions_request(which):
+    if which not in permissions.WHICH:
+        return jsonify({"error": "unknown permission"}), 404
+    lang = request.args.get("lang") if request.args.get("lang") in READY_NOTIFICATION else "ru"
+    permissions.request(which, _setup_state(), mic_access=lambda: microphone_access(),
+                        tap_dry_run=_system_tap_dry_run,
+                        send_notification=lambda: notify("Dictum", READY_NOTIFICATION[lang]))
+    return api_permissions()
+
+
+@app.route("/api/permissions/open-settings/<which>", methods=["POST"])
+def api_permissions_open_settings(which):
+    url = permissions.settings_url(which)
+    if not url:
+        return jsonify({"error": "no settings pane for this permission here"}), 404
+    try:
+        if sys.platform == "win32":
+            os.startfile(url)  # noqa: S606 — a fixed ms-settings: address
+        else:
+            subprocess.Popen(["open", url])
+    except OSError as e:
+        return jsonify({"error": str(e)}), 500
+    return jsonify({"ok": True, "url": url})
+
+
+@app.route("/api/discover")
+def api_discover():
+    """Candidate files for the first run's Материалы step; ?folder= lists a folder the BA typed instead."""
+    folder = (request.args.get("folder") or "").strip()
+    if folder:
+        folder = os.path.expanduser(folder)
+        if not os.path.isdir(folder):
+            return jsonify({"error": "folder not found"}), 400
+    roots = [folder] if folder else discover.default_roots()
+    found = discover.candidates(roots, AUDIO_VIDEO_EXTENSIONS, library.imported_files())
+    return jsonify({"candidates": found, "roots": roots})
+
+
+@app.route("/api/discover/import", methods=["POST"])
+def api_discover_import():
+    """{paths, project_id, options?}: audio and video become meetings (transcription queued as for a dropped file),
+    documents become materials. The files are copied; the originals stay where they are."""
+    data = request.get_json(silent=True) or {}
+    try:
+        project = library.get_project(data["project_id"]) if data.get("project_id") else library.current_project()
+    except StoreError as e:
+        return jsonify({"error": str(e)}), 404
+    opts, error = _transcription_options(data.get("options") or {})
+    if error:
+        return jsonify({"error": error}), 400
+    meetings, added, failed = [], [], []
+    for path in data.get("paths") or []:
+        name = os.path.basename(str(path))
+        try:
+            if not os.path.isfile(path):
+                raise _ImportFailed("file not found")
+            size = os.path.getsize(path)
+            if size > discover.MAX_SIZE:
+                raise _ImportFailed("the file is larger than 2 GB")
+            kind = discover.kind_of(name, AUDIO_VIDEO_EXTENSIONS)
+            if kind == "audio":
+                source, job_id = _import_audio(project, name, lambda dest, src=path: shutil.copyfile(src, dest), opts)
+                meetings.append({"source_id": source["id"], "job_id": job_id})
+            elif kind == "document":
+                with open(path, "rb") as f:
+                    added.append(materials.import_file(library, project, name, f.read(materials.MAX_BYTES + 1))["id"])
+            else:
+                raise _ImportFailed("unsupported file type")
+        except (_ImportFailed, materials.MaterialError, StoreError, OSError) as e:
+            failed.append(f"{name}: {e}")
+    return jsonify({"meetings": meetings, "materials": added, "failed": failed,
+                    "index_job": _index_after(project["id"], is_source=False) if added else None})
 
 
 # ── Library API (projects, sources) ──────────────────────────────────────────
@@ -1649,9 +1808,11 @@ def notify(title, text):
     if sys.platform == "darwin":
         script = f'display notification {json.dumps(text)} with title {json.dumps(title)}'
         try:
-            subprocess.run(["osascript", "-e", script], timeout=5, capture_output=True)
+            done = subprocess.run(["osascript", "-e", script], timeout=5, capture_output=True)
         except (OSError, subprocess.SubprocessError):
             return False
+        if done.returncode == 0:
+            _remember_permission("notifications")
         return True
     return False
 
