@@ -3,7 +3,6 @@ import io
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 import threading
@@ -24,7 +23,7 @@ from torch.utils.data import DataLoader
 from flask import Flask, request, jsonify, send_file, send_from_directory
 
 from core.ffmpeg import ensure_ffmpeg_on_path
-from core import macos_audio, settings
+from core import live as live_mod, macos_audio, settings
 from core.summarize import SummaryError, summarize
 from core import notes as meeting_notes, summarize as summarize_mod
 from core.atoms import extract_atoms
@@ -77,11 +76,13 @@ jobs = JobStore()
 job_log = make_job_log()                 # tracebacks of failed jobs: <app data>/logs/jobs.log
 library = Store()  # projects, sources, transcripts, summaries (spec increment 1)
 library.reset_stale_processing()      # jobs do not survive a restart; let those sources be transcribed again
+library.recover_interrupted_recordings()   # a recording cut off by a quit or crash: its WAVs stay, offer Расшифровать
 transcription_queue = SerialQueue()  # one transcription at a time (spec D-12)
 
 _recorder = None
 _recorder_lock = threading.Lock()
 _active_tap = None  # macOS system-audio tap while recording
+_session = {"source_id": None, "live": None}   # the meeting being recorded and its live transcriber (5.0 C4.1)
 IS_DESKTOP = False
 
 AVAILABLE_MODELS = [
@@ -502,14 +503,43 @@ def _close_active_tap():
             _active_tap = None
 
 
+def _asr_installed(model_name):
+    return any(m["id"] == model_name and m["installed"] for m in asr_models.list_models(models_dir("gigaam")))
+
+
+def _start_live(source, folder, opts, recorder):
+    """The live transcriber for this recording, or None when live mode is off from the start (setting off,
+    no speech model installed). It only ever reads the channel files; see core/live.py."""
+    if not settings.load_settings().get("live_transcription", True):
+        return None
+    if not opts or not _asr_installed(opts["model_name"]):
+        return None
+    asr = lambda: live_mod.GigaAMAsr(get_model, opts["model_name"], opts["device"])  # noqa: E731  loaded in its thread
+    return live_mod.LiveTranscriber(source["id"], folder, asr, store=library, pauses=recorder.pauses,
+                                    labels={"mic": BA_LABEL, "sys": OTHER_LABEL}).start()
+
+
+def _live_state(source_id=None):
+    lt = _session["live"]
+    if lt is None or (source_id and _session["source_id"] != source_id):
+        return "off"
+    return lt.state
+
+
 @app.route("/desktop-record/start", methods=["POST"])
 def desktop_record_start():
-    """Start recording mic + system audio as separate channels (desktop app mode)."""
+    """Start recording mic + system audio as separate channels (desktop app mode). The meeting exists from the
+    first second: its source row (status "recording") is created now and the channels are written into its folder."""
     global _recorder, _active_tap
     data = request.get_json(silent=True) or {}
     mic_index = data.get("mic_device")  # sounddevice index or None for default
     if _recorder is not None and _recorder.recording:
         return jsonify({"error": "A recording is already in progress"}), 409
+    opts = None
+    if data.get("model"):
+        opts, error = _transcription_options(data)
+        if error:
+            return jsonify({"error": error}), 400
 
     # macOS: ask for the microphone first (shows the system prompt once), outside the
     # lock because the user may take a while to answer.
@@ -519,11 +549,20 @@ def desktop_record_start():
     with _recorder_lock:
         if _recorder is not None and _recorder.recording:
             return jsonify({"error": "A recording is already in progress"}), 409
+        title = (data.get("title") or "").strip()            # localised by the UI
+        source = library.create_source(library.current_project()["id"], "recording",
+                                       title or "Recording " + time.strftime("%d.%m.%Y %H:%M"), status="recording")
+        folder = library.source_dir(source)
         sys_source = _system_source()
         _active_tap = sys_source if hasattr(sys_source, "close") else None
         _recorder = DualChannelRecorder(recordings_dir(), {"mic": mic, "sys": sys_source})
-        recording_id = _recorder.start()
-    return jsonify({"ok": True, "recording_id": recording_id})
+        recording_id = _recorder.start(folder=folder)
+        _session.update(source_id=source["id"], live=None)
+        try:
+            _session["live"] = _start_live(source, folder, opts, _recorder)
+        except Exception:               # live mode is a convenience: the recording runs without it
+            job_log.exception("Live transcript could not start")
+    return jsonify({"ok": True, "recording_id": recording_id, "source_id": source["id"], "live": _live_state()})
 
 
 @app.route("/desktop-record/status")
@@ -531,45 +570,86 @@ def desktop_record_status():
     """Live recorder state, including per-channel errors (spec gap #23)."""
     with _recorder_lock:
         if _recorder is None:
-            return jsonify({"recording": False, "channels": {}})
-        return jsonify(_recorder.status())
+            return jsonify({"recording": False, "channels": {}, "source_id": None, "paused": False, "pauses": [],
+                            "live": "off"})
+        st = _recorder.status()
+        return jsonify({**st, "source_id": _session["source_id"] if st["recording"] else None,
+                        "live": _live_state() if st["recording"] else "off"})
+
+
+def _pause_or_resume(action):
+    with _recorder_lock:
+        if _recorder is None or not _recorder.recording:
+            return jsonify({"error": "No recording in progress"}), 409
+        getattr(_recorder, action)()
+        st = _recorder.status()
+    return jsonify({"ok": True, "paused": st["paused"], "pauses": st["pauses"]})
+
+
+@app.route("/desktop-record/pause", methods=["POST"])
+def desktop_record_pause():
+    """The recorder keeps writing silence while paused, so the timeline stays continuous."""
+    return _pause_or_resume("pause")
+
+
+@app.route("/desktop-record/resume", methods=["POST"])
+def desktop_record_resume():
+    return _pause_or_resume("resume")
 
 
 @app.route("/desktop-record/stop", methods=["POST"])
 def desktop_record_stop():
-    """Stop recording; keep mic.wav / sys.wav on disk and return a mixed WAV for playback."""
+    """Stop recording and finalise the meeting's source: mic.wav / sys.wav stay where they were written, a mixed
+    WAV is made for playback. With transcription options in the body the full transcription starts on it; it
+    replaces the live pass's provisional lines."""
+    data = request.get_json(silent=True) or {}
+    opts = None
+    if data.get("model"):
+        opts, error = _transcription_options(data)
+        if error:
+            return jsonify({"error": error}), 400
     with _recorder_lock:
         if _recorder is None or not _recorder.recording:
             return jsonify({"error": "No recording in progress"}), 409
         result = _recorder.stop()
         _close_active_tap()
+        source_id, live = _session["source_id"], _session["live"]
+        _session.update(source_id=None, live=None)
+    if live is not None:
+        live.stop()                         # no provisional line is appended after this
 
     if result.get("sys") and "sys" not in result["errors"] and wav_peak(result["sys"]) == 0:
         result["errors"]["sys"] = SYS_SILENT
     captured = [result[c] for c in ("sys", "mic") if result.get(c)]
     if not captured:
         details = "; ".join(f"{c}: {e}" for c, e in result["errors"].items())
-        return jsonify({"error": "No audio captured" + (f" ({details})" if details else ""),
-                        "errors": result["errors"]}), 400
+        message = "No audio captured" + (f" ({details})" if details else "")
+        if source_id:
+            library.fail_source(source_id, message)
+        return jsonify({"error": message, "errors": result["errors"], "source_id": source_id}), 400
 
     playback_path = captured[0] if len(captured) == 1 else mix_wavs(
         captured, os.path.join(result["folder"], "mixed.wav"))
 
-    # Keep the recording as a source in the current project (files move into its folder).
-    title = ((request.get_json(silent=True) or {}).get("title") or "").strip()  # localised by the UI
-    source = library.create_source(library.current_project()["id"], "recording",
-                                   title or "Recording " + time.strftime("%d.%m.%Y %H:%M"), status="recorded")
-    for name in os.listdir(result["folder"]):
-        library.attach_file(source, os.path.join(result["folder"], name), name, move=True)
-    shutil.rmtree(result["folder"], ignore_errors=True)
-    playback_path = os.path.join(library.source_dir(source), os.path.basename(playback_path))
-    library.update_source(source["id"], audit=False, audio_file=os.path.basename(playback_path))
+    changes = dict(status="recorded", audio_file=os.path.basename(playback_path))
+    title = (data.get("title") or "").strip()      # older clients name the recording at stop
+    if title:
+        changes["title"] = title
+    source = library.update_source(source_id, **changes)
+
+    job_id = None
+    if opts:
+        library.delete_provisional_segments(source_id)      # the full pass owns the transcript from here
+        library.update_source(source_id, status="processing", asr_model=opts["model_name"], error=None)
+        job_id = _start_transcription(source, playback_path, opts)
 
     response = send_file(playback_path, mimetype="audio/wav", as_attachment=False,
                          download_name="recording.wav")
     response.headers["X-Recording-Id"] = result["recording_id"]
-    response.headers["X-Source-Id"] = source["id"]
+    response.headers["X-Source-Id"] = source_id
     response.headers["X-Recording-Errors"] = json.dumps(result["errors"])
+    if job_id:
+        response.headers["X-Job-Id"] = job_id
     return response
 
 
@@ -634,6 +714,7 @@ def _settings_payload():
         "ollama_model": prefs["ollama_model"],
         "local_model": prefs["local_model"],
         "hotkeys": prefs["hotkeys"],
+        "live_transcription": prefs["live_transcription"],
         "claude_models": [{"id": m, "label": label} for m, label in settings.CLAUDE_MODELS],
     }
 
@@ -648,7 +729,8 @@ def save_settings():
     """Update only the fields present: hf_token, anthropic_api_key, llm_provider, claude_model, ollama_model."""
     global hf_token, _diarization_pipeline
     data = request.get_json(silent=True) or {}
-    prefs = {k: data[k] for k in ("llm_provider", "claude_model", "ollama_model", "local_model", "hotkeys") if k in data}
+    prefs = {k: data[k] for k in ("llm_provider", "claude_model", "ollama_model", "local_model", "hotkeys",
+                                 "live_transcription") if k in data}
     try:
         if prefs:
             settings.save_settings(prefs)
@@ -1187,6 +1269,27 @@ def api_source(source_id):
                     "atom_marks": library.atom_marks(source_id),
                     "audio_url": f"/api/sources/{source_id}/audio" if source.get("audio_file") else None,
                     "audio_files": _audio_files(source)})
+
+
+@app.route("/api/sources/<source_id>/live")
+def api_source_live(source_id):
+    """The transcript as it grows while the meeting is recorded (5.0 C4.1): the lines after `after`."""
+    try:
+        library.get_source(source_id)
+        after = int(request.args.get("after", -1))
+    except StoreError as e:
+        return jsonify({"error": str(e)}), 404
+    except ValueError:
+        return jsonify({"error": "after must be a number"}), 400
+    segments, _ = library.transcript(source_id)
+    with _recorder_lock:
+        st = _recorder.status() if _recorder is not None else None
+        mine = bool(st and st["recording"] and _session["source_id"] == source_id)
+        live = _live_state(source_id) if mine else "off"
+    paused = bool(mine and st["paused"])
+    return jsonify({"segments": [s for s in segments if s["idx"] > after], "recording": mine, "paused": paused,
+                    "elapsed": st["elapsed"] if mine else 0, "live": live,
+                    "listening": mine and not paused and live != "off"})
 
 
 # ── meeting notes and recap styles (5.0 C3) ──────────────────────────────────
