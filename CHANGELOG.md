@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.2.2 (2026-10-14): Icon, final colours
+
+- The icon is blue with white bars, and the three text lines are the same length.
+
 ## 4.2.1 (2026-10-14): App icon
 
 - The Mac app has an icon: three bars of sound that become three lines of text (`docs/design/icon/`). The app was shipping with the generic macOS icon.
