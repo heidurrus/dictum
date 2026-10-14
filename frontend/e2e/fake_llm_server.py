@@ -88,6 +88,42 @@ def fake_recap_generate(prefs, api_key):
 app_module._recap_generate = fake_recap_generate
 app_module.app.add_url_rule("/__fake/recaps", "fake_recaps", lambda: app_module.jsonify(RECAPS))
 
+# Спросить (5.0 C6, e2e/ask.mjs): a scripted answer citing two sources (a material first when there is one), streamed
+# in pieces; a question with "сделай вопрос" / "make a question" also gets the create_question intent. The question
+# card's short mode (e2e/session.mjs) answers in one sentence with one marker.
+ASK_SHORT = {"ru": "Статус утверждает руководитель отдела или его заместитель",
+             "en": "The head of the department or their deputy approves the status"}
+
+
+def fake_ask_generate(prefs, api_key):
+    def generate(system, user, on_delta):
+        ru = "[Источник " in user
+        word, lang = ("Источник", "ru") if ru else ("Source", "en")
+        listed = re.findall(r"^\[(?:Источник|Source) (\d+)\] \((material|meeting|requirement) ", user, flags=re.M)
+        mats = [n for n, kind in listed if kind == "material"]
+        if "at most two sentences" in system:
+            text = f"{ASK_SHORT[lang]} [{word} {(mats or [listed[0][0]])[0]}]."
+        else:
+            a = (mats or [listed[0][0]])[0]
+            b = next((n for n, _kind in listed if n != a), a)
+            text = (f"Ответ дилеру даётся не позднее двух часов [{word} {a}]. Это же прозвучало на встрече [{word} {b}]."
+                    if ru else f"The dealer gets a reply within two hours [{word} {a}]. The meeting said the same [{word} {b}].")
+            question = re.search(r"^Question: (.+)$", user, flags=re.M).group(1)
+            if re.search(r"сделай вопрос|make a question", question, flags=re.I):
+                statement = ("Какой срок ответа дилеру считать целевым?" if ru
+                             else "Which reply time to the dealer is the target?")
+                text += "\n<intent>" + json.dumps({"create_question": {"statement": statement,
+                                                                      "source_ns": [int(a), int(b)]}},
+                                                  ensure_ascii=False) + "</intent>"
+        for i in range(0, len(text), 24):
+            on_delta(text[i:i + 24])
+            time.sleep(0.05)
+        return text
+    return generate
+
+
+app_module._ask_generate = fake_ask_generate
+
 
 def fake_transcribe(job_id, audio_path, model_name, diarize, word_timestamps, device):
     for pct in (20, 40, 60, 80):
@@ -163,11 +199,13 @@ else:
 
 # Live session (5.0 C4.1, e2e/session.mjs): FAKE_RECORDER=1 makes this a desktop window with a fake microphone and
 # system audio (a steady tone, written by the real recorder into the meeting's folder) and a fake live pass that
-# appends three scripted provisional lines 1 s apart. Stop runs the real stop route; the final transcription is
+# appends four scripted provisional lines 1 s apart (the last one is a question: with `live_questions` on, the
+# question card checks every second and gets the scripted short answer). Stop runs the real stop route; the final transcription is
 # fake_transcribe above, once per channel, and replaces the provisional lines. Requirements on the fly (C4.2) run
 # for real every second once the three lines are in; the fake model finds one requirement in them.
 LIVE_SCRIPT = [("BA", "Давайте начнём с заявок дилеров"), ("OTHER", "Заявки дублируются почти каждый день"),
-               ("BA", "Проверяем дубли по VIN и телефону")]
+               ("BA", "Проверяем дубли по VIN и телефону"),
+               ("OTHER", "А кто утверждает изменение статуса заявки дилера?")]   # the question card (C4.3)
 
 
 def _tone(value):
@@ -223,6 +261,8 @@ if os.getenv("FAKE_RECORDER"):
     app_module._mic_source = lambda idx: _tone(1000)
     app_module._system_source = lambda: _tone(2000)
     app_module._start_live = lambda source, folder, opts, recorder: FakeLive(source["id"])
+    app_module._start_live_questions = functools.partial(app_module._start_live_questions, window=1.0,
+                                                         generate=fake_ask_generate(None, None))
     app_module.app.view_functions["audio_devices"] = lambda: app_module.jsonify([{"index": 0, "name": "Fake microphone"}])
 
 # Pretend to be another machine for screenshots: FAKE_GPU="none" or a size in GB.

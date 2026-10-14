@@ -1,17 +1,18 @@
 // The transcript of a meeting while it is being recorded (spec 5.0 C4.1): the page polls
 // GET /api/sources/<id>/live?after=<idx> every 2 s and appends what is new. The same answer carries the
 // meeting's requirements found so far (C4.2), the silence counter and, once the recording stopped by itself,
-// why (C4.3).
+// why (C4.3), and the question card (C4.3: a question heard in the call, answered from the materials).
 import { api } from "./api.js";
 
 export const LIVE_POLL_MS = 2000;
 
 export function createLive(sourceId) {
   const st = $state({ segments: [], recording: true, paused: false, elapsed: 0, live: "on", listening: false, error: "",
-                      atoms: [], silence: 0, silence_stop: 0, stopped: null });
+                      atoms: [], silence: 0, silence_stop: 0, stopped: null, question: null });
   let after = -1;
   let seenAt = 0;                 // created_at of the newest requirement when the user last looked at the block
   const pending = {};             // atom id → status set here and not reported by the server yet
+  const hidden = new Set();       // question cards dismissed here (an older poll may still carry one)
 
   // A status set here wins over the server's until the server reports it too (an older poll may still arrive).
   const mark = list => list.map(a => {
@@ -28,7 +29,8 @@ export function createLive(sourceId) {
       }
       Object.assign(st, { recording: body.recording, paused: body.paused, elapsed: body.elapsed, live: body.live,
                           listening: body.listening, error: "", atoms: mark(body.atoms || []),
-                          silence: body.silence || 0, silence_stop: body.silence_stop || 0, stopped: body.stopped || null });
+                          silence: body.silence || 0, silence_stop: body.silence_stop || 0, stopped: body.stopped || null,
+                          question: body.question && !hidden.has(body.question.id) ? body.question : null });
     } catch (err) { st.error = err.message; }       // transient: the next poll tries again
     return st;
   }
@@ -53,6 +55,16 @@ export function createLive(sourceId) {
     }
   }
 
+  // "Скрыть" / "Добавить в заметки" on the question card: gone at once, and the server stops showing it.
+  async function dismissQuestion() {
+    const q = st.question;
+    if (!q) return;
+    hidden.add(q.id);
+    st.question = null;
+    try { await api(`/api/sources/${sourceId}/live/question/dismiss`, { method: "POST", body: { id: q.id } }); }
+    catch (_) { /* it expires by itself */ }
+  }
+
   // Poll until stopped or the recording ends; onFirst gets the first answer.
   function follow(onFirst) {
     let stopped = false;
@@ -67,5 +79,5 @@ export function createLive(sourceId) {
     return () => { stopped = true; };
   }
 
-  return { state: st, poll, follow, markSeen, setStatus };
+  return { state: st, poll, follow, markSeen, setStatus, dismissQuestion };
 }

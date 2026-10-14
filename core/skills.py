@@ -27,12 +27,12 @@ from core.paths import app_data_dir
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 STAGES = ["global", "summary", "recap_brief", "recap_bullets", "recap_actions", "extract", "dedup", "frd", "quality",
-          "fix", "export", "decompose", "invest"]
+          "fix", "export", "decompose", "invest", "ask"]
 DEFAULTS = {"global": "house-rules", "summary": "summarize-source", "extract": "extract-requirements",
             "dedup": "find-duplicates", "frd": "write-frd", "quality": "quality-check",
             "fix": "fix-requirement", "export": "export-standard", "decompose": "split-into-stories",
             "invest": "invest-check", "recap_brief": "recap-brief", "recap_bullets": "recap-bullets",
-            "recap_actions": "recap-actions"}
+            "recap_actions": "recap-actions", "ask": "ask"}
 FRD_KINDS = {"purpose", "context", "functional", "nfr", "out_of_scope", "questions", "business", "current", "risks"}
 FRD_REQUIRED = {"functional", "nfr", "questions"}            # requirements must always have a home
 ATOM_TYPES = ["functional", "nfr", "question", "business", "risk", "current"]

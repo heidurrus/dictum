@@ -136,6 +136,20 @@
       app.atomsVersion++;
     } catch (err) { toast(err.message, { kind: "danger" }); }
   }
+  // The question card (5.0 C4.3): a question heard in the call with its answer from the materials "в контексте".
+  const liveQuestion = $derived(liveSt?.question || null);
+  async function questionToNotes() {
+    const q = liveQuestion;
+    if (!q) return;
+    const line = t("q.note", { q: q.text, a: q.answer, src: q.citation?.title || "" });
+    try {
+      const res = await api(`/api/sources/${id}/notes/append`, { method: "POST", body: { line } });
+      if (source) source.notes = res.text;
+      toast(t("q.added"));
+      live?.dismissQuestion();
+    } catch (err) { toast(err.message, { kind: "danger" }); }
+  }
+
   // The recording stopped itself after a long silence (5.0 C4.3): said on the page until the meeting is processed.
   let stoppedBy = $state(null);
   $effect(() => { if (liveSt?.stopped?.reason === "silence") stoppedBy = liveSt.stopped; });
@@ -470,6 +484,18 @@
               </div>
             </div>
           </section>
+          {#if liveQuestion}
+            {#key liveQuestion.id}
+              <div class="q-card" role="status">
+                <h4><Icon name="bolt" size={16} /> {t("q.title")}</h4>
+                <p>«{liveQuestion.text}» — {liveQuestion.answer}{#if liveQuestion.citation?.title} <span class="q-src">({liveQuestion.citation.title})</span>{/if}</p>
+                <div class="row">
+                  <button class="btn filled" onclick={questionToNotes}>{t("q.add")}</button>
+                  <button class="btn text" onclick={() => live?.dismissQuestion()}>{t("q.hide")}</button>
+                </div>
+              </div>
+            {/key}
+          {/if}
         </div>
       </Panes>
     {:else if source.status !== "ready"}
@@ -688,7 +714,18 @@
   :global(.pane.mt-content) { background: none; overflow-y: auto; }
   :global(.panes:has(> .mt-content) > .pane.inspector) { background: var(--surface); border-radius: var(--r-l); box-shadow: var(--shadow-1);
     border-left: 0; overflow: hidden; }
-  .sess-body { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(320px, 1fr); gap: 14px; height: 100%; min-height: 0; }
+  .sess-body { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(320px, 1fr); gap: 14px; height: 100%; min-height: 0; position: relative; }
+  /* prototype-v5 .q-card: the dark card bottom-left */
+  .q-card { position: absolute; left: 24px; bottom: 24px; width: 380px; max-width: calc(100% - 48px); z-index: 5; background: var(--hud);
+    color: var(--hud-text); border-radius: 20px; padding: 16px 18px; box-shadow: var(--shadow-3); animation: qfade .25s; }
+  .q-card h4 { font-size: 14px; display: flex; gap: 8px; align-items: center; }
+  .q-card p { color: var(--hud-text-2); margin: 8px 0 12px; line-height: 20px; }
+  .q-card .row { display: flex; gap: 8px; }
+  .q-card .btn { background: var(--hud-2); color: var(--hud-text); height: 34px; border: 0; box-shadow: none; }
+  .q-card .btn.filled { background: var(--primary-c); color: var(--on-primary-c); }
+  :global(:root[data-theme="dark"]) .q-card .btn.text { color: var(--primary); }
+  @keyframes qfade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  @media (max-width: 760px) { .q-card { position: fixed; left: 16px; right: 16px; bottom: 16px; width: auto; max-width: none; } }
   .col { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
   .col-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--outline-2); flex: none; min-width: 0; flex-wrap: wrap; }
   .col-head h2 { font-size: 15px; font-weight: 600; }
