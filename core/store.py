@@ -146,6 +146,10 @@ CREATE INDEX IF NOT EXISTS chunks_by_source ON material_chunks(source_id, idx);
 CREATE TABLE IF NOT EXISTS source_embeddings (
   entity TEXT NOT NULL, entity_id TEXT NOT NULL, idx INTEGER NOT NULL, text TEXT NOT NULL, embedding BLOB,
   PRIMARY KEY (entity, entity_id, idx));
+CREATE TABLE IF NOT EXISTS ask_history (
+  id TEXT PRIMARY KEY, project_id TEXT NOT NULL, question TEXT NOT NULL, answer TEXT NOT NULL,
+  citations_json TEXT NOT NULL, context_only INTEGER NOT NULL, created_at REAL NOT NULL);
+CREATE INDEX IF NOT EXISTS ask_by_project ON ask_history(project_id, created_at);
 """
 
 PROJECT_FIELDS = ("id", "name", "local_only", "archived", "language", "jira_quotes", "auto_extract",
@@ -873,15 +877,16 @@ class Store:
                       FROM atoms s WHERE 1 = 1 {only}""", args)
 
     @staticmethod
-    def fts_query(q):
-        """The FTS5 expression for what the BA typed: every word, as a prefix, in the text column."""
-        terms = re.findall(r"\w+", (q or "").casefold())[:12]
-        return "text : (" + " AND ".join(f'"{t}"*' for t in terms) + ")" if terms else None
+    def fts_query(q, any_term=False, min_len=1):
+        """The FTS5 expression for what the BA typed: every word, as a prefix, in the text column. `any_term`: any of
+        the words of at least `min_len` letters (Спросить looks for the exact terms of a whole question)."""
+        terms = [t for t in re.findall(r"\w+", (q or "").casefold()) if len(t) >= min_len][:12]
+        return "text : (" + (" OR " if any_term else " AND ").join(f'"{t}"*' for t in terms) + ")" if terms else None
 
-    def search(self, project_id, q, limit=30):
+    def search(self, project_id, q, limit=30, any_term=False):
         """Mixed hits, best first: {entity, id, title, snippet, ...}. The snippet marks the matched words with
         SNIPPET_OPEN / SNIPPET_CLOSE. Segment hits carry source_id, idx and start; atom hits their type."""
-        match = self.fts_query(q)
+        match = self.fts_query(q, any_term=True, min_len=4) if any_term else self.fts_query(q)
         if not match:
             return []
         limit = max(1, min(int(limit or 30), 200))
@@ -1170,6 +1175,82 @@ class Store:
                     if r[0] not in keep_ids]
             c.executemany("DELETE FROM source_embeddings WHERE entity = ? AND entity_id = ?", [(entity, i) for i in gone])
 
+    def ask_vectors(self, project_id, context_only=True, materials_only=False):
+        """Everything Спросить compares a question with (5.0 C6), as [{entity, entity_id, locator, title, text, start,
+        embedding}]: chunks of the project's live materials (only those "в контексте" when `context_only`), then,
+        unless `materials_only`, meeting windows and the statements of accepted and pending atoms."""
+        rows = []
+        with self._conn() as c:
+            rows += [{**dict(r), "entity": "material", "start": None} for r in c.execute(
+                """SELECT mc.source_id AS entity_id, mc.idx AS locator, s.title, mc.text, mc.embedding
+                   FROM material_chunks mc JOIN sources s ON s.id = mc.source_id JOIN materials m ON m.source_id = s.id
+                   WHERE s.project_id = ? AND s.deleted_at IS NULL AND mc.embedding IS NOT NULL"""
+                + (" AND m.in_context = 1" if context_only else "") + " ORDER BY s.created_at, mc.idx", (project_id,))]
+            if materials_only:
+                return rows
+            rows += [{**dict(r), "entity": "segment"} for r in c.execute(
+                """SELECT e.entity_id, e.idx AS locator, s.title, e.text, e.embedding, g.start
+                   FROM source_embeddings e JOIN sources s ON s.id = e.entity_id
+                   LEFT JOIN segments g ON g.source_id = e.entity_id AND g.idx = e.idx
+                   WHERE e.entity = 'segment' AND s.project_id = ? AND s.deleted_at IS NULL AND e.embedding IS NOT NULL
+                   ORDER BY s.created_at, e.idx""", (project_id,))]
+            rows += [{**dict(r), "entity": "atom", "locator": 0, "start": None} for r in c.execute(
+                """SELECT e.entity_id, a.statement AS title, e.text, e.embedding, a.type
+                   FROM source_embeddings e JOIN atoms a ON a.id = e.entity_id
+                   WHERE e.entity = 'atom' AND a.project_id = ? AND a.deleted_at IS NULL
+                   AND a.status IN ('accepted', 'pending') AND e.embedding IS NOT NULL ORDER BY a.created_at""",
+                (project_id,))]
+        return rows
+
+    def has_searchable(self, project_id):
+        """Whether the project holds anything Спросить can search (meeting lines, materials, atoms)."""
+        with self._conn() as c:
+            return c.execute("SELECT 1 FROM search WHERE project_id = ? AND entity != 'note' LIMIT 1",
+                             (project_id,)).fetchone() is not None
+
+    # ── Спросить: the history of questions (5.0 C6) ──────────────────────────
+    @staticmethod
+    def _ask_row(r):
+        extra = json.loads(r["citations_json"] or "[]")
+        if isinstance(extra, list):                  # just the citations
+            extra = {"citations": extra}
+        return {"id": r["id"], "project_id": r["project_id"], "question": r["question"], "answer": r["answer"],
+                "context_only": bool(r["context_only"]), "created_at": r["created_at"],
+                "citations": extra.get("citations") or [], "created": extra.get("created"),
+                **{k: extra.get(k) for k in ("model", "elapsed", "sources_used", "indexed")}}
+
+    def add_ask(self, project_id, question, answer, citations, context_only, **extra):
+        """One answered question. `extra` (created, model, elapsed, sources_used, indexed) is kept with the citations,
+        so the history shows the answer exactly as it was given."""
+        aid = str(uuid.uuid4())
+        with self._write() as c:
+            c.execute("INSERT INTO ask_history (id, project_id, question, answer, citations_json, context_only, created_at) "
+                      "VALUES (?,?,?,?,?,?,?)", (aid, project_id, question, answer,
+                                                 json.dumps({"citations": citations, **extra}, ensure_ascii=False),
+                                                 1 if context_only else 0, self._clock()))
+        return self.get_ask(aid)
+
+    def get_ask(self, ask_id):
+        with self._conn() as c:
+            r = c.execute("SELECT * FROM ask_history WHERE id = ?", (ask_id,)).fetchone()
+        if r is None:
+            raise StoreError("question not found")
+        return self._ask_row(r)
+
+    def ask_history(self, project_id, limit=50):
+        """The project's questions, newest first."""
+        limit = max(1, min(int(limit or 50), 500))
+        with self._conn() as c:
+            return [self._ask_row(r) for r in c.execute(
+                "SELECT * FROM ask_history WHERE project_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?",
+                (project_id, limit))]
+
+    def delete_ask(self, ask_id):
+        with self._write() as c:
+            if not c.execute("DELETE FROM ask_history WHERE id = ?", (ask_id,)).rowcount:
+                raise StoreError("question not found")
+        return {"ok": True, "id": ask_id}
+
     def used_in(self, source_id):
         """"Где используется": atoms whose evidence quotes the material, and documents whose latest version cites
         those atoms."""
@@ -1252,6 +1333,7 @@ class Store:
         ("project_skills", "project_id = ?"), ("backlog_items", "project_id = ?"), ("action_items", "project_id = ?"),
         ("materials", "source_id IN (SELECT id FROM sources WHERE project_id = ?)"), ("labels", "project_id = ?"),
         ("material_labels", "label_id IN (SELECT id FROM labels WHERE project_id = ?)"),
+        ("ask_history", "project_id = ?"),
     )
 
     def export_project(self, project_id):
