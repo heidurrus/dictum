@@ -1,4 +1,4 @@
-/* Requirements Workbench: global styles (docs/design/redesign.md §4–5).
+/* Dictum: global styles (docs/design/redesign.md §4–5).
    Tokens live in tokens.css. The block of aliases below keeps the names that
    screen styles written before the redesign still use. */
 :root {

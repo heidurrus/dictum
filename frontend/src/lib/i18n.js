@@ -2,7 +2,7 @@
 // Keep keys identical in both languages; {name} placeholders are filled by t().
 
 const ru = {
-  "app.name": "Requirements Workbench",
+  "app.name": "Dictum",
   "nav.sources": "Источники",
   "nav.transcript": "Транскрипт",
   "nav.atoms": "Требования",
@@ -1161,7 +1161,7 @@ const ru = {
 };
 
 const en = {
-  "app.name": "Requirements Workbench",
+  "app.name": "Dictum",
   "nav.sources": "Sources",
   "nav.transcript": "Transcript",
   "nav.atoms": "Requirements",
