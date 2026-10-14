@@ -127,7 +127,7 @@ svg { flex: none; }
 .search input { flex: 1; border: 0; background: none; outline: none; color: var(--text); }
 .search.sm { height: 36px; border-radius: 18px; min-width: 180px; }
 .seg { display: inline-flex; background: var(--surface-2); border-radius: 20px; padding: 3px; gap: 2px; }
-.seg button { height: 32px; padding: 0 14px; border-radius: 17px; font-weight: 500; color: var(--text-2); font-size: 13px; }
+.seg button { height: 32px; padding: 0 14px; border-radius: 17px; font-weight: 500; color: var(--text-2); font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
 .seg button.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow-1); }
 .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--outline-2); padding: 0 8px; }
 .tabs button { height: 44px; padding: 0 14px; font-weight: 500; color: var(--text-2); position: relative; font-size: 14px; }
@@ -516,7 +516,7 @@ const WKIND = { task: ["Задача", "check"], note: ["Заметка", "edit"
 const S = {
   page: "meetings", theme: localStorage.getItem("wb5.theme") || "", onb: 0, tut: 0,
   sel: 1, tab: "summary", q: "", sort: "new",
-  file: 2, view: "list", kind: "all", fq: "", lsel: "", newLabel: null, gz: 1,
+  file: 2, view: "graph", kind: "all", fq: "", lsel: "", newLabel: null, gz: 1,
   paused: false, secs: 1935, qcard: true, notes: "- Дубли заявок: VIN + телефон\n- SLA 2 часа (!)\n- Кто утверждает статус? → уточнить у Олега\n- История изменений",
   perms: { mic: true, sys: false, notif: false }, model: "35b", dl: 0, disc: { 1: true, 2: true, 3: false },
   setsec: "models", ctxOnly: true, toast: "",
@@ -687,7 +687,7 @@ function pageLibrary() {
   const lcount = l => FILES.filter(x => x.labels.includes(l)).length;
   const linkTo = b => /^(FR|BR|NFR|AS|Q|RSK)-/.test(b) ? "requirements" : "meetings";
   const tag = l => `<span class="tag" style="background:${LCOLOR(l)}1f;color:${LCOLOR(l)}">${l}</span>`;
-  const views = `<div class="seg"><button class="${S.view === "list" ? "on" : ""}" onclick="S.view='list';render()">${ic("list", 16)}</button><button class="${S.view === "grid" ? "on" : ""}" onclick="S.view='grid';render()">${ic("grid", 16)}</button><button class="${S.view === "graph" ? "on" : ""}" onclick="S.view='graph';render()" title="Граф связей">${ic("tree", 16)}</button></div>`;
+  const views = `<div class="seg"><button class="${S.view === "graph" ? "on" : ""}" onclick="S.view='graph';render()">${ic("tree", 16)} Граф</button><button class="${S.view === "list" ? "on" : ""}" onclick="S.view='list';render()">${ic("list", 16)} Список</button><button class="${S.view === "grid" ? "on" : ""}" onclick="S.view='grid';render()">${ic("grid", 16)} Плитка</button></div>`;
   const body = S.view === "list" ? html`<div class="scroll grow"><table class="ftable"><thead><tr><th>Имя</th><th>Метки</th><th>Изменён</th><th>Размер</th><th>Контекст</th></tr></thead><tbody>
         ${files.map(x => `<tr class="${S.file === x.id ? "on" : ""}" onclick="S.file=${x.id};render()"><td><span class="fname"><span class="fico ${x.ext}">${x.ext.toUpperCase()}</span><span class="trunc">${x.name}</span></span></td>
           <td style="white-space:nowrap">${x.labels.map(tag).join(" ")}</td><td class="t2" style="white-space:nowrap">${x.changed}</td><td class="t2 num" style="white-space:nowrap">${x.size}</td><td><span class="cb ${x.ctx ? "on" : ""}" onclick="event.stopPropagation();FILES.find(y=>y.id===${x.id}).ctx=!${x.ctx};render()">${x.ctx ? ic("check", 14) : ""}</span></td></tr>`).join("")}</tbody></table>
