@@ -58,6 +58,7 @@
     loadError = "";
     try {
       source = await api(`/api/sources/${id}`);
+      if (source.kind === "material") { location.replace(`#/library/${id}`); return; }   // a material opens in Материалы
       names = { ...source.speaker_names };
       rememberSource(id);
     } catch (err) {

@@ -23,6 +23,7 @@
     sources: '<path d="M3 5.5v5M6 3v10M9 5v6M12 6.5v3"/>',
     transcript: '<path d="M3 4h10M3 7h10M3 10h6M3 13h8"/>',
     atoms: '<rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1.2"/><rect x="9" y="2.5" width="4.5" height="4.5" rx="1.2"/><rect x="2.5" y="9" width="4.5" height="4.5" rx="1.2"/><path d="M9.8 11.3l1.3 1.3 2.3-2.6"/>',
+    folder: '<path d="M2 4.3c0-.5.4-.8.8-.8h3.4l1.5 1.6h5.5c.4 0 .8.4.8.8v6.8c0 .4-.4.8-.8.8H2.8a.8.8 0 0 1-.8-.8z"/>',
     doc: '<path d="M4 1.8h5.2L12.5 5v8.7a.8.8 0 0 1-.8.8H4a.8.8 0 0 1-.8-.8V2.6a.8.8 0 0 1 .8-.8z"/><path d="M9 2v3.3h3.3M5.5 8.5h5M5.5 11h3.5"/>',
     tree: '<rect x="2" y="2" width="5" height="3.2" rx="1"/><rect x="7" y="7" width="7" height="2.8" rx="1"/><rect x="7" y="11.4" width="7" height="2.8" rx="1"/><path d="M4.5 5.2v7.6h2.5M4.5 8.4h2.5"/>',
     export: '<path d="M8 10V2.5M5 5.3L8 2.3l3 3"/><path d="M3 9v3.7c0 .5.4.8.8.8h8.4c.5 0 .8-.3.8-.8V9"/>',

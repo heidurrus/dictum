@@ -35,7 +35,7 @@ export function parseRoute(hash = location.hash) {
   if (parts[0] === "settings") return { name: "settings" };
   if (parts[0] === "transcript") return { name: "transcript", id: null };
   if (parts[0] === "meetings") return { name: "meetings" };
-  if (parts[0] === "library") return { name: "library" };
+  if (parts[0] === "library") return { name: "library", id: parts[1] || null };
   if (parts[0] === "ask") return { name: "ask" };
   if (parts[0] === "whisper") return { name: "whisper" };
   return { name: "home" };            // resolved by the app: Встречи

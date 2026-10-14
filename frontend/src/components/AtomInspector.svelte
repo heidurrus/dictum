@@ -137,7 +137,7 @@
           <p class="cap">{t("insp.evidence")}</p>
           {#each context as c (c.ev.id)}
             <div class="well evidence">
-              <button class="evidence-head" onclick={() => go(`/source/${c.ev.source_id}/seg/${c.ev.segment_idx}`)} title={t("at.jump")}>
+              <button class="evidence-head" onclick={() => go(c.ev.source_kind === "material" ? `/library/${c.ev.source_id}` : `/source/${c.ev.source_id}/seg/${c.ev.segment_idx}`)} title={t("at.jump")}>
                 <Icon name={c.ev.start != null ? "wave" : "file"} size={14} />
                 <b class="trunc grow">{c.ev.source_title}</b>
                 {#if c.ev.start != null}<span class="mono t3">{fmtTime(c.ev.start)}</span>{/if}
