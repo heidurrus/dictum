@@ -28,6 +28,7 @@ from core.summarize import SummaryError, summarize
 from core import notes as meeting_notes, summarize as summarize_mod
 from core.atoms import extract_atoms
 from core import backlog, exports, frd, jira, materials, skills, suggest
+from core import index as local_index
 from core.atlassian_auth import MCP_URL, AtlassianAuth, AuthError, AuthRequired
 from core.mcp_client import McpError, McpSession
 from core import local_llm
@@ -78,6 +79,7 @@ library = Store()  # projects, sources, transcripts, summaries (spec increment 1
 library.reset_stale_processing()      # jobs do not survive a restart; let those sources be transcribed again
 library.recover_interrupted_recordings()   # a recording cut off by a quit or crash: its WAVs stay, offer Расшифровать
 transcription_queue = SerialQueue()  # one transcription at a time (spec D-12)
+index_queue = SerialQueue()          # one index pass at a time (5.0 C5)
 
 _recorder = None
 _recorder_lock = threading.Lock()
@@ -243,6 +245,7 @@ def run_job(job_id, upload_path, audio_path, model_name, diarize, word_timestamp
             else:
                 library.save_transcript(source_id, result, asr_model=model_name)
                 _reconcile_live_atoms(source_id)
+                _index_after(source_id)
                 result = {**result, "source_id": source_id, "extract_job": _after_transcription(source_id)}
         except Exception as e:  # never lose the job result because saving failed
             error = error or e
@@ -1022,6 +1025,7 @@ def transcribe():
         with open(os.path.join(library.source_dir(source), filename), "wb") as f:
             f.write(data)
         library.save_transcript(source["id"], result)
+        _index_after(source["id"])
         job_id = jobs.create("import", source["title"])
         jobs.finish(job_id, {**result, "source_id": source["id"]})
         return jsonify({"job_id": job_id, "source_id": source["id"]})
@@ -1553,6 +1557,7 @@ def _run_folder_import(job_id, project, folder):
         jobs.fail(job_id, str(e))
     else:
         jobs.finish(job_id, result)
+        _index_after(project["id"], is_source=False)
 
 
 @app.route("/api/projects/<project_id>/materials", methods=["POST"])
@@ -1574,7 +1579,8 @@ def api_add_materials(project_id):
                 failed.append(f"{name}: {e}")
         if not done and failed:
             return jsonify({"error": "; ".join(failed), "failed": failed}), 400
-        return jsonify({"materials": done, "failed": failed})
+        return jsonify({"materials": done, "failed": failed,
+                        "index_job": _index_after(project_id, is_source=False) if done else None})
     data = request.get_json(silent=True) or {}
     try:
         if data.get("folder"):
@@ -1591,7 +1597,8 @@ def api_add_materials(project_id):
             return jsonify({"error": "send files, a url, a text or a folder"}), 400
     except (materials.MaterialError, StoreError) as e:
         return jsonify({"error": str(e)}), 400
-    return jsonify({"materials": [_material_payload(m)], "failed": []})
+    return jsonify({"materials": [_material_payload(m)], "failed": [],
+                    "index_job": _index_after(project_id, is_source=False)})
 
 
 @app.route("/api/materials/<material_id>", methods=["GET"])
@@ -1666,8 +1673,8 @@ def api_labels(project_id):
 
 @app.route("/api/projects/<project_id>/labels", methods=["POST"])
 def api_create_label(project_id):
-    """{name, seed_material_id?} → {label, assigned: [material ids]}. The seed gets the label (by hand);
-    assigning it to similar materials comes with the index (5.0 C5, second half)."""
+    """{name, seed_material_id?} → {label, assigned: [material ids], auto: [{id, score}], index}. The seed gets the label
+    (by hand); with the index, materials close to the seed (or, without a seed, to the label's name) get it too."""
     data = request.get_json(silent=True) or {}
 
     def create():
@@ -1677,10 +1684,18 @@ def api_create_label(project_id):
             if m["project_id"] != project_id:
                 raise StoreError("the material belongs to another project")
         label = library.create_label(project_id, data.get("name"))
-        assigned = []
+        assigned, auto, ready = [], [], local_index.available()
         if seed and library.assign_label(seed, label["id"], by="user"):
             assigned.append(seed)
-        return {"label": {**label, "count": len(assigned)}, "assigned": assigned}
+        if ready:
+            try:
+                auto = local_index.auto_assign_label(library, project_id, label, seed)
+            except (local_index.IndexUnavailable, local_llm.LocalModelError) as e:
+                job_log.warning("auto labels for %s: %s", label["id"], e)
+                ready = False
+        local_index.refresh_centroid(library, label["id"])
+        assigned += [a["id"] for a in auto]
+        return {"label": {**label, "count": len(assigned)}, "assigned": assigned, "auto": auto, "index": ready}
     return _material_call(create)
 
 
@@ -1693,16 +1708,122 @@ def api_delete_label(label_id):
 def api_assign_label(material_id, label_id):
     def assign():
         library.assign_label(material_id, label_id, by="user")
+        local_index.refresh_centroid(library, label_id)
         return {"labels": library.get_material(material_id)["labels"]}
     return _material_call(assign)
 
 
 @app.route("/api/materials/<material_id>/labels/<label_id>", methods=["DELETE"])
 def api_unassign_label(material_id, label_id):
+    """An automatic label taken off leaves a tombstone, so auto runs never put it back."""
     def unassign():
         library.unassign_label(material_id, label_id)
+        local_index.refresh_centroid(library, label_id)
         return {"labels": library.get_material(material_id)["labels"]}
     return _material_call(unassign)
+
+
+# ── the local index (5.0 C5): related materials, the graph, "Где используется" ──
+_index_pending = {}       # project id → the job id of an index pass that has not started yet
+_index_lock = threading.Lock()
+
+
+def schedule_index(project_id, force_material=None):
+    """Queue an index pass for the project. A pass already waiting covers this request too; one already running
+    does not (what changed after it started needs another), so at most one runs and one waits per project.
+    Nothing happens while the index model is not downloaded."""
+    if not local_index.available():
+        return None
+    with _index_lock:
+        waiting = _index_pending.get(project_id)
+        if waiting and not force_material:
+            return waiting
+        try:
+            name = library.get_project(project_id)["name"]
+        except StoreError:
+            return None
+        job_id = jobs.create("index", name)
+        jobs.set_progress(job_id, 0, "")
+        _index_pending[project_id] = job_id
+    threading.Thread(target=_run_index, args=(job_id, project_id, force_material), daemon=True).start()
+    return job_id
+
+
+def _run_index(job_id, project_id, force_material=None):
+    def progress(done, total):
+        jobs.set_progress(job_id, int(100 * done / max(total, 1)), f"{done}/{total}")
+
+    def work():
+        with _index_lock:
+            if _index_pending.get(project_id) == job_id:
+                del _index_pending[project_id]          # changes from now on need another pass
+        return local_index.index_project(library, project_id, progress, force_material=force_material)
+    try:
+        result = index_queue.run(job_id, work)
+    except Exception as e:
+        job_log.exception("Index job %s failed", job_id)
+        jobs.fail(job_id, e)
+    else:
+        jobs.finish(job_id, result)
+
+
+def _index_after(source_or_project_id, is_source=True):
+    """A trigger (import, transcript saved, atoms added): never fails the request that caused it."""
+    try:
+        pid = library.get_source(source_or_project_id)["project_id"] if is_source else source_or_project_id
+        return schedule_index(pid)
+    except Exception:
+        job_log.exception("could not schedule the index")
+        return None
+
+
+@app.route("/api/projects/<project_id>/index", methods=["POST"])
+def api_index_project(project_id):
+    """{material_id?}: bring the project's index up to date; with a material, re-embed that one from scratch."""
+    data = request.get_json(silent=True) or {}
+    try:
+        library.get_project(project_id)
+        if data.get("material_id") and library.get_material(data["material_id"])["project_id"] != project_id:
+            raise StoreError("the material belongs to another project")
+    except StoreError as e:
+        return jsonify({"error": str(e)}), 404 if "not found" in str(e) else 400
+    return jsonify({"job_id": schedule_index(project_id, data.get("material_id")), **local_index.info()})
+
+
+@app.route("/api/materials/<material_id>/related")
+def api_material_related(material_id):
+    """The 5 materials most like this one, by their best pair of chunks: {related: [{id, title, ext, kind, score}]}."""
+    def related():
+        m = library.get_material(material_id)
+        info = local_index.info()
+        if not info["available"]:
+            return {"related": [], **info}
+        rows = {x["id"]: x for x in library.list_materials(m["project_id"])}
+        out = [{"id": sid, "title": rows[sid]["title"], "ext": rows[sid]["ext"], "kind": rows[sid]["material_kind"],
+                "score": score} for sid, score in local_index.related(library, m["project_id"], material_id) if sid in rows]
+        return {"related": out, **info}
+    return _material_call(related)
+
+
+@app.route("/api/projects/<project_id>/materials/graph")
+def api_materials_graph(project_id):
+    """{nodes: [{id, title, ext, kind, label, color}], edges: [{a, b, w}], truncated}: the graph view."""
+    def build():
+        library.get_project(project_id)
+        info = local_index.info()
+        if not info["available"]:
+            return {"nodes": [], "edges": [], "truncated": False, **info}
+        return {**local_index.graph(library, project_id), **info}
+    return _material_call(build)
+
+
+@app.route("/api/materials/<material_id>/used-in")
+def api_material_used_in(material_id):
+    """"Где используется": {atoms: [{id, type, statement, status, rid}], documents: [{id, title, version}]}."""
+    def used_in():
+        library.get_material(material_id)
+        return library.used_in(material_id)
+    return _material_call(used_in)
 
 
 @app.route("/api/sources/<source_id>/speakers/<path:label>", methods=["PUT"])
@@ -1818,6 +1939,7 @@ def _run_extraction(job_id, source_id, prefs, api_key, note=None):
     else:
         library.audit_event("source", source_id, "extract_atoms", after=result)
         jobs.finish(job_id, {**result, "source_id": source_id})
+        _index_after(source_id)
     finally:
         _extracting.pop(source_id, None)
 
@@ -1916,6 +2038,7 @@ def api_add_ba_atom(project_id):
     def add():
         atom = library.add_ba_atom(project_id, d.get("type") or "functional", d.get("statement"), d.get("note"),
                                    d.get("source_id"), d.get("segment_idx"))
+        _index_after(project_id, is_source=False)
         return {**atom, "stats": library.atom_stats(project_id)}
     return _store_call(add)
 
