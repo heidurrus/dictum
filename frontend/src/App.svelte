@@ -1,6 +1,7 @@
 <script>
   import { keyOf } from "./lib/keys.js";
-  import Sidebar from "./components/Sidebar.svelte";
+  import Rail from "./components/Rail.svelte";
+  import TopBar from "./components/TopBar.svelte";
   import CommandPalette from "./components/CommandPalette.svelte";
   import RecordingHud from "./components/RecordingHud.svelte";
   import Overview from "./screens/Overview.svelte";
@@ -13,9 +14,10 @@
   import Skills from "./screens/Skills.svelte";
   import Backlog from "./screens/Backlog.svelte";
   import Export from "./screens/Export.svelte";
+  import Soon from "./screens/Soon.svelte";
   import { api, setProgressTranslator, setLangSource } from "./lib/api.js";
   import { progressText } from "./lib/progress.js";
-  import { app, t, go, loadProjects, loadSources, setLang, applyTheme, setTheme, isDark, loadStatus, undoLast, sidebarIsRail, toggleInspector } from "./lib/state.svelte.js";
+  import { app, t, go, loadProjects, loadSources, setLang, applyTheme, setTheme, isDark, loadStatus, undoLast, toggleInspector } from "./lib/state.svelte.js";
 
   let ready = $state(false);
   let error = $state("");
@@ -74,28 +76,37 @@
 {#if error}
   <div class="boot-error note danger">{t("err.generic", { error })}</div>
 {:else if ready}
-  <div class="app" class:rail-mode={sidebarIsRail()}>
-    <Sidebar />
+  <div class="shell">
+    <Rail />
     <main class="main">
-      {#if app.route.name === "overview"}
-        <Overview />
-      {:else if app.route.name === "atoms"}
-        <Atoms />
-      {:else if app.route.name === "sources"}
-        <Sources />
-      {:else if app.route.name === "document"}
-        <DocumentScreen />
-      {:else if app.route.name === "backlog"}
-        <Backlog />
-      {:else if app.route.name === "export"}
-        <Export />
-      {:else if app.route.name === "skills"}
-        <Skills />
-      {:else if app.route.name === "transcript"}
-        {#key app.route.id}<Transcript id={app.route.id} autoSummarize={app.route.summarize} focusSeg={app.route.seg} />{/key}
-      {:else if app.route.name === "settings"}
-        <Settings />
-      {/if}
+      <TopBar />
+      <div class="page">
+        {#if app.route.name === "overview"}
+          <Overview />
+        {:else if app.route.name === "atoms"}
+          <Atoms />
+        {:else if app.route.name === "sources"}
+          <Sources />
+        {:else if app.route.name === "document"}
+          <DocumentScreen />
+        {:else if app.route.name === "backlog"}
+          <Backlog />
+        {:else if app.route.name === "export"}
+          <Export />
+        {:else if app.route.name === "skills"}
+          <Skills />
+        {:else if app.route.name === "transcript"}
+          {#key app.route.id}<Transcript id={app.route.id} autoSummarize={app.route.summarize} focusSeg={app.route.seg} />{/key}
+        {:else if app.route.name === "settings"}
+          <Settings />
+        {:else if app.route.name === "library"}
+          <Soon title={t("nav.library")} icon="file" />
+        {:else if app.route.name === "ask"}
+          <Soon title={t("nav.ask")} icon="search" />
+        {:else if app.route.name === "whisper"}
+          <Soon title={t("nav.whisper")} icon="mic" />
+        {/if}
+      </div>
     </main>
   </div>
   <CommandPalette />

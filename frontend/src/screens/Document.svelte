@@ -1,7 +1,7 @@
 <script>
   import { keyOf } from "../lib/keys.js";
   import Icon from "../components/Icon.svelte";
-  import Screen from "../components/Screen.svelte";
+  import Page from "../components/Page.svelte";
   import Panes from "../components/Panes.svelte";
   import PopMenu from "../components/PopMenu.svelte";
   import SourceContext from "../components/SourceContext.svelte";
@@ -346,7 +346,7 @@
 
 <svelte:window onkeydown={onKey} />
 
-<Screen title={doc?.title || t("nav.document")} inspector={version ? "document" : ""}
+<Page title={doc?.title || t("nav.document")} inspector={version ? "document" : ""}
         sub={!doc ? "" : version ? t("doc.sub", { v: version.number, n: version.atom_count, when: ago(version.created_at) }) + " · " + t("doc.st." + (version.status || "draft")).toLowerCase() : t("doc.never")}>
   {#snippet heading()}
     {#if doc && editingTitle}
@@ -659,7 +659,7 @@
       </div>
     {/if}
   </div>
-</Screen>
+</Page>
 
 {#if confirmFull}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->

@@ -112,6 +112,12 @@ export function askThenRecord() {
   if (consented()) startRecording();
   else cap.consentAsk = true;
 }
+// The shell's record button (rail, phone header): the same flow; the consent sheet is part of Sources.
+export function recordFromShell() {
+  if (cap.recording) return;
+  askThenRecord();
+  if (cap.consentAsk && app.route.name !== "sources") go("/sources");
+}
 export function confirmConsent() {
   cap.consentAsk = false;
   try { sessionStorage.setItem("wb.consent", "1"); } catch (_) { /* private mode */ }

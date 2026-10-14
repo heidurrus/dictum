@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.9.1 (2026-10-14): New shell
+
+- **A navigation rail replaces the sidebar.** On the left: the Dictum mark, the record button (⌘R in the app window), then Встречи, Материалы, Требования, Документы, Бэклог, Спросить, Шепнуть and Настройки at the bottom; ⌘1…⌘8 follow that order. Скиллы and Выгрузка are under «Ещё» and in the ⌘K palette. Требования shows how many requirements wait for review, Документы gets a dot when a document is out of date. Материалы, Спросить and Шепнуть say what is coming; they arrive in the next updates. Встречи still opens the Sources screen for now.
+- **A top bar and a page header.** The project chip at the top switches projects, creates or opens one, lists the archive and shows whether the project is local only (⌘⇧P). The theme toggle (⌘⇧L) and help (the command palette) sit on the right. Every screen has a large title with its status line and actions, and its content sits in a rounded card.
+- **A tonal theme, light and dark.** Softer surfaces, rounder corners and new colours from the 5.0 design, on every screen. Dark follows the system, or the choice in Settings.
+- **Inter.** The interface uses Inter (variable, Cyrillic included), bundled with the app; nothing loads from the network.
+- Phone-width windows (≤ 760 px) get a bottom bar with five sections, and the record button moves into the page header.
+
 ## 4.9.0 (2026-10-14): Dictum
 
 - **The app is now called Dictum.** It was Requirements Workbench up to 4.2. The Mac app is `Dictum.app` (bundle id `com.heidurrus.dictum`), the downloads are `Dictum-<version>-macos-arm64.dmg` and `Dictum-<version>-Setup.exe`. This is the first pre-release of 5.0.

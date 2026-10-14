@@ -2,7 +2,7 @@
   // Overview (redesign §8.1): the project at a glance. One next step, then where each stage of
   // the pipeline stands, what waits for the client, and what changed since the last visit.
   import Icon from "../components/Icon.svelte";
-  import Screen from "../components/Screen.svelte";
+  import Page from "../components/Page.svelte";
   import { api } from "../lib/api.js";
   import { fmtDate } from "../lib/format.js";
   import { nextStep } from "../lib/next.js";
@@ -65,7 +65,7 @@
   const actText = e => (t("act." + e.action) === "act." + e.action ? e.action : t("act." + e.action));
 </script>
 
-<Screen title={t("nav.overview")} sub={project?.name || ""}>
+<Page title={t("nav.overview")} sub={project?.name || ""}>
   {#snippet actions()}
     <button class="btn" onclick={() => go("/sources")}><Icon name="plus" size={14} /> {t("ov.add_source")}</button>
   {/snippet}
@@ -193,7 +193,7 @@
       </div>
     </div>
   </div>
-</Screen>
+</Page>
 
 <style>
   .page { height: 100%; }

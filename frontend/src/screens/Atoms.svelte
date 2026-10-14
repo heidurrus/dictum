@@ -1,7 +1,7 @@
 <script>
   import { keyOf } from "../lib/keys.js";
   import Icon from "../components/Icon.svelte";
-  import Screen from "../components/Screen.svelte";
+  import Page from "../components/Page.svelte";
   import Panes from "../components/Panes.svelte";
   import PopMenu from "../components/PopMenu.svelte";
   import SourceContext from "../components/SourceContext.svelte";
@@ -405,7 +405,7 @@
 
 <svelte:window onkeydown={onKey} />
 
-<Screen title={t("at.title")} {sub} inspector={tab === "atoms" ? "atoms" : ""}>
+<Page title={t("at.title")} {sub} inspector={tab === "atoms" ? "atoms" : ""}>
   {#snippet actions()}
     <div class="seg tb-opt2" role="tablist">
       <button role="tab" aria-selected={tab === "atoms"} onclick={() => (tab = "atoms")}>{t("at.tab.atoms")}
@@ -636,7 +636,7 @@
     {/snippet}
   </Panes>
   {/if}
-</Screen>
+</Page>
 
 <style>
   .page { height: 100%; }

@@ -1,20 +1,26 @@
+@import "./tokens-m.css";
 /* Dictum: global styles (docs/design/redesign.md §4–5).
-   Tokens live in tokens.css. The block of aliases below keeps the names that
-   screen styles written before the redesign still use. */
+   Tokens live in tokens.css (the 4.x names) and tokens-m.css (the tonal 5.0 names). The first block
+   keeps the short names that screen styles written before the redesign still use; the second maps
+   the 4.x names onto the tonal tokens, so old screens take the 5.0 look without being restyled. */
+
+/* Inter, bundled (OFL, see assets/fonts/LICENSE.txt): nothing loads from the network. */
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 100 900; font-display: swap;
+  src: url("./assets/fonts/InterVariable.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: italic; font-weight: 100 900; font-display: swap;
+  src: url("./assets/fonts/InterVariable-Italic.woff2") format("woff2"); }
+
 :root {
-  --bg: var(--c-content); --sidebar: var(--c-sidebar-solid); --surface: var(--c-content); --surface-2: var(--c-fill-2);
-  --surface-3: var(--c-fill-3); --overlay: var(--c-scrim);
-  --hud: var(--c-hud); --hud-text: var(--c-hud-text); --hud-text-2: var(--c-hud-text-2); --hud-line: var(--c-hud-line);
-  --text: var(--c-text); --text-2: var(--c-text-2); --text-3: var(--c-text-3); --text-on-accent: var(--c-text-on-accent);
+  --sidebar: var(--c-sidebar-solid); --overlay: var(--c-scrim); --hud-line: var(--c-hud-line);
+  --text-on-accent: var(--c-text-on-accent);
   --line: var(--c-line); --line-strong: var(--c-line-strong); --line-control: var(--c-line-control);
   --accent: var(--c-accent-text); --accent-bg: var(--c-accent-tint); --accent-line: var(--c-accent-tint-2);
-  --primary: var(--c-accent); --primary-hover: var(--c-accent-hover); --focus: var(--c-focus);
-  --ok: var(--c-ok); --ok-bg: var(--c-ok-tint); --warn: var(--c-warn); --warn-bg: var(--c-warn-tint);
-  --danger: var(--c-danger); --danger-bg: var(--c-danger-tint); --danger-fill: var(--c-danger-fill);
+  --primary-hover: var(--c-accent-hover); --focus: var(--c-focus);
+  --ok-bg: var(--c-ok-tint); --warn-bg: var(--c-warn-tint);
+  --danger-bg: var(--c-danger-tint); --danger-fill: var(--c-danger-fill);
   --q: var(--c-type-q); --q-bg: var(--c-fill-2); --nfr: var(--c-type-nfr); --nfr-bg: var(--c-fill-2);
-  --rec: var(--c-rec); --mark: var(--c-mark); --ins: var(--c-ins); --del: var(--c-del);
+  --ins: var(--c-ins); --del: var(--c-del);
   --e1: 0 0 0 1px var(--c-line); --e2: var(--e-3); --e3: var(--e-4); --e-btn: var(--e-1);
-  --mono: var(--font-mono);
   --fs-11: 11px; --fs-12: 12px; --fs-13: 13px; --fs-14: 14px; --fs-15: 15px; --fs-17: 17px; --fs-22: 22px; --fs-26: 28px;
   --sp-1: var(--s-1); --sp-2: var(--s-2); --sp-3: var(--s-3); --sp-4: var(--s-4); --sp-5: var(--s-5); --sp-6: var(--s-6);
   --sp-7: var(--s-7); --sp-8: var(--s-8); --sp-9: var(--s-9); --sp-10: var(--s-10); --sp-11: var(--s-11);
@@ -24,12 +30,38 @@
   --content-w: 1180px; --content-wide: 1600px; --narrow-w: 720px;
 }
 
+/* 4.x names → tonal tokens. The tripled :root outranks the dark blocks of tokens.css
+   (:root:not([data-theme="light"]) and :root[data-theme="dark"]), so this holds in every theme;
+   the values are var() references, so the dark tonal tokens flow through on their own. */
+:root:root:root {
+  --c-window: var(--bg);
+  --c-sidebar: var(--surface); --c-sidebar-solid: var(--surface);
+  --c-content: var(--surface); --c-pane: var(--surface-2); --c-raised: var(--surface);
+  --c-toolbar: var(--surface); --c-toolbar-solid: var(--surface);
+  --c-fill-1: var(--surface-2); --c-fill-2: var(--surface-3); --c-fill-3: var(--surface-4);
+  --c-text: var(--text); --c-text-2: var(--text-2); --c-text-3: var(--text-3); --c-text-on-accent: var(--on-primary);
+  --c-line: var(--outline-2); --c-line-strong: var(--outline); --c-line-control: var(--outline);
+  --c-accent: var(--primary); --c-accent-text: var(--primary); --c-accent-tint: var(--primary-c); --c-focus: var(--primary);
+  --c-accent-hover: color-mix(in srgb, var(--primary), var(--text) 10%);
+  --c-accent-press: color-mix(in srgb, var(--primary), var(--text) 18%);
+  --c-ok: var(--ok); --c-ok-tint: var(--ok-c);
+  --c-warn: var(--warn); --c-warn-tint: var(--warn-c); --c-warn-mark: var(--warn);
+  --c-danger: var(--danger); --c-danger-tint: var(--danger-c);
+  --c-rec: var(--rec); --c-mark: var(--mark);
+  --c-hud: var(--hud); --c-hud-solid: var(--hud); --c-hud-text: var(--hud-text); --c-hud-text-2: var(--hud-text-2);
+  --r-sm: 10px; --r-md: 16px; --r-lg: 24px; --r-xl: 28px;
+  --e-1: var(--shadow-1); --e-2: var(--shadow-2); --e-3: var(--shadow-3); --e-4: var(--shadow-3);
+  --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-display: var(--font);
+  --font-mono: var(--mono);
+}
+
 /* ── Base ───────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
 body {
-  font: var(--w-regular) var(--t-body)/var(--lh-body) var(--font);
-  color: var(--c-text); background: var(--c-window);
+  font: 400 14px/20px var(--font);
+  color: var(--text); background: var(--bg);
   -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
   overflow: hidden;
 }
@@ -71,24 +103,31 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
   .spinner, .spin { animation-duration: 2400ms !important; }
 }
 
-/* ── Shell ──────────────────────────────────────────────────────────────── */
-.app { display: grid; grid-template-columns: var(--w-sidebar) minmax(0, 1fr); height: 100vh;
-  transition: grid-template-columns var(--d-slow) var(--ease-out); }
-.app.rail-mode { grid-template-columns: var(--w-sidebar-rail) minmax(0, 1fr); }
-.main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-width: 0; min-height: 0; background: var(--c-content); position: relative; }
+/* ── Shell (prototype-v5: rail | main; top bar, page head, the workspace card) ── */
+.shell { display: grid; grid-template-columns: var(--rail) minmax(0, 1fr); height: 100vh; }
+.main { min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 14px 20px 20px 0; position: relative; }
+.page { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
-.toolbar { display: flex; align-items: center; gap: var(--s-4); height: var(--h-toolbar); padding: 0 var(--s-6) 0 var(--s-5); min-width: 0;
-  background: var(--c-toolbar); -webkit-backdrop-filter: var(--blur-toolbar); backdrop-filter: var(--blur-toolbar);
-  border-bottom: 1px solid var(--c-line); position: relative; z-index: 5; }
-.tb-title { display: grid; min-width: 0; padding: 0 var(--s-4); flex: 0 1 auto; }
-.screen-title { font: var(--w-semibold) var(--t-title-3)/var(--lh-title-3) var(--font-display); letter-spacing: -.01em;
+.page-head { display: flex; align-items: flex-end; gap: 16px; padding: 8px 4px 18px; min-width: 0; flex: none; }
+.tb-title { display: grid; min-width: 0; flex: 0 1 auto; }
+.screen-title { font-size: 32px; line-height: 40px; font-weight: 600; letter-spacing: -.02em; font-family: var(--font);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.screen-sub { font-size: var(--t-foot); line-height: var(--lh-foot); color: var(--c-text-3); font-variant-numeric: tabular-nums;
+.screen-sub { color: var(--text-2); margin-top: 2px; font-variant-numeric: tabular-nums;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tb-crumb { color: var(--c-text-3); font-weight: var(--w-regular); border: 0; background: none; padding: 0; cursor: pointer; }
-.tb-crumb:hover { color: var(--c-text); }
-.tb-actions { display: flex; align-items: center; gap: var(--s-4); margin-left: auto; flex: none; }
-.tb-sep { width: 1px; height: 16px; background: var(--c-line-strong); margin: 0 var(--s-2); flex: none; }
+.tb-crumb { color: var(--text-3); font-weight: inherit; border: 0; background: none; padding: 0; cursor: pointer; }
+.tb-crumb:hover { color: var(--text); }
+.tb-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; flex: none; }
+.tb-sep { width: 1px; height: 16px; background: var(--outline); margin: 0 var(--s-2); flex: none; }
+
+.workspace.card-m { flex: 1; background: var(--surface); border-radius: var(--r-l); box-shadow: var(--shadow-1); overflow: hidden; }
+
+@media (max-width: 760px) {
+  .shell { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) 72px; }
+  .main { padding: 12px 16px 8px; }
+  .page-head { flex-wrap: wrap; align-items: flex-start; }
+  .page-head .tb-actions { margin-left: 0; width: 100%; flex-wrap: wrap; }
+  .screen-title { font-size: 26px; line-height: 32px; }
+}
 
 .workspace { container-type: inline-size; container-name: ws; min-width: 0; min-height: 0; position: relative; }
 .panes { display: grid; height: 100%; min-height: 0; grid-template-columns: minmax(0, 1fr); }

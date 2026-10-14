@@ -1,5 +1,5 @@
 <script>
-  import Screen from "../components/Screen.svelte";
+  import Page from "../components/Page.svelte";
   import Panes from "../components/Panes.svelte";
   import AsrOptions from "../components/AsrOptions.svelte";
   import LocalModel from "../components/LocalModel.svelte";
@@ -7,7 +7,7 @@
   import Icon from "../components/Icon.svelte";
   import { saveUrl } from "../lib/save.js";
   import { LANGS } from "../lib/i18n.js";
-  import { app, t, go, setLang, setTheme, currentProject, loadProjects, switchProject, toast } from "../lib/state.svelte.js";
+  import { app, t, go, setLang, setTheme, currentProject, loadProjects, switchProject, restoreProject, toast } from "../lib/state.svelte.js";
 
   let s = $state(null);              // server settings payload
   let keyDraft = $state("");
@@ -52,10 +52,6 @@
     await loadProjects();
     if (app.projects[0]) await switchProject(app.projects[0].id);
   }
-  async function restore(id) {
-    await api(`/api/projects/${id}`, { method: "PATCH", body: { archived: false } });
-    await loadProjects();
-  }
 
   const effectiveQuotes = $derived.by(() => {
     const p = currentProject();
@@ -86,7 +82,7 @@
   const backName = $derived(back ? t("nav." + ({ backlog: "decomposition", transcript: "sources", home: "overview" }[back.name] || back.name)) : "");
 </script>
 
-<Screen title={t("set.title")} sub={t("set.sub")} crumb={backName} crumbPath={back?.hash || ""}>
+<Page title={t("set.title")} sub={t("set.sub")} crumb={backName} crumbPath={back?.hash || ""}>
   <Panes>
     {#snippet outline()}
       <div class="pane-body scroll">
@@ -163,7 +159,7 @@
           <span class="label">{t("project.archived")}</span>
           {#each app.archivedProjects as p (p.id)}
             <div class="archived-row"><span>{p.name}</span>
-              <button class="btn btn-ghost btn-sm" onclick={() => restore(p.id)}>{t("project.restore")}</button></div>
+              <button class="btn btn-ghost btn-sm" onclick={() => restoreProject(p.id)}>{t("project.restore")}</button></div>
           {/each}
         </div>
       {/if}
@@ -295,7 +291,7 @@
     </div>
     </div>
   </Panes>
-</Screen>
+</Page>
 
 <style>
   .cats { padding: var(--s-5) var(--s-4); display: grid; gap: 1px; }

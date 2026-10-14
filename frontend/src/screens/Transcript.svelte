@@ -1,7 +1,7 @@
 <script>
   import { keyOf } from "../lib/keys.js";
   import Icon from "../components/Icon.svelte";
-  import Screen from "../components/Screen.svelte";
+  import Page from "../components/Page.svelte";
   import Panes from "../components/Panes.svelte";
   import PopMenu from "../components/PopMenu.svelte";
   import { explain } from "../lib/errors.js";
@@ -262,7 +262,7 @@
 
 <svelte:window onkeydown={onKey} />
 
-<Screen title={source?.title || ""} crumb={t("sources.title")} crumbPath="/sources" {sub} inspector={source?.status === "ready" ? "source" : ""}>
+<Page title={source?.title || ""} crumb={t("sources.title")} crumbPath="/sources" {sub} inspector={source?.status === "ready" ? "source" : ""}>
   {#snippet heading()}
     {#if source && editingTitle}
       <!-- svelte-ignore a11y_autofocus -->
@@ -481,7 +481,7 @@
       </Panes>
     {/if}
   {/if}
-</Screen>
+</Page>
 
 {#if refine}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->

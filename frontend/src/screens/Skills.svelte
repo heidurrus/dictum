@@ -2,7 +2,7 @@
   import { keyOf } from "../lib/keys.js";
   import { untrack } from "svelte";
   import Icon from "../components/Icon.svelte";
-  import Screen from "../components/Screen.svelte";
+  import Page from "../components/Page.svelte";
   import Panes from "../components/Panes.svelte";
   import { explain } from "../lib/errors.js";
   import { api, pollJob } from "../lib/api.js";
@@ -246,7 +246,7 @@
 
 <svelte:window onkeydown={onKey} />
 
-<Screen title={t("sk.title")} sub={t("sk.sub")} inspector={skill && !skill.error ? "skills" : ""}>
+<Page title={t("sk.title")} sub={t("sk.sub")} inspector={skill && !skill.error ? "skills" : ""}>
   {#snippet actions()}
     <input type="file" accept=".zip,.md" class="hidden" bind:this={importInput} onchange={importFile} aria-label={t("sk.import")} />
     <button class="btn" title={t("sk.import_hint")} onclick={() => importInput.click()}><Icon name="upload" size={14} /> {t("sk.import")}</button>
@@ -534,7 +534,7 @@
       {/snippet}
     </Panes>
   {/if}
-</Screen>
+</Page>
 
 {#snippet usage()}
   {#if stageInfo && skill.stage === "frd"}
