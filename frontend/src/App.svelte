@@ -18,7 +18,7 @@
   import Whisper from "./screens/Whisper.svelte";
   import { api, setProgressTranslator, setLangSource, setJobStartedHook } from "./lib/api.js";
   import { actionFor } from "./lib/hotkeys.js";
-  import { recordFromShell } from "./lib/capture.svelte.js";
+  import { cap, recordFromShell, stopRecording } from "./lib/capture.svelte.js";
   import { toggleWhisper } from "./lib/whisper.svelte.js";
   import { progressText } from "./lib/progress.js";
   import { app, t, go, loadProjects, loadSources, setLang, applyTheme, setTheme, isDark, loadStatus, undoLast, toggleInspector, jobsTick } from "./lib/state.svelte.js";
@@ -70,6 +70,18 @@
       if (path) { e.preventDefault(); app.palette = false; go(path); }
     }
   }
+  // macOS: the global hot keys and the menu-bar item (core/hotkeys.py) bring the window forward and send their
+  // action here; the same handlers as the keys, plus "record_stop" from the menu while a meeting records.
+  function onGlobalAction(e) {
+    const action = e.detail?.action;
+    if (action === "whisper") { go("/whisper"); toggleWhisper(); }
+    else if (action === "record") recordFromShell();
+    else if (action === "record_stop" && cap.recording) stopRecording();
+  }
+  $effect(() => {
+    window.addEventListener("dictum:hotkey", onGlobalAction);
+    return () => window.removeEventListener("dictum:hotkey", onGlobalAction);
+  });
   // The empty address opens Встречи, the home page.
   $effect(() => {
     if (ready && app.route.name === "home") go("/meetings");
