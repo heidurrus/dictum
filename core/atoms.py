@@ -131,7 +131,7 @@ def verify_evidence(raw_evidence, chunk, source_id):
 
 
 def _source_header(source):
-    kind = {"email": "an email", "document": "a document"}.get(source["kind"], "a call or meeting transcript")
+    kind = {"email": "an email", "document": "a document", "material": "a reference material"}.get(source["kind"], "a call or meeting transcript")
     return f"Source: {kind} titled “{source['title']}”."
 
 

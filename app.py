@@ -27,7 +27,7 @@ from core import live as live_mod, live_atoms as live_atoms_mod, macos_audio, se
 from core.summarize import SummaryError, summarize
 from core import notes as meeting_notes, summarize as summarize_mod
 from core.atoms import extract_atoms
-from core import backlog, exports, frd, jira, skills, suggest
+from core import backlog, exports, frd, jira, materials, skills, suggest
 from core.atlassian_auth import MCP_URL, AtlassianAuth, AuthError, AuthRequired
 from core.mcp_client import McpError, McpSession
 from core import local_llm
@@ -1513,6 +1513,196 @@ def api_delete_source(source_id):
 @app.route("/api/sources/<source_id>/restore", methods=["POST"])
 def api_restore_source(source_id):
     return _store_call(lambda: (library.restore_source(source_id), {"ok": True})[1])
+
+
+# ── Материалы, labels and keyword search (5.0 C5) ────────────────────────────
+
+def _material_payload(m, full=False):
+    """A material for the client: the preview instead of the whole text, unless `full`."""
+    text = m.pop("text", "") or ""
+    out = {**m, "preview": text[:library.PREVIEW_CHARS], "has_file": bool(m.get("path") and os.path.exists(m["path"]))}
+    if full:
+        out["text"] = text
+    return out
+
+
+def _material_call(fn, *args, **kwargs):
+    try:
+        return jsonify(fn(*args, **kwargs)), 200
+    except (StoreError, materials.MaterialError) as e:
+        return jsonify({"error": str(e)}), 404 if "not found" in str(e) else 400
+
+
+@app.route("/api/projects/<project_id>/materials", methods=["GET"])
+def api_materials(project_id):
+    try:
+        library.get_project(project_id)
+        a = request.args
+        rows = library.list_materials(project_id, kind=a.get("kind") or None, label=a.get("label") or None, q=a.get("q"))
+    except StoreError as e:
+        return jsonify({"error": str(e)}), 404 if "not found" in str(e) else 400
+    return jsonify({"materials": rows})
+
+
+def _run_folder_import(job_id, project, folder):
+    def progress(done, total, name):
+        jobs.set_progress(job_id, int(100 * done / max(total, 1)), f"{done}/{total} {name}".strip())
+    try:
+        result = materials.import_folder(library, project, folder, progress)
+    except Exception as e:
+        jobs.fail(job_id, str(e))
+    else:
+        jobs.finish(job_id, result)
+
+
+@app.route("/api/projects/<project_id>/materials", methods=["POST"])
+def api_add_materials(project_id):
+    """Multipart files, or JSON {url}, {text, title} or {folder} (a job). Files, links and text are imported at once."""
+    try:
+        project = library.get_project(project_id)
+    except StoreError as e:
+        return jsonify({"error": str(e)}), 404
+    if request.files:
+        uploads = request.files.getlist("files") + request.files.getlist("file")
+        done, failed = [], []
+        for up in uploads:
+            name = os.path.basename(up.filename or "file")
+            try:
+                done.append(_material_payload(materials.import_file(library, project, name,
+                                                                    up.read(materials.MAX_BYTES + 1))))
+            except (materials.MaterialError, StoreError) as e:
+                failed.append(f"{name}: {e}")
+        if not done and failed:
+            return jsonify({"error": "; ".join(failed), "failed": failed}), 400
+        return jsonify({"materials": done, "failed": failed})
+    data = request.get_json(silent=True) or {}
+    try:
+        if data.get("folder"):
+            materials.folder_files(data["folder"])           # a wrong path fails here, not inside the job
+            job_id = jobs.create("import", os.path.basename(os.path.normpath(data["folder"])))
+            jobs.set_progress(job_id, 0, "")
+            threading.Thread(target=_run_folder_import, args=(job_id, project, data["folder"]), daemon=True).start()
+            return jsonify({"job_id": job_id})
+        if data.get("url"):
+            m = materials.import_url(library, project, data["url"])
+        elif data.get("text") is not None:
+            m = materials.import_text(library, project, data.get("text"), data.get("title"))
+        else:
+            return jsonify({"error": "send files, a url, a text or a folder"}), 400
+    except (materials.MaterialError, StoreError) as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify({"materials": [_material_payload(m)], "failed": []})
+
+
+@app.route("/api/materials/<material_id>", methods=["GET"])
+def api_material(material_id):
+    return _material_call(lambda: _material_payload(library.get_material(material_id), request.args.get("full") == "1"))
+
+
+@app.route("/api/materials/<material_id>", methods=["PATCH"])
+def api_update_material(material_id):
+    data = request.get_json(silent=True) or {}
+    return _material_call(lambda: _material_payload(library.update_material(material_id, **data)))
+
+
+@app.route("/api/materials/<material_id>", methods=["DELETE"])
+def api_delete_material(material_id):
+    """Soft delete, like a source: POST /api/sources/<id>/restore (or /api/materials/<id>/restore) undoes it."""
+    def delete():
+        library.get_material(material_id)
+        library.delete_source(material_id)
+        return {"ok": True}
+    return _material_call(delete)
+
+
+@app.route("/api/materials/<material_id>/restore", methods=["POST"])
+def api_restore_material(material_id):
+    return _material_call(lambda: (library.restore_source(material_id), {"ok": True})[1])
+
+
+@app.route("/api/materials/<material_id>/resync", methods=["POST"])
+def api_resync_material(material_id):
+    def run():
+        m = library.get_material(material_id)
+        return _material_payload(materials.resync(library, library.get_project(m["project_id"]), material_id))
+    return _material_call(run)
+
+
+@app.route("/api/materials/<material_id>/open", methods=["POST"])
+def api_open_material(material_id):
+    """Open the library's copy of the file with its default app (desktop only; the browser shows the text)."""
+    try:
+        m = library.get_material(material_id)
+    except StoreError as e:
+        return jsonify({"error": str(e)}), 404
+    path = m.get("path")
+    if not IS_DESKTOP or not path or not os.path.exists(path):
+        return jsonify({"error": "no file to open here"}), 400
+    if sys.platform == "darwin":
+        subprocess.Popen(["open", path])
+    elif sys.platform == "win32":
+        os.startfile(path)  # noqa: S606 — the library's own copy of the user's file
+    else:
+        subprocess.Popen(["xdg-open", path])
+    return jsonify({"ok": True, "path": path})
+
+
+@app.route("/api/projects/<project_id>/search")
+def api_search(project_id):
+    try:
+        library.get_project(project_id)
+        limit = int(request.args.get("limit", 30))
+    except StoreError as e:
+        return jsonify({"error": str(e)}), 404
+    except ValueError:
+        return jsonify({"error": "limit must be a number"}), 400
+    return jsonify({"hits": library.search(project_id, request.args.get("q"), limit)})
+
+
+@app.route("/api/projects/<project_id>/labels", methods=["GET"])
+def api_labels(project_id):
+    return _material_call(lambda: (library.get_project(project_id), {"labels": library.list_labels(project_id)})[1])
+
+
+@app.route("/api/projects/<project_id>/labels", methods=["POST"])
+def api_create_label(project_id):
+    """{name, seed_material_id?} → {label, assigned: [material ids]}. The seed gets the label (by hand);
+    assigning it to similar materials comes with the index (5.0 C5, second half)."""
+    data = request.get_json(silent=True) or {}
+
+    def create():
+        seed = data.get("seed_material_id")
+        if seed:
+            m = library.get_material(seed)
+            if m["project_id"] != project_id:
+                raise StoreError("the material belongs to another project")
+        label = library.create_label(project_id, data.get("name"))
+        assigned = []
+        if seed and library.assign_label(seed, label["id"], by="user"):
+            assigned.append(seed)
+        return {"label": {**label, "count": len(assigned)}, "assigned": assigned}
+    return _material_call(create)
+
+
+@app.route("/api/labels/<label_id>", methods=["DELETE"])
+def api_delete_label(label_id):
+    return _material_call(lambda: (library.delete_label(label_id), {"ok": True})[1])
+
+
+@app.route("/api/materials/<material_id>/labels/<label_id>", methods=["POST"])
+def api_assign_label(material_id, label_id):
+    def assign():
+        library.assign_label(material_id, label_id, by="user")
+        return {"labels": library.get_material(material_id)["labels"]}
+    return _material_call(assign)
+
+
+@app.route("/api/materials/<material_id>/labels/<label_id>", methods=["DELETE"])
+def api_unassign_label(material_id, label_id):
+    def unassign():
+        library.unassign_label(material_id, label_id)
+        return {"labels": library.get_material(material_id)["labels"]}
+    return _material_call(unassign)
 
 
 @app.route("/api/sources/<source_id>/speakers/<path:label>", methods=["PUT"])
