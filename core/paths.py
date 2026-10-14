@@ -8,6 +8,8 @@ import sys
 APP_DIR_NAME = "Dictum"
 LEGACY_DIR_NAME = "RequirementsWorkbench"   # up to 4.2.x; moved to APP_DIR_NAME on first start
 MIGRATION_NOTE = "migrated-from.txt"
+POINTER_FILE = "data-location.json"          # in the default folder, after "Сменить папку…" (5.0 C9)
+WRITE_PROBE = ".dictum-write-test"
 
 _migration_checked = False
 _server_started = False
@@ -73,6 +75,16 @@ def _move_across_volumes(legacy, target):
     shutil.rmtree(legacy)
 
 
+def move_tree(src, target):
+    """Rename src to target; across volumes, copy, verify file count and bytes, then remove src."""
+    try:
+        os.rename(src, target)
+    except OSError as e:
+        if e.errno != errno.EXDEV:
+            raise
+        _move_across_volumes(src, target)
+
+
 def migrate_legacy_data_dir(root=None):
     """Move the 4.x data folder to the new name, once, at process start.
 
@@ -89,12 +101,7 @@ def migrate_legacy_data_dir(root=None):
     if _legacy_app_running(legacy):
         return legacy
     try:
-        try:
-            os.rename(legacy, target)
-        except OSError as e:
-            if e.errno != errno.EXDEV:
-                raise
-            _move_across_volumes(legacy, target)
+        move_tree(legacy, target)
     except OSError:
         return legacy if os.path.isdir(legacy) and not os.path.exists(target) else target
     try:
@@ -113,16 +120,128 @@ def app_data_dir():
     RequirementsWorkbench folder to Dictum (see migrate_legacy_data_dir).
     """
     global _migration_checked, _resolved
-    override = os.getenv("DICTUM_DATA_DIR") or os.getenv("WORKBENCH_DATA_DIR")
+    override = _override()
     if override:
         base = override
     elif _migration_checked:
         base = _resolved
     else:
-        base = _resolved = migrate_legacy_data_dir()
+        base = migrate_legacy_data_dir()
+        if base == default_data_dir():
+            base = pointed_data_dir() or base   # the folder chosen in Settings → Хранилище
+        _resolved = base
         _migration_checked = True
     os.makedirs(base, exist_ok=True)
     return base
+
+
+def _override():
+    return os.getenv("DICTUM_DATA_DIR") or os.getenv("WORKBENCH_DATA_DIR")
+
+
+def default_data_dir():
+    return os.path.join(_user_data_root(), APP_DIR_NAME)
+
+
+def pointer_path():
+    return os.path.join(default_data_dir(), POINTER_FILE)
+
+
+def pointed_data_dir():
+    """The folder named by the pointer file in the default location, when it exists; else None (the default is used:
+    a folder on a drive that is not connected is not recreated empty somewhere else)."""
+    try:
+        with open(pointer_path(), encoding="utf-8") as f:
+            path = json.load(f)["path"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    return path if isinstance(path, str) and os.path.isabs(path) and os.path.isdir(path) else None
+
+
+class DataDirError(ValueError):
+    """A data-folder move that is refused; `code` says why: same, inside, not_empty, not_writable, override."""
+
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code = code
+
+
+def _writable(folder):
+    probe = os.path.join(folder, WRITE_PROBE)
+    try:
+        with open(probe, "w", encoding="utf-8") as f:
+            f.write("ok")
+        os.remove(probe)
+        return True
+    except OSError:
+        return False
+
+
+def _only_pointer(folder):
+    """The default folder after a move away: it holds nothing but the pointer file."""
+    try:
+        return os.path.realpath(folder) == os.path.realpath(default_data_dir()) and os.listdir(folder) == [POINTER_FILE]
+    except OSError:
+        return False
+
+
+def check_move_target(current, target):
+    """The absolute folder the data would move to, or DataDirError: the same folder, a folder inside the current one,
+    a folder that is not empty (or is a file), or a place this user cannot write."""
+    if not isinstance(target, str) or not target.strip():
+        raise DataDirError("not_writable", "choose a folder")
+    target = os.path.abspath(os.path.expanduser(target.strip()))
+    real_cur, real_target = os.path.realpath(current), os.path.realpath(target)
+    if real_target == real_cur:
+        raise DataDirError("same", "this is already the data folder")
+    if real_target.startswith(real_cur.rstrip(os.sep) + os.sep):
+        raise DataDirError("inside", "the new folder is inside the current data folder")
+    if os.path.lexists(target):
+        if not os.path.isdir(target) or (os.listdir(target) and not _only_pointer(target)):
+            raise DataDirError("not_empty", "the new folder is not empty")
+        if not _writable(target):
+            raise DataDirError("not_writable", "this folder cannot be written to")
+        return target
+    parent = os.path.dirname(target)
+    if not os.path.isdir(parent) or not _writable(parent):
+        raise DataDirError("not_writable", "this folder cannot be written to")
+    return target
+
+
+def move_data_dir(target, current=None):
+    """Move the whole data folder to target (rename, or copy + verify + remove across volumes, as the 4.x migration
+    does) and leave a pointer in the default location so the next start finds it. Returns the new folder. The caller
+    makes sure nothing is recording; the running app keeps its open files and is restarted afterwards."""
+    global _resolved, _migration_checked
+    if _override():
+        raise DataDirError("override", "the data folder is set by DICTUM_DATA_DIR")
+    current = current or app_data_dir()
+    target = check_move_target(current, target)
+    default = default_data_dir()
+    if os.path.isdir(target):
+        if _only_pointer(target):
+            os.remove(os.path.join(target, POINTER_FILE))
+        os.rmdir(target)                  # empty: rename and copytree both want a free name
+    move_tree(current, target)
+    if os.path.realpath(target) == os.path.realpath(default):
+        try:
+            os.remove(pointer_path())
+        except OSError:
+            pass
+    else:
+        os.makedirs(default, exist_ok=True)
+        tmp = pointer_path() + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"path": target, "moved_from": current,
+                       "at": datetime.datetime.now().astimezone().isoformat(timespec="seconds")}, f, ensure_ascii=False)
+        os.replace(tmp, pointer_path())
+    _resolved, _migration_checked = target, True
+    return target
+
+
+def tree_bytes(root):
+    """Bytes on disk under root (links not followed)."""
+    return _tree_size(root)[1]
 
 
 def recordings_dir():

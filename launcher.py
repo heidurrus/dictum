@@ -141,7 +141,7 @@ def open_window_or_browser(browser_mode, url):
         webbrowser.open(url)
         return False
 
-    from core.desktop_api import DesktopApi, pywebview_asker
+    from core.desktop_api import DesktopApi, pywebview_asker, pywebview_folder_asker
 
     from core.paths import app_data_dir
     import os
@@ -149,7 +149,8 @@ def open_window_or_browser(browser_mode, url):
     os.makedirs(storage, exist_ok=True)
     try:
         window = webview.create_window(APP_TITLE, url, width=1200, height=820, min_size=(800, 600),
-                                       js_api=DesktopApi(url, pywebview_asker(webview)))
+                                       js_api=DesktopApi(url, pywebview_asker(webview),
+                                                         ask_folder=pywebview_folder_asker(webview)))
         # macOS: the menu-bar item and the global hot keys, set up on the main thread once the GUI loop runs.
         from core import hotkeys
         extra = (hotkeys.desktop_start, (window,)) if hotkeys.available() else ()
