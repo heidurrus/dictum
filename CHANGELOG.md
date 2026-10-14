@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.9.2 (2026-10-14): Status chip and hotkeys
+
+- **A status chip in the top bar says what the machine is doing.** While a call is recorded: «Идёт запись · 12:04» with a red dot, and a click opens Встречи, where the recording controls are. While something runs: the first job with its progress ring («Распознаю · 42% · 1 задача», «Извлекаю требования… · 2 задачи», model downloads with their size). Otherwise «Готово». A click lists every job with its progress and running time; model downloads can be cancelled from there. It checks every 2 seconds while something runs and every 15 seconds otherwise.
+- **`GET /api/jobs`** lists running and queued jobs (transcription, summary, requirement extraction, document, backlog, Jira, skill tries), the speech-model and built-in AI model downloads, and the recorder state. Every job now carries a kind and a label.
+- **Shortcuts come from one map in the settings** (`hotkeys`): ⌘R record (app window only; in a browser ⌘R still reloads), ⌘K commands, ⌘⇧L theme, ⌘J Спросить, ⌥Space Шепнуть, ⌘1…⌘8 the rail sections. There is no screen to change them yet; the tooltips and the command palette show the keys from the map.
+- At phone width the Sources screen no longer shows a second round record button under its header. The transcript title no longer repeats the «Источники ›» crumb; the back link above the title does that.
+- The e2e stand-in server stubs torch and speech recognition itself, so it runs from the project's `.venv` without the ML stack.
+
 ## 4.9.1 (2026-10-14): New shell
 
 - **A navigation rail replaces the sidebar.** On the left: the Dictum mark, the record button (⌘R in the app window), then Встречи, Материалы, Требования, Документы, Бэклог, Спросить, Шепнуть and Настройки at the bottom; ⌘1…⌘8 follow that order. Скиллы and Выгрузка are under «Ещё» and in the ⌘K palette. Требования shows how many requirements wait for review, Документы gets a dot when a document is out of date. Материалы, Спросить and Шепнуть say what is coming; they arrive in the next updates. Встречи still opens the Sources screen for now.
