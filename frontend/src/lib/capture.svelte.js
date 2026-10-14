@@ -11,6 +11,7 @@ export const cap = $state({
   mics: [], mic: "",
   recording: false, elapsed: 0, problems: [], recError: "",
   paused: false, sourceId: null,          // the meeting being recorded (desktop): a source from the first second
+  autoStopped: null,                      // {sourceId, minutes}: the recording stopped itself after a silence (C4.3)
   consentAsk: false,
 });
 
@@ -129,6 +130,18 @@ export function confirmConsent() {
 function onRecorderStatus(st) {
   cap.problems = Object.entries(st.channels || {}).filter(([, c]) => c.error).map(([n, c]) => `${channelName(n)}: ${c.error}`);
   if (st.recording) cap.paused = !!st.paused;
+  else if (cap.recording && st.stopped?.reason === "silence") onAutoStopped(st.stopped);
+}
+
+// The server stopped the recording after a long silence, through the same path as the Stop button; the
+// transcription is already running. Follow it like a stop from here, and say why it stopped.
+function onAutoStopped(stopped) {
+  clearInterval(timer);
+  if (recorder instanceof DesktopRecorder) clearInterval(recorder.statusTimer);
+  const sourceId = stopped.source_id || cap.sourceId;
+  Object.assign(cap, { recording: false, paused: false, sourceId: null, autoStopped: { sourceId, minutes: stopped.minutes } });
+  loadSources().catch(() => {});
+  if (sourceId && stopped.job_id) track(sourceId, stopped.job_id);
 }
 
 function startClock(fromSeconds) {
@@ -152,12 +165,14 @@ export function adoptRecording(sourceId, live) {
 
 async function startRecording() {
   cap.recError = "";
+  cap.autoStopped = null;
   cap.problems = [];
   try {
     if (app.device.desktop) {
       recorder = new DesktopRecorder();
       const title = `${t("rec.meeting_title")} ${fmtDate(Date.now() / 1000, app.lang)}`;
-      const body = await recorder.start(cap.mic === "" ? null : Number(cap.mic), onRecorderStatus, { title, ...optionsPayload() });
+      const body = await recorder.start(cap.mic === "" ? null : Number(cap.mic), onRecorderStatus,
+                                        { title, lang: app.lang, ...optionsPayload() });
       cap.sourceId = body.source_id || null;
       cap.paused = false;
       cap.recording = true;

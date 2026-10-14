@@ -112,6 +112,35 @@
     await togglePause();
     live?.poll();
   }
+  // Requirements on the fly (5.0 C4.2): "n новых" counts what came in since the user last looked at the block;
+  // it resets when the block scrolls into view or is clicked. The checkbox accepts.
+  let liveReqEl = $state(null);
+  const liveAtoms = $derived(liveSt?.atoms || []);
+  const newCount = $derived(liveAtoms.filter(a => a.new).length);
+  $effect(() => {
+    const el = liveReqEl, l = live;
+    if (!el || !l || typeof IntersectionObserver === "undefined") return;
+    let first = true, inView = false;
+    const io = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting && !inView && !first) l.markSeen();
+      inView = e.isIntersecting;
+      first = false;
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  });
+  async function acceptLive(a, on) {
+    try {
+      await live?.setStatus(a, on ? "accepted" : "pending");
+      app.atomsVersion++;
+    } catch (err) { toast(err.message, { kind: "danger" }); }
+  }
+  // The recording stopped itself after a long silence (5.0 C4.3): said on the page until the meeting is processed.
+  let stoppedBy = $state(null);
+  $effect(() => { if (liveSt?.stopped?.reason === "silence") stoppedBy = liveSt.stopped; });
+  $effect(() => { id; stoppedBy = null; });
+  const silenceStopped = $derived(stoppedBy || (cap.autoStopped?.sourceId === id ? cap.autoStopped : null));
+
   async function liveStop() {
     if (!cap.recording && liveSt) adoptRecording(id, liveSt);
     stopping = true;
@@ -292,7 +321,7 @@
   let atoms = $state([]);
   $effect(() => {
     const sid = id;
-    app.atomsVersion; atomCount;
+    app.atomsVersion; atomCount; source?.status;
     if (!sid || !app.currentProjectId) return;
     api(`/api/projects/${app.currentProjectId}/atoms?source_id=${sid}`).then(b => { if (sid === id) atoms = b.atoms.filter(a => a.status !== "merged"); }).catch(() => {});
   });
@@ -348,7 +377,8 @@
     {#if source && isLive}
       <div class="levels" class:still={livePaused} aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
       <span class="timer num" aria-label={t("live.elapsed")}>{clock(liveSeconds)}</span>
-      <AudioPill paused={livePaused} busy={stopping} ontoggle={liveToggle} onstop={liveStop} />
+      <AudioPill paused={livePaused} busy={stopping} silence={liveSt?.silence || 0} silenceStop={liveSt?.silence_stop || 0}
+                 ontoggle={liveToggle} onstop={liveStop} />
     {:else if source}
       {#if source.status !== "ready" && audioItems.length}
         <PopMenu cls="btn ghost" text={t("tr.more")} ariaLabel={t("tr.more")} align="right" onpick={more} items={audioItems} />
@@ -415,11 +445,37 @@
           </section>
           <section class="card col notes-card" aria-label={t("meet.tab.notes")}>
             <NotesEditor sourceId={id} value={source.notes} onsaved={text => { if (source) source.notes = text; }} />
+            <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+            <div class="live-req live-atoms" bind:this={liveReqEl} onclick={() => live?.markSeen()}>
+              <div class="col-head">
+                <h2>{t("live.reqs")}</h2>
+                {#if newCount}<span class="tag prim new-tag num">{t("live.new_n", { n: newCount })}</span>{/if}
+                <span class="grow"></span>
+                <button class="btn sm ghost" onclick={() => go(`/atoms/source/${id}`)}>{t("mt.reqs_all")}</button>
+              </div>
+              <div class="scroll req-list">
+                {#each liveAtoms as a (a.id)}
+                  <div class="req live-atom" class:fresh={a.new} class:rejected={a.status === "rejected"}>
+                    <span class="type plain {typeClass[a.type]}">{PREFIX[a.type]}</span>
+                    <span class="req-body"><span class="st">{a.statement}</span>
+                      {#if a.quote}<span class="qt">{#if a.speaker}{liveName(a.speaker)}{" · "}{/if}{#if a.start != null}<span class="num">{fmtTime(a.start)}</span>{" · "}{/if}«{excerpt(a.quote)}»</span>{/if}</span>
+                    <input type="checkbox" class="ck" checked={a.status === "accepted"} disabled={a.status === "rejected"}
+                           aria-label={t("live.accept")} title={t("live.accept")}
+                           onchange={e => acceptLive(a, e.currentTarget.checked)} />
+                  </div>
+                {:else}
+                  <p class="ctx-none">{t("live.reqs_none")}</p>
+                {/each}
+              </div>
+            </div>
           </section>
         </div>
       </Panes>
     {:else if source.status !== "ready"}
       <div class="card pad">
+        {#if silenceStopped}
+          <div class="banner warn stopped-silence"><Icon name="clock" /><span class="grow">{t("live.stopped_silence_n", { n: silenceStopped.minutes })}</span></div>
+        {/if}
         {#if source.status === "processing"}
           <div class="banner info"><span class="spinner"></span><span class="grow">
             {app.jobs[id]?.message || t("tr.processing")}{#if app.jobs[id]} · {Math.round(app.jobs[id].progress || 0)}%{#if app.jobs[id].eta} · {app.jobs[id].eta}{/if}{/if}
@@ -544,7 +600,7 @@
                           title={t("at.open")}>
                     <span class="type plain {typeClass[a.type]}">{a.rid || PREFIX[a.type]}</span>
                     <span class="req-body"><span class="st">{a.statement}</span>
-                      {#if ev?.quote}<span class="qt">{#if ev.start != null}<span class="num">{fmtTime(ev.start)}</span> · {/if}«{excerpt(ev.quote)}»</span>{/if}</span>
+                      {#if ev?.quote}<span class="qt">{#if ev.start != null}<span class="num">{fmtTime(ev.start)}</span> · {/if}«{excerpt(ev.quote)}»{#if a.stale_evidence} · {t("mt.stale_quote")}{/if}</span>{/if}</span>
                     {#if a.status === "accepted"}<span class="status ok"><Icon name="check" size={12} /></span>{:else}<span></span>{/if}
                   </button>
                 {:else}
@@ -720,6 +776,10 @@
   .req .qt { color: var(--text-3); font-size: 12px; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .req.rejected .st { text-decoration: line-through; color: var(--text-3); }
   .ctx-none { padding: 12px 16px 16px; color: var(--text-3); }
+  .live-req .tag.prim { background: var(--primary-c); color: var(--on-primary-c); height: 22px; padding: 0 8px; border-radius: 6px; font-size: 12px; }
+  .live-atom { cursor: default; }
+  .live-atom.fresh .st { font-weight: 500; }
+  .ck { width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--primary); cursor: pointer; }
 
   .speakers { display: grid; gap: var(--s-5); grid-template-columns: minmax(0, 1fr); }
   .speaker { display: grid; grid-template-columns: minmax(80px, 120px) minmax(0, 1fr); gap: var(--s-4); align-items: center; }
