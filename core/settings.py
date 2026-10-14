@@ -7,6 +7,7 @@ NFR-SEC-01/02). A .env next to the code (how 1.0 and source checkouts stored
 it) is still read, so existing tokens keep working.
 """
 import json
+import logging
 import os
 import sys
 
@@ -28,6 +29,7 @@ DEFAULTS = {
     "live_questions": False,           # the question card: answers from the materials to questions heard (5.0 C4.3)
     "live_window_atoms": 90,           # seconds between two live extraction passes
     "silence_stop_minutes": 10,        # stop the recording after this much silence; 0 = never (5.0 C4.3)
+    "menubar": True,                   # the macOS menu-bar item (5.0 C7, core/hotkeys.py)
     "embed_model": "",                 # the index's embedding model id; empty = the downloaded one (5.0 C5)
     # Index thresholds (spec §9 A4): cosine for auto labels and graph edges, chunks retrieved per question.
     # Starting points, kept out of the UI; settings.json can override them.
@@ -43,6 +45,12 @@ CLAUDE_MODELS = [
     ("claude-haiku-4-5", "Claude Haiku 4.5 (fastest, cheapest)"),
 ]
 PROVIDERS = {"claude", "local", "ollama"}
+_save_hooks = []
+
+
+def on_save(fn):
+    """Call fn(settings) after every save (core/hotkeys.py re-registers the global hot keys)."""
+    _save_hooks.append(fn)
 
 
 def env_file():
@@ -144,7 +152,7 @@ def save_settings(updates):
                 raise ValueError("tuning values must be numbers")
             data[key] = {**data[key], **value}
             continue
-        if key in ("live_transcription", "live_requirements", "live_questions"):
+        if key in ("live_transcription", "live_requirements", "live_questions", "menubar"):
             data[key] = value is True or str(value).strip().lower() in ("true", "1", "yes", "on")
             continue
         if key in ("live_window_atoms", "silence_stop_minutes"):
@@ -177,4 +185,9 @@ def save_settings(updates):
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
     os.replace(tmp, settings_file())
+    for hook in list(_save_hooks):
+        try:
+            hook(data)
+        except Exception:      # a hook (the menu bar) must never make a save fail
+            logging.getLogger("dictum.settings").exception("Settings hook failed")
     return data

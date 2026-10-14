@@ -148,8 +148,12 @@ def open_window_or_browser(browser_mode, url):
     storage = os.path.join(app_data_dir(), "webview")
     os.makedirs(storage, exist_ok=True)
     try:
-        webview.create_window(APP_TITLE, url, width=1200, height=820, min_size=(800, 600), js_api=DesktopApi(url, pywebview_asker(webview)))
-        webview.start(private_mode=False, storage_path=storage)  # blocks until the window closes
+        window = webview.create_window(APP_TITLE, url, width=1200, height=820, min_size=(800, 600),
+                                       js_api=DesktopApi(url, pywebview_asker(webview)))
+        # macOS: the menu-bar item and the global hot keys, set up on the main thread once the GUI loop runs.
+        from core import hotkeys
+        extra = (hotkeys.desktop_start, (window,)) if hotkeys.available() else ()
+        webview.start(*extra, private_mode=False, storage_path=storage)  # blocks until the window closes
     except Exception as e:
         # e.g. WebView2 runtime missing on an older Windows 10: fall back to the browser
         # rather than exiting without showing anything (FR-PLAT-01 AC5).
