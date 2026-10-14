@@ -31,8 +31,9 @@ import `tests.conftest` before `app` to run the server without torch). Frontend,
 security quarantines it), the user opens it from Finder.
 
 **Conventions.** One feature branch per chunk, merged into `master` with `--no-ff`; the user pushes
-and tags. Bump `VERSION` and add a `CHANGELOG.md` entry per shipped chunk (5.0.0-alpha.N while
-chunks land, 5.0.0 at the end). i18n: every string in both languages in `frontend/src/lib/i18n.js`;
+and tags. Bump `VERSION` and add a `CHANGELOG.md` entry per shipped chunk. Pre-release builds are
+numbered `4.9.N` (plain `x.y.z`, which is what `CFBundleShortVersionString` and the Windows
+installer accept; maintenance of the old line, if any, stays on `4.2.x`); C11 sets `5.0.0`. i18n: every string in both languages in `frontend/src/lib/i18n.js`;
 `t(key)` returns the key when missing, so missing keys show up on screen. Keep the e2e class
 selectors listed in `docs/design/redesign.md` §12 as aliases. Keep all existing backend tests
 green; the suite is 399 tests at the start of 5.0.
@@ -89,28 +90,35 @@ Schema goes to **v9** (migration in `store._migrate`, additive only):
 
 ```sql
 ALTER TABLE sources ADD COLUMN notes TEXT;                    -- Markdown, the user's own words
-ALTER TABLE sources ADD COLUMN recap_style TEXT;              -- brief | bullets | actions
-ALTER TABLE sources ADD COLUMN summarized_through INTEGER;    -- last segment idx the recap covers
+ALTER TABLE sources ADD COLUMN recap_style TEXT;              -- the style last chosen for this meeting
+-- A material IS a source (sources.kind = 'material'; import_format = ext; text; segments = paragraphs),
+-- so import, extraction, evidence, search and audit reuse the existing pipeline. This table extends it.
 CREATE TABLE materials (
-  id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id),
-  kind TEXT NOT NULL,                 -- file | url | note
-  title TEXT NOT NULL, ext TEXT, path TEXT, url TEXT, text TEXT,
-  size INTEGER, in_context INTEGER NOT NULL DEFAULT 1,
-  synced_at REAL, error TEXT, deleted_at REAL,
-  created_at REAL NOT NULL, created_by TEXT NOT NULL, updated_at REAL NOT NULL, updated_by TEXT NOT NULL);
+  source_id TEXT PRIMARY KEY REFERENCES sources(id),
+  material_kind TEXT NOT NULL,        -- file | url | note
+  path TEXT, url TEXT, size INTEGER,
+  in_context INTEGER NOT NULL DEFAULT 1, synced_at REAL, error TEXT);
 CREATE TABLE material_chunks (
-  id TEXT PRIMARY KEY, material_id TEXT NOT NULL REFERENCES materials(id),
+  id TEXT PRIMARY KEY, source_id TEXT NOT NULL REFERENCES sources(id),
   idx INTEGER NOT NULL, text TEXT NOT NULL, embedding BLOB);   -- float32 little-endian
+ALTER TABLE segments ADD COLUMN provisional INTEGER NOT NULL DEFAULT 0;   -- live pass, replaced on stop
+ALTER TABLE atoms ADD COLUMN live INTEGER NOT NULL DEFAULT 0;             -- came from the live extractor
+ALTER TABLE atoms ADD COLUMN stale_evidence INTEGER NOT NULL DEFAULT 0;   -- quote not re-found after the final pass
+ALTER TABLE summaries ADD COLUMN style TEXT NOT NULL DEFAULT 'brief';     -- brief | bullets | actions, one row per style
+ALTER TABLE summaries ADD COLUMN through_idx INTEGER;                     -- last segment idx this recap covers
+CREATE TABLE usage (                  -- Settings → stats; one row per event
+  id INTEGER PRIMARY KEY, at REAL NOT NULL, kind TEXT NOT NULL,            -- llm_local | llm_cloud | asr | embed
+  tokens_in INTEGER, tokens_out INTEGER, seconds REAL, project_id TEXT);
 CREATE TABLE labels (
   id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id),
   name TEXT NOT NULL, color TEXT NOT NULL, centroid BLOB, created_at REAL NOT NULL,
   UNIQUE(project_id, name));
 CREATE TABLE material_labels (
-  material_id TEXT NOT NULL REFERENCES materials(id), label_id TEXT NOT NULL REFERENCES labels(id),
-  assigned_by TEXT NOT NULL,          -- user | auto
-  score REAL, PRIMARY KEY(material_id, label_id));
-CREATE TABLE material_links (         -- "Где используется": which atom / document cites a material
-  material_id TEXT NOT NULL, entity TEXT NOT NULL, entity_id TEXT NOT NULL, PRIMARY KEY(material_id, entity, entity_id));
+  source_id TEXT NOT NULL REFERENCES sources(id), label_id TEXT NOT NULL REFERENCES labels(id),
+  assigned_by TEXT NOT NULL,          -- user | auto | removed  (a removal is kept as a tombstone so auto never re-adds it)
+  score REAL, PRIMARY KEY(source_id, label_id));
+-- "Где используется" needs no table: evidence.source_id already points at the material, and
+-- documents cite atoms, so material → atoms (evidence) → documents (requirement_ids) is a query.
 CREATE TABLE source_embeddings (      -- meetings and atoms in the same vector space
   entity TEXT NOT NULL, entity_id TEXT NOT NULL, idx INTEGER NOT NULL, text TEXT NOT NULL, embedding BLOB,
   PRIMARY KEY(entity, entity_id, idx));
@@ -129,9 +137,11 @@ CREATE TABLE whispers (
 deletion; `project_id` is a soft link.
 
 Settings (`core/settings.py` `DEFAULTS`) gain: `silence_stop_minutes` (10), `live_transcription`
-(true), `live_requirements` (true), `recap_style` ("brief"), `embed_model` (""), `whisper_hotkey`
-("alt+space"), `menubar` (true), `notes_style` ("standard" | "concise"), `onboarding_done` (false,
-mirrored in `setup-state.json` as `onboarding:v5`).
+(true), `live_requirements` (true), `live_questions` (false), `recap_style` ("brief"),
+`embed_model` (""), `hotkeys` (a map: `{"whisper": "alt+space", "record": "cmd+r", ...}`, one place
+read by both the frontend handler and `core/hotkeys.py`), `menubar` (true), `notes_style`
+("standard" | "concise"), `tuning` (`{"label_assign": 0.45, "graph_edge": 0.30, "retrieve_k": 12}`).
+`onboarding:v5` lives in `setup-state.json`, not in settings.
 
 ### 2.2 Frontend
 
@@ -176,7 +186,10 @@ old screen is restyled, then delete it. Bundle **Inter** (variable, OFL, Cyrilli
 ## 3. Chunks
 
 Order matters: C0 and C1 first, then C2 → C3 → C4 (meetings), C5 → C6 (materials and ask), C7,
-C8, C9, C10, C11. C4 and C6 are the risky ones; each has a fallback that still ships.
+C8, C9, C10, C11. Cross-chunk dependencies to respect: C2's transcript search uses `LIKE` until
+C5's FTS5 exists; C4.3's question card needs C5's index (ships off until then); C7 needs C4.1's
+live transcriber; C8's model step needs C5's embedding model entry; C9's stats need the `usage`
+rows that C3–C7 write. C4 and C6 are the risky ones; each has a fallback that still ships.
 
 ### C0. Rename to Dictum
 
@@ -209,15 +222,21 @@ bar with the project chip (menu: switch, new, archive), status chip, theme, help
 Phone width (≤ 760 px): the rail becomes a bottom bar with Встречи, Материалы, Требования, Шепнуть,
 Настройки; the record button moves into the page header.
 
-- `tokens-m.css`, Inter, `Rail.svelte`, `Page.svelte` (`title`, `sub`, `actions` snippet),
-  `TopBar.svelte`, `StatusChip.svelte`.
+- `tokens-m.css`, Inter, `Rail.svelte`, `Page.svelte` (same props as today's `Screen.svelte`:
+  `title`, `sub`, `crumb`, `crumbPath`, `inspector`, `heading` and `actions` snippets, so the
+  inspector toggle and the back crumb keep working), `TopBar.svelte`, `StatusChip.svelte`.
+  `Sidebar.svelte` is deleted in this chunk; its project switcher moves into the project chip and
+  its pipeline rings into C2's strip (until C2 lands, the rings are not shown anywhere, which is
+  acceptable for an alpha).
 - Status chip text, in priority order: a running recording ("Идёт запись · 12:04"), a running job
   from `JobStore` ("Распознаю · 42% · 1 задача" / "Извлекаю требования…" / "Загружаю модель ·
   1,2 ГБ из 7"), else "Готово". Click opens a popover listing jobs with progress and cancel where
   the job supports it. Polls `/api/jobs` (new: list active jobs, each `{id, kind, label, progress,
   cancellable}`), every 2 s while something runs, every 15 s otherwise.
-- Keyboard: ⌘1…⌘8 switch rail items in order, ⌘R record, ⌘K palette (kept), ⌘⇧L theme, ⌘J ask,
-  ⌥Space whisper (see C7), Esc closes overlays. `CommandPalette.svelte` gets the new routes.
+- Keyboard: ⌘1…⌘8 switch rail items in order (Настройки is ⌘8), ⌘R record (desktop window
+  only; in `--browser` mode ⌘R stays the browser's reload and the button is the way), ⌘K palette
+  (kept), ⌘⇧L theme, ⌘J ask, ⌥Space whisper (see C7), Esc closes overlays. All bindings come
+  from the `hotkeys` settings map. `CommandPalette.svelte` gets the new routes.
 - Old screens render inside `Page.svelte` unchanged for now (their `Screen` import is swapped to
   `Page` with the same props). Inspector toggling keeps working through `Panes.svelte`.
 - Dark theme per the prototype tokens; system follow + forced light/dark pref as today.
@@ -233,7 +252,9 @@ end to end (start transcription in the e2e, chip text changes, returns to "Го�
 "Импорт" and "Записать встречу"; the pipeline strip (five chips with rings: Встречи, Требования,
 ТЗ vN, Бэклог, Jira, each with its state in words, clickable); list card with search, sort
 (Новые / Старые / А–Я), rows (icon by kind: mic / upload / doc; title; date · duration · people ·
-tags Запись / Импорт / Текст; status tag Разобран / Распознаю · n% / Без расшифровки; "n треб.");
+tags Запись / Импорт / Текст; status tag Идёт запись (C4, `status = "recording"`) / Разобран /
+Распознаю · n% / Без расшифровки; "n треб."). The list excludes `kind = "material"` sources (C5);
+text sources that are conversations (emails, interview notes) stay meetings.
 details panel with an editable title (contenteditable, saves on blur), meta line, tabs Резюме /
 Транскрипт / Заметки / Требования, footer "Открыть встречу", "Требования · n", "Ещё" menu (save
 audio per channel, copy, delete).
@@ -270,14 +291,17 @@ Recap (Резюме tab in the panel and in the meeting inspector): style switch
 Действия; sections Главное / Открытые вопросы / Риски with `[mm:ss]` links; footer "Обновлено …
 · модель · Обновить по новым репликам".
 
-- `core/notes.py`: `save_notes(source_id, md)` (debounced on the client, 1 s), `recap(source_id,
-  style, incremental)`. Incremental: if `summarized_through` is set, the prompt gets the previous
-  recap plus only the segments after that index and is asked to update, not rewrite (Foresight's
-  pattern); "Re-summarize" sends everything. Styles are three prompts in `skills/` as a built-in
+- `core/notes.py`: `save_notes(source_id, md)` (debounced on the client, 1 s) and
+  `append_note(source_id, line)` for server-side additions (the question card in C4.3, whisper
+  later); the editor applies an appended line to its own state through the live poll so a debounce
+  in flight does not overwrite it. `recap(source_id, style, incremental)`: one `summaries` row per
+  style with `through_idx`; incremental means the prompt gets that style's previous recap plus
+  only the segments after `through_idx` and is asked to update, not rewrite (Foresight's pattern);
+  "Re-summarize" sends everything. Switching style with no row yet runs a full recap. Styles are three prompts in `skills/` as a built-in
   skill (`recap.brief.md`, `recap.bullets.md`, `recap.actions.md`), editable like other skills.
-- Routes: `PUT /api/sources/<id>/notes` `{text}`; `POST /api/sources/<id>/recap`
-  `{style, incremental}` → job; `GET` of the source returns `notes`, `recap_style`,
-  `summarized_through`.
+- Routes: `PUT /api/sources/<id>/notes` `{text}`, `POST /api/sources/<id>/notes/append`
+  `{line}`; `POST /api/sources/<id>/recap` `{style, incremental}` → job; `GET` of the source
+  returns `notes`, `recap_style`, and `summaries` keyed by style with `through_idx`.
 - Frontend: `Meeting.svelte`, `NotesEditor.svelte` (Markdown stays raw text; the preview is the
   Заметки tab in the panel rendered with the existing `renderMarkdown`). Search in the transcript
   is client-side with a hit counter and ↑/↓ (Enter / ⇧Enter).
@@ -311,7 +335,10 @@ window takes longer than `window` to transcribe twice in a row, drop to `window 
 still cannot keep up, stop live mode and show "Транскрипт появится после остановки" (the
 recording continues untouched). Route: `GET /api/sources/<id>/live?after=<idx>` returns new
 segments; the page polls every 2 s. Pause: `POST /desktop-record/pause|resume` (recorder writes
-silence while paused so the timeline stays continuous; the pill shows the paused state).
+silence while paused so the timeline stays continuous; the pill shows the paused state; paused
+spans are recorded in the recorder status and are skipped by the live pass and **excluded from
+the silence counter** of C4.3, otherwise a long pause would auto-stop the meeting). After the
+final pass, the index job (C5) embeds the segments; before C5 ships there is no index job.
 
 **C4.2 Requirements on the fly.** Every `live_window_atoms` seconds (default 90) with at least
 `min_segments` new segments, run the existing extractor (`atoms.extract_candidates`) on the
@@ -319,8 +346,9 @@ segments since the last pass with the source header and the last 10 previous seg
 context; candidates get `status = "pending"` and `live = 1`. The "Требования на лету" list shows
 them with the checkbox meaning accept (bulk accept uses the existing endpoint). Dedup against
 existing atoms runs as today. On stop, the final extraction runs over the whole transcript as
-today; live atoms that the final pass does not re-find are kept (they are the user's) but marked
-`stale_evidence` if their quote cannot be re-verified against the final segments.
+today; live atoms that the final pass does not re-find are kept (they are the user's); their evidence is
+re-verified **by quote text** against the final segments (`atoms.verify_evidence`, segment indices
+are rewritten to the final ones) and marked `stale_evidence` when the quote is not found.
 
 **C4.3 Auto-stop and the question card.** Auto-stop: when `silence_stop_minutes` pass with no
 speech on either channel (`speech_bounds` on the last window), stop the recording exactly as the
@@ -354,16 +382,23 @@ size · changed, preview, labels + "+ метка", "Включать в конт
 with percentages, "Где используется" backlinks to requirements and meetings, footer Открыть ·
 Показать в Finder · Ещё.
 
-- Import (`core/materials.py`): files (`.docx`, `.pdf`, `.md`, `.txt`, `.rtf`, `.html`, `.eml`
-  using the existing extractors in `core/transcripts.py` / `core/emails.py` and `python-docx`,
-  `pypdf` already in requirements), URLs (fetch once with a 10 s timeout, store the readable text,
+- Import (`core/materials.py`): a material is a `sources` row with `kind = "material"` and a
+  `materials` extension row, created through the same import path as text sources today
+  (`importFiles` → `/api/projects/<id>/sources` with `material=1`), so paragraphs become
+  `segments`, the extractor can run on it on demand ("Извлечь требования" in the "Ещё" menu, off by
+  default), and `evidence.source_id` gives "Где используется" for free. Files (`.docx`, `.pdf`,
+  `.md`, `.txt`, `.rtf`, `.html`, `.eml` using the existing extractors in `core/transcripts.py` /
+  `core/emails.py` and `python-docx`, `pypdf` already in requirements), URLs (fetch once with a 10 s timeout, store the readable text,
   `synced_at`, re-sync on demand; no network in "Только локально" projects: the URL is stored but
   not fetched, with the error shown), pasted text (`kind = note`), folder import (walk, skip
   hidden, 200 files max per import with a progress job). Materials are copied into
   `<data>/library/<project>/materials/<id>.<ext>`; the original stays where it was.
 - Index (`core/index.py`): chunk text (about 800 characters, sentence-aware), embed each chunk
-  through `llama-server --embedding` with the pinned embedding model (see §9 A3), store float32
-  BLOBs, cosine similarity in Python with numpy; FTS5 rows for keyword search. Meetings' segments
+  through `llama-server --embedding` with the pinned embedding model (see §9 A3; this chunk adds
+  it to `local_llm.EMBED_MODELS`, to Settings → Модели and to the download flow, since C8's
+  onboarding comes later), store float32 BLOBs, cosine similarity in Python with numpy; FTS5 rows
+  for keyword search. While the embedding model is not downloaded, import still works, FTS5 search
+  works, and the graph, related, auto-labels and Ask show "Скачайте модель индекса" with a button. Meetings' segments
   and accepted atoms are embedded too (`source_embeddings`) so Ask (C6) and "Где используется"
   can span them. Indexing is a job (status chip shows "Индексирую · 3 из 7").
 - Related: `GET /api/materials/<id>/related` → top 5 by max-chunk cosine, with the score.
@@ -377,16 +412,17 @@ with percentages, "Где используется" backlinks to requirements an
   text embedding is closest to the embedding of the label name itself (top 5 above `0.35`). Rows
   in `material_labels` get `assigned_by = "auto"` and the score; the response lists what was
   assigned so the toast can say "назначена: 5 материалов". `DELETE
-  /api/materials/<id>/labels/<label_id>` removes one (user corrections are `assigned_by =
-  "user"` and are never changed by auto runs). New imports get labels whose centroid (mean of the
+  /api/materials/<id>/labels/<label_id>` removes one; a removed auto label is kept as a tombstone
+  (`assigned_by = "removed"`) so later auto runs never put it back, and user-added rows
+  (`assigned_by = "user"`) are never changed by auto runs. New imports get labels whose centroid (mean of the
   members' embeddings, kept in `labels.centroid`) is within `0.45`. Labels filter the list, colour
   the graph nodes and the legend.
 - Context flag: `in_context` on the material; only in-context materials are retrieved by the
   extractor's question card and by Ask when "Только материалы «в контексте»" is on.
-- "Где используется": `material_links` written when an atom's evidence quotes a material (the
-  extractor can take materials as sources: `extract_candidates` already works on any source with
-  segments; materials are exposed to it as a source-like object with paragraph-indexed segments)
-  and when a document cites a material. Links open `#/requirements/atom/<id>` or `#/meeting/<id>`.
+- "Где используется": atoms whose `evidence.source_id` is the material, and documents whose
+  `requirement_ids` include those atoms; meetings appear when Ask or the question card cited the
+  material for that meeting (`ask_history.citations_json`). Links open `#/requirements/atom/<id>`,
+  `#/document/<id>` or `#/meeting/<id>`.
 
 Acceptance: drop a `.docx`, it appears in the list within the job's time, is indexed, gets labels
 from existing clusters when close enough; create a label from a selected material, it lands on the
@@ -412,7 +448,8 @@ previous questions grouped by day.
   idx or chunk idx), ask the configured LLM (local or Claude, honouring "Только локально"), parse
   citations back into `{n, entity, entity_id, locator}`. Tool-like intents are a second small
   prompt: if the answer requests `create_question`, call the existing atom creation with the
-  quotes it cites. Streaming through the existing job/SSE mechanism used by `/summarize`.
+  quotes it cites. Partial text streams into the job exactly as `/summarize` does today (the job's message carries
+the text so far; the page polls `/job/<id>`); no second streaming mechanism.
 - Routes: `POST /api/projects/<id>/ask` `{question, context_only}` → job id; `GET
   /api/projects/<id>/ask/history`; `DELETE /api/ask/<id>`.
 - Frontend: `Ask.svelte`; citations are `<button class="cite">` with `go()` targets;
@@ -439,14 +476,16 @@ icon, text, meta (kind · due · project) and "Сделать вопросом".
 - Capture: microphone only, through the existing recorder with one channel into
   `<data>/whispers/<id>/mic.wav`; stop on button or after 2 s of silence once speech was heard
   (`speech_bounds` on the live window, C4.1's tailing); ASR with GigaAM (`transcribe_longform`,
-  short file); the live words come from C4.1's live transcriber with `window = 2`.
+  short file); the live words come from C4.1's live transcriber with `window = 2`. Depends on
+  C4.1; on a machine where live mode fell back (C4.1's rule) the words appear after the stop,
+  which is acceptable. A whisper is refused while a meeting is being recorded (one recorder).
 - Parse (`core/whisper.py`): one LLM call with a fixed JSON schema: `items: [{kind, title, text,
   due: ISO or null, project_hint: string|null}]`, `now` and the project names given in the prompt
   so relative dates ("завтра в десять", "до вечера" = 18:00 today) resolve locally; project
   match is a name/keyword match against project titles and the labels of the current project.
   The raw transcript is always stored. Reminders: `due_at` set and `kind = remind` (or a task with
-  a due time); a scheduler thread in the app checks every 30 s and fires `/api/notify` once
-  (`notified_at`). Notifications work only while the app runs; say so in Settings.
+  a due time); a scheduler thread in the app checks every 30 s and calls the notification function behind
+  `/api/notify` directly, once (`notified_at`). Notifications work only while the app runs; say so in Settings.
 - Routes: `POST /api/whispers/record/start|stop`, `GET /api/whispers/live`, `POST /api/whispers`
   (save parsed items), `GET /api/whispers?filter=`, `PATCH /api/whispers/<id>` (done, text, kind,
   due), `DELETE`, `POST /api/whispers/<id>/to-question` (creates a Q atom in the linked or current
@@ -456,8 +495,10 @@ icon, text, meta (kind · due · project) and "Сделать вопросом".
   Выйти); a global ⌥Space through `NSEvent.addGlobalMonitorForEventsMatchingMask_handler_`, which
   needs Accessibility permission; if not granted, the hotkey works only while the window is
   focused (document-level key handler) and Settings → Горячие клавиши shows the button to open
-  the Accessibility pane. Runs on the pywebview main thread via `webview` callbacks. Windows:
-  document-level only in 5.0.
+  the Accessibility pane. AppKit objects must be created on the main thread: pywebview owns the Cocoa run loop, so
+  create the status item and the monitor through `PyObjCTools.AppHelper.callAfter` (or a
+  `performSelectorOnMainThread_`) from the `webview.start` callback, never from a Flask thread.
+  Windows: document-level only in 5.0.
 
 Acceptance: pressing the button, speaking, and stopping yields a parsed card within 5 s on the
 dev machine with the local model; "Напомни завтра в десять позвонить Ирине" produces a reminder
@@ -484,7 +525,8 @@ converted. Tests: `test_whisper_parse_dates` (fixed `now`), `test_whisper_two_it
 5. Материалы: discovery checklist from `GET /api/discover` (audio, docx, pdf, md, txt in
    Загрузки, Документы, Рабочий стол, newest 50, not already imported), "Выбрать папку", "Ничего
    не добавлять", "Добавить n и продолжить" (imports into the current project: audio → meetings,
-   the rest → materials).
+   the rest → materials; the imports are queued behind the model downloads on the same
+   `SerialQueue`, so audio picked here is transcribed as soon as the speech model is in place).
 6. Всё готово: four cards (Записать, Встречи, Материалы, Спросить) plus Шепнуть and Настройки,
    "Показать подсказки" / "Пропустить".
 
@@ -499,7 +541,10 @@ closes; reachable again from the help menu.
   /api/permissions/open-settings/<which>` opens the right pane
   (`x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone` etc.).
 - State: `onboarding:v5` in `setup-state.json`; the route guard in `App.svelte` sends a fresh
-  install to `#/onboarding` and never again after step 6 (or skip). "Позже" on permissions and a
+  install to `#/onboarding` and never again after step 6 (or skip). The e2e suites start from a
+  fresh data dir, so `fake_llm_server.py` writes `onboarding:v5 = true` before the app starts
+  (and `onboarding.mjs` is the one suite that does not), otherwise every suite would land on the
+  onboarding. "Позже" on permissions and a
   closed download are allowed; the first recording re-asks what is missing (today's behaviour).
 - The old `FirstRun.svelte` three-row card stays as the empty state of Встречи for projects
   created later (name, AI check, first source), restyled.
@@ -523,13 +568,14 @@ microphone, "Останавливать при тишине" with minutes, "Тр
 Jira: the current connection. Горячие клавиши: list with rebinding by double-click (conflicts
 refused), ⌥ Пробел for Шепнуть.
 
-- Stats: a `usage` table or counters in `meta` incremented by every local LLM call (prompt +
-  completion tokens from llama-server's response), every transcription (seconds), every cloud
-  call (count); `GET /api/stats?period=7d`.
+- Stats: the `usage` table (schema v9) gets a row from every local LLM call (prompt + completion
+  tokens from llama-server's response), every embedding batch, every transcription (seconds) and
+  every cloud call; `GET /api/stats?period=7d` aggregates it.
 - "Сменить папку": moves the data dir with a progress job and a restart notice; refuse if the
   target is inside the old one or not writable.
-- Hotkeys stored in settings `hotkeys` map; the frontend key handler and `core/hotkeys.py` read
-  the same map.
+- Hotkeys are the settings `hotkeys` map (§2.1); the frontend key handler and `core/hotkeys.py`
+  read the same map; a binding already used by another action or by macOS (⌘Space, ⌘Tab, ⌘Q) is
+  refused with a message.
 
 Acceptance: every setting round-trips through `/settings`; the stats row changes after a local
 summary; the model cards show "not enough memory" exactly as `/api/local-llm` reports. Tests:
@@ -575,12 +621,12 @@ so nobody designs it out.
 |---|---|---|
 | `GET /api/jobs` | → `[{id, kind, label, progress, cancellable}]` | C1 |
 | `GET /api/projects/<id>/sources?q=&sort=` | → list rows with `people, atoms, tags` | C2 |
-| `PUT /api/sources/<id>/notes` | `{text}` → `{saved_at}` | C3 |
+| `PUT /api/sources/<id>/notes` · `POST .../notes/append` | `{text}` / `{line}` → `{saved_at, text}` | C3 |
 | `POST /api/sources/<id>/recap` | `{style, incremental}` → `{job}` | C3 |
 | `GET /api/sources/<id>/live?after=` | → `{segments: [...], atoms: [...], listening: bool}` | C4 |
 | `POST /desktop-record/pause`, `/resume` | → `{ok}` | C4 |
-| `GET/POST /api/projects/<id>/materials` | import: multipart files, or `{url}`, or `{text, title}`, or `{folder}` → `{job}` | C5 |
-| `GET /api/materials/<id>` · `PATCH` (`title, in_context`) · `DELETE` · `/related` · `/resync` | | C5 |
+| `GET/POST /api/projects/<id>/materials` | list `kind = material` sources with their extension; import: multipart files, or `{url}`, or `{text, title}`, or `{folder}` → `{job}` | C5 |
+| `GET /api/materials/<id>` · `PATCH` (`title, in_context`) · `DELETE` · `/related` · `/resync` · `/used-in` | `<id>` is the source id | C5 |
 | `GET /api/projects/<id>/materials/graph` | → `{nodes, edges}` | C5 |
 | `GET/POST /api/projects/<id>/labels`, `DELETE /api/labels/<id>` | create: `{name, seed_material_id?}` → `{label, assigned: [...]}` | C5 |
 | `POST/DELETE /api/materials/<id>/labels/<label_id>` | | C5 |
@@ -606,11 +652,12 @@ message, result, error}`) and `JobCancelled`.
 | source.status `recording` | enum (new value) | app | "Идёт запись" row and pill |
 | segment.provisional | bool | live pass | lighter text until the final pass |
 | atom.live | bool | live extractor | "n новых" tag |
-| material.kind | file / url / note | import | type badge, kind filter |
+| source.kind `material` + materials.material_kind | file / url / note | import | type badge, kind filter; hidden from Встречи |
 | material.in_context | bool | user, default on | switch and column |
 | material.synced_at | time | fetch | "синхр. 2 ч назад" |
 | label.color | hex | palette | dot, chip, graph node |
-| material_labels.assigned_by, score | user / auto, 0–1 | assign | tooltip "назначена автоматически · 72 %" |
+| material_labels.assigned_by, score | user / auto / removed, 0–1 | assign | tooltip "назначена автоматически · 72 %"; removed rows are invisible |
+| summaries.style, through_idx | enum, int | recap | style switch; "Обновить по новым репликам" enabled when segments exist past `through_idx` |
 | whisper.kind | task / note / remind / idea | parse, user | icon and filter |
 | whisper.due_at | time | parse, user | red due tag, green when done |
 | whisper.project_id | soft link | parse, user | project tag |
@@ -626,8 +673,8 @@ message, result, error}`) and `JobCancelled`.
   Mac with Gemma 4 12B idle; the recorder's write path is never blocked by the live pass (separate
   thread, read-only file access, measured by `test_live` timing with a fake ASR).
 - **Index size.** Embedding at 1024 floats per chunk: 1,000 materials × 20 chunks ≈ 80 MB in
-  SQLite; acceptable. Graph endpoint returns within 1 s for 500 materials (edges precomputed on
-  index, stored in `material_edges` if the on-demand cosine proves slow).
+  SQLite; acceptable. Graph endpoint returns within 1 s for 500 materials (if the on-demand cosine proves slow, precompute edges at index time into a `material_edges`
+  table added in the same v9 migration, empty until used).
 - **Accessibility.** Every control reachable by keyboard; focus visible (2 px primary outline);
   contrast of text on tonal surfaces ≥ 4.5:1 (check `--text-2` on `--surface-2` in both themes);
   motion respects `prefers-reduced-motion`.
