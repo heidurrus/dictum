@@ -27,6 +27,10 @@ DEFAULTS = {
     "live_requirements": True,         # requirements extracted while recording (5.0 C4.2)
     "live_window_atoms": 90,           # seconds between two live extraction passes
     "silence_stop_minutes": 10,        # stop the recording after this much silence; 0 = never (5.0 C4.3)
+    "embed_model": "",                 # the index's embedding model id; empty = the downloaded one (5.0 C5)
+    # Index thresholds (spec §9 A4): cosine for auto labels and graph edges, chunks retrieved per question.
+    # Starting points, kept out of the UI; settings.json can override them.
+    "tuning": {"label_assign": 0.45, "graph_edge": 0.30, "retrieve_k": 12},
     "hotkeys": {                       # action → key combo, read by the UI's one key handler
         "record": "cmd+r", "palette": "cmd+k", "theme": "cmd+shift+l", "ask": "cmd+j", "whisper": "alt+space",
         **{f"nav{i}": f"cmd+{i}" for i in range(1, 9)},
@@ -95,13 +99,16 @@ def secret(key):
 
 
 def load_settings():
-    data = {**DEFAULTS, "hotkeys": dict(DEFAULTS["hotkeys"])}
+    data = {**DEFAULTS, "hotkeys": dict(DEFAULTS["hotkeys"]), "tuning": dict(DEFAULTS["tuning"])}
     try:
         with open(settings_file(), encoding="utf-8") as f:
             stored = json.load(f)
-        data.update({k: v for k, v in stored.items() if k in DEFAULTS and k != "hotkeys"})
+        data.update({k: v for k, v in stored.items() if k in DEFAULTS and k not in ("hotkeys", "tuning")})
         if isinstance(stored.get("hotkeys"), dict):
             data["hotkeys"].update({k: v for k, v in stored["hotkeys"].items() if k in DEFAULTS["hotkeys"]})
+        if isinstance(stored.get("tuning"), dict):
+            data["tuning"].update({k: v for k, v in stored["tuning"].items() if k in DEFAULTS["tuning"]
+                                   and isinstance(v, (int, float)) and not isinstance(v, bool)})
     except (OSError, ValueError):
         pass
     return data
@@ -129,6 +136,13 @@ def save_settings(updates):
         if key == "hotkeys":
             data[key] = _hotkeys(data[key], value)
             continue
+        if key == "tuning":
+            if not isinstance(value, dict) or set(value) - set(DEFAULTS["tuning"]):
+                raise ValueError(f"tuning takes {sorted(DEFAULTS['tuning'])}")
+            if any(isinstance(v, bool) or not isinstance(v, (int, float)) for v in value.values()):
+                raise ValueError("tuning values must be numbers")
+            data[key] = {**data[key], **value}
+            continue
         if key in ("live_transcription", "live_requirements"):
             data[key] = value is True or str(value).strip().lower() in ("true", "1", "yes", "on")
             continue
@@ -151,6 +165,10 @@ def save_settings(updates):
             from core.local_llm import MODELS_BY_ID
             if value not in MODELS_BY_ID:
                 raise ValueError(f"unknown local model {value}")
+        if key == "embed_model" and value:
+            from core.local_llm import EMBED_MODELS_BY_ID
+            if value not in EMBED_MODELS_BY_ID:
+                raise ValueError(f"unknown index model {value}")
         if key == "ollama_model" and not value:
             raise ValueError("ollama_model must not be empty")
         data[key] = value

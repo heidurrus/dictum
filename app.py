@@ -1080,7 +1080,7 @@ def api_jobs():
                     "cancellable": False, "cancel_url": None, "started_at": job.get("started_at")})
     st = local_llm.installer.status()
     if st.get("status") in ("downloading", "verifying"):
-        model = local_llm.MODELS_BY_ID.get(st.get("model"))
+        model = local_llm._any_model(st.get("model"))
         out.append(_download_entry("local-llm", model.label if model else st.get("model"), st, "/api/local-llm/cancel"))
     st = asr_downloads.status()
     if st and st.get("status") in ("downloading", "verifying"):
