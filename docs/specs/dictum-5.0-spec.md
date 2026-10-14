@@ -33,8 +33,11 @@ security quarantines it), the user opens it from Finder.
 **Conventions.** One feature branch per chunk, merged into `master` with `--no-ff`; the user pushes
 and tags. Bump `VERSION` and add a `CHANGELOG.md` entry per shipped chunk. Pre-release builds are
 numbered `4.9.N` (plain `x.y.z`, which is what `CFBundleShortVersionString` and the Windows
-installer accept; maintenance of the old line, if any, stays on `4.2.x`); C11 sets `5.0.0`. i18n: every string in both languages in `frontend/src/lib/i18n.js`;
-`t(key)` returns the key when missing, so missing keys show up on screen. Keep the e2e class
+installer accept; maintenance of the old line, if any, stays on `4.2.x`); C11 sets `5.0.0`. i18n: every string in both languages in `frontend/src/lib/i18n.js`; `node frontend/scripts/i18n_check.mjs`
+(also `npm run i18n`) fails on any key missing in either language or left untranslated and is a
+gate for every increment; `t(key)` returns the key when missing, so leftovers show on screen. The
+default language follows the OS language on first start (English unless the system is Russian),
+and the switch in Settings keeps working. Keep the e2e class
 selectors listed in `docs/design/redesign.md` §12 as aliases. Keep all existing backend tests
 green; the suite is 399 tests at the start of 5.0.
 
@@ -695,8 +698,8 @@ message, result, error}`) and `JobCancelled`.
 2. `svelte-check` clean, `vite build` committed.
 3. The chunk's e2e suite passes against `fake_llm_server.py` (extend the fake server for ASR and
    embeddings: scripted segments, deterministic embeddings = hashed bag of words).
-4. i18n keys present in both languages; no raw keys visible in a screenshot pass of the chunk's
-   pages (light and dark, 1440 and 390 px) saved under `docs/design/5.0/`.
+4. `node frontend/scripts/i18n_check.mjs` passes; no raw keys visible in a screenshot pass of the
+   chunk's pages in **both languages** (light and dark, 1440 and 390 px) saved under `docs/design/5.0/`.
 5. `CHANGELOG.md` entry, `VERSION` bumped, merged to `master` with `--no-ff`.
 6. A dmg built and installed for chunks that change recording, storage or packaging (C0, C4, C7,
    C9, C11).
