@@ -14,8 +14,8 @@ depends on an unmerged one.
 | # | Increment | Spec | Version | Status |
 |---|---|---|---|---|
 | 01 | Rename to Dictum, data-dir migration, bundle id | C0 | 4.9.0 | merged |
-| 02 | Shell A: tonal tokens, Inter, Rail, Page, TopBar, theme, phone bar; old screens inside; Sidebar removed | C1 | 4.9.1 | in progress |
-| 03 | Shell B: `/api/jobs`, status chip with jobs popover, `hotkeys` settings map, key handler, palette routes | C1 | 4.9.2 | planned |
+| 02 | Shell A: tonal tokens, Inter, Rail, Page, TopBar, theme, phone bar; old screens inside; Sidebar removed | C1 | 4.9.1 | merged |
+| 03 | Shell B: `/api/jobs`, status chip with jobs popover, `hotkeys` settings map, key handler, palette routes | C1 | 4.9.2 | in progress |
 | 04 | Встречи home: list, search (LIKE), sort, panel with tabs, rename, pipeline strip; Overview removed | C2 | 4.9.3 | planned |
 | 05 | Meeting page: transcript search/filter, notes pane with append, per-style recap with incremental update | C3 | 4.9.4 | planned |
 | 06 | Live transcript while recording, pause/resume, `recording` source state | C4.1 | 4.9.5 | planned |
@@ -34,3 +34,4 @@ depends on an unmerged one.
 
 (one line per increment: date, outcome, what the verification found, what was sent back)
 - 2026-10-14 · 01 merged (c34c0f4). 410 tests, dmg 4.9.0 built and installed as Dictum.app; migration code reviewed (rename, copy-verify across volumes, refuses while 4.x runs). Deviation accepted: Windows data stays in LOCALAPPDATA.
+- 2026-10-14 · 02 merged (3f58fd5). 410 tests, svelte-check clean, all 7 e2e suites pass on fresh servers; screenshots light/phone OK. Carried into 03: duplicate record FAB on phone width, Transcript's inner crumb duplicates Page's, fake_llm_server should stub torch itself.
