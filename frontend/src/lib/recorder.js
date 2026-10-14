@@ -7,18 +7,31 @@ import { api } from "./api.js";
 export class DesktopRecorder {
   constructor() { this.statusTimer = null; }
 
-  async start(micDevice, onStatus) {
-    await api("/desktop-record/start", { method: "POST", body: { mic_device: micDevice } });
+  // The meeting exists from the first second: resolves { source_id, live } (5.0 C4.1).
+  // `extra` carries the localised title and the speech-recognition options (the live pass uses them).
+  async start(micDevice, onStatus, extra = {}) {
+    const body = await api("/desktop-record/start", { method: "POST", body: { mic_device: micDevice, ...extra } });
+    this.watch(onStatus);
+    return body;
+  }
+
+  // Follow the server recorder's status (also used to take over a recording after a reload).
+  watch(onStatus) {
+    clearInterval(this.statusTimer);
     this.statusTimer = setInterval(async () => {
       try { onStatus(await api("/desktop-record/status")); } catch (_) { /* transient */ }
     }, 1500);
   }
 
-  // Resolves { sourceId, errors }. The recording is saved as a source on the server.
-  async stop(title) {
+  pause() { return api("/desktop-record/pause", { method: "POST" }); }
+  resume() { return api("/desktop-record/resume", { method: "POST" }); }
+
+  // Resolves { sourceId, jobId, errors }. The server finalises the meeting's source and, given the
+  // transcription options, starts the full transcription on it.
+  async stop(body = {}) {
     clearInterval(this.statusTimer);
     const res = await fetch("/desktop-record/stop", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title }) });
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       const err = new Error(body.error || "Recording failed");
@@ -27,6 +40,7 @@ export class DesktopRecorder {
     }
     return {
       sourceId: res.headers.get("X-Source-Id"),
+      jobId: res.headers.get("X-Job-Id"),
       errors: JSON.parse(res.headers.get("X-Recording-Errors") || "{}"),
     };
   }

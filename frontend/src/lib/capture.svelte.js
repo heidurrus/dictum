@@ -10,6 +10,7 @@ export const cap = $state({
   uploading: false, error: "",
   mics: [], mic: "",
   recording: false, elapsed: 0, problems: [], recError: "",
+  paused: false, sourceId: null,          // the meeting being recorded (desktop): a source from the first second
   consentAsk: false,
 });
 
@@ -125,37 +126,79 @@ export function confirmConsent() {
   startRecording();
 }
 
+function onRecorderStatus(st) {
+  cap.problems = Object.entries(st.channels || {}).filter(([, c]) => c.error).map(([n, c]) => `${channelName(n)}: ${c.error}`);
+  if (st.recording) cap.paused = !!st.paused;
+}
+
+function startClock(fromSeconds) {
+  clearInterval(timer);
+  started = Date.now() - fromSeconds * 1000;
+  cap.elapsed = Math.floor(fromSeconds);
+  timer = setInterval(() => (cap.elapsed = Math.floor((Date.now() - started) / 1000)), 500);
+}
+
+// A desktop recording this window did not start (the page was reloaded while recording): take it over, so the
+// HUD, pause and stop work again. `live` is the meeting page's /live answer.
+export function adoptRecording(sourceId, live) {
+  if (cap.recording || !app.device.desktop || !live?.recording) return;
+  recorder = new DesktopRecorder();
+  recorder.watch(onRecorderStatus);
+  cap.recording = true;
+  cap.sourceId = sourceId;
+  cap.paused = !!live.paused;
+  startClock(live.elapsed || 0);
+}
+
 async function startRecording() {
   cap.recError = "";
   cap.problems = [];
   try {
     if (app.device.desktop) {
       recorder = new DesktopRecorder();
-      await recorder.start(cap.mic === "" ? null : Number(cap.mic), st => {
-        cap.problems = Object.entries(st.channels || {}).filter(([, c]) => c.error).map(([n, c]) => `${channelName(n)}: ${c.error}`);
-      });
+      const title = `${t("rec.meeting_title")} ${fmtDate(Date.now() / 1000, app.lang)}`;
+      const body = await recorder.start(cap.mic === "" ? null : Number(cap.mic), onRecorderStatus, { title, ...optionsPayload() });
+      cap.sourceId = body.source_id || null;
+      cap.paused = false;
+      cap.recording = true;
+      startClock(0);
+      if (cap.sourceId) {
+        loadSources().catch(() => {});
+        rememberSource(cap.sourceId);
+        go(`/meeting/${cap.sourceId}`);       // the meeting page shows the transcript as it grows
+      }
     } else {
       recorder = new BrowserRecorder();
       await recorder.start(cap.mic, which => (cap.problems = [...cap.problems, `${channelName(which)}: —`]));
+      cap.recording = true;
+      startClock(0);
     }
-    cap.recording = true;
-    started = Date.now();
-    cap.elapsed = 0;
-    timer = setInterval(() => (cap.elapsed = Math.floor((Date.now() - started) / 1000)), 500);
   } catch (err) {
     cap.recError = err.message;
     toast(err.message, { kind: "danger" });
   }
 }
 
+// Pause keeps the recorder writing silence, so the timeline (and the transcript's times) stay continuous.
+export async function togglePause() {
+  if (!(recorder instanceof DesktopRecorder) || !cap.recording) return;
+  try {
+    const body = await (cap.paused ? recorder.resume() : recorder.pause());
+    cap.paused = !!body.paused;
+  } catch (err) { toast(err.message, { kind: "danger" }); }
+}
+
 export async function stopRecording() {
   clearInterval(timer);
   cap.recording = false;
+  cap.paused = false;
   try {
     if (recorder instanceof DesktopRecorder) {
-      const { sourceId, errors } = await recorder.stop(`${t("rec.title")} ${fmtDate(Date.now() / 1000, app.lang)}`);
+      const { sourceId, jobId, errors } = await recorder.stop(optionsPayload());
       cap.problems = Object.entries(errors).map(([n, e]) => `${channelName(n)}: ${e}`);
-      if (sourceId) { await loadSources(); transcribeSaved(sourceId); }
+      await loadSources();
+      if (sourceId && jobId) track(sourceId, jobId);
+      else if (sourceId) transcribeSaved(sourceId);
     } else {
       const blob = await recorder.stop();
       const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
@@ -166,7 +209,9 @@ export async function stopRecording() {
     cap.recError = err.message;
     cap.problems = Object.entries(err.errors || {}).map(([n, e]) => `${channelName(n)}: ${e}`);
     toast(err.message, { kind: "danger" });
+    loadSources().catch(() => {});
   }
+  cap.sourceId = null;
 }
 
 export const clock = s => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;

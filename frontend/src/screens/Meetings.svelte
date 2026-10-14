@@ -62,6 +62,7 @@
   const kindIcon = s => ({ recording: "mic", import: "upload" }[s.tags] || "doc");
   const people = s => (s.people ? s.people.split(", ").map(l => speakerDisplay(l, null, t)).join(", ") : "");
   function stateOf(s) {
+    if (s.status === "recording") return { cls: "rec", text: t("rec.recording"), dot: true };
     if (app.extracting[s.id]) return { cls: "prim", text: t("src.st.extracting") };
     if (s.status === "processing") return { cls: "warn", text: app.jobs[s.id] ? t("meet.st.processing", { p: Math.round(app.jobs[s.id].progress || 0) }) : t("meet.st.processing_q") };
     if (s.status === "failed") return { cls: "danger", text: t("src.st.failed"), tip: s.error || "" };
@@ -351,7 +352,7 @@
                     <span class="tag">{t("meet.tag." + m.tags)}</span></div>
                 </div>
                 <div class="right">
-                  <span class="tag {st.cls}" title={st.tip || undefined}>{st.text}</span>
+                  <span class="tag {st.cls}" title={st.tip || undefined}>{#if st.dot}<i class="live-dot"></i>{/if}{st.text}</span>
                   <span class="num">{m.atoms ? t("meet.reqs_short", { n: m.atoms }) : ""}</span>
                 </div>
               </div>
@@ -381,7 +382,10 @@
             {/each}
           </div>
           <div class="panel-body scroll">
-            {#if selected.status === "processing"}
+            {#if selected.status === "recording"}
+              <div class="empty"><p><span class="tag rec"><i class="live-dot"></i>{t("rec.recording")}</span></p>
+                <p class="t3 small">{t("live.panel_hint")}</p></div>
+            {:else if selected.status === "processing"}
               <div class="empty"><span class="spinner"></span>
                 <p>{st.text}{#if app.jobs[selected.id]?.eta} · {app.jobs[selected.id].eta}{/if}</p>
                 <p class="t3 small">{t("meet.keep_working")}</p></div>
@@ -523,6 +527,9 @@
     background: var(--surface-2); color: var(--text-2); white-space: nowrap; }
   .tag.ok { background: var(--ok-c); color: var(--ok); } .tag.warn { background: var(--warn-c); color: var(--warn); }
   .tag.danger { background: var(--danger-c); color: var(--danger); } .tag.prim { background: var(--primary-c); color: var(--on-primary-c); }
+  .tag.rec { background: var(--danger-c); color: var(--rec); gap: 6px; }
+  .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--rec); flex: none; animation: live-pulse 1.6s ease-in-out infinite; }
+  @keyframes live-pulse { 50% { opacity: .35; } }
 
   .panel-head { padding: 18px 20px 8px; flex: none; }
   .panel-head h2 { font-size: 20px; line-height: 26px; font-weight: 600; letter-spacing: -.01em; outline: none; border-radius: 6px; cursor: text; word-break: break-word; }
