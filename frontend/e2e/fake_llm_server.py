@@ -335,6 +335,79 @@ if os.getenv("FAKE_GPU"):
                                                         "memory": int(float(os.environ["FAKE_GPU"]) * 1024 ** 3)}
     app_module.local_llm.gpu_info = lambda refresh=False: fake
 
+# First run (5.0 C8, e2e/onboarding.mjs). Every suite starts from a fresh data dir, so the onboarding is marked done
+# before serving, except with ONBOARDING=1. Permissions read "undetermined" until requested, then "granted"; nothing
+# opens System Settings. A model download completes in 2 s and nothing is fetched. Discovery looks only in a temp folder:
+# empty, or with ONBOARDING=1 two files (a call recording and a document), shown at /__fake/discover-root.
+import tempfile  # noqa: E402
+
+from core import permissions as permissions_mod  # noqa: E402
+from core.setup_plan import StateFile  # noqa: E402
+
+FAKE_PERMS = {w: "undetermined" for w in permissions_mod.WHICH}
+permissions_mod.read = lambda state, **k: dict(FAKE_PERMS)
+permissions_mod.request = lambda which, state, *a, **k: FAKE_PERMS.__setitem__(which, "granted")
+app_module.app.view_functions["api_permissions_open_settings"] = lambda which: app_module.jsonify({"ok": True})
+
+
+class FakeDownload:
+    """The shape of asr_models.Downloader / local_llm.Installer status, finishing 2 s after start."""
+
+    def __init__(self, idle=None):
+        self.state, self._idle = None, idle
+
+    def status(self):
+        return dict(self.state) if self.state else (dict(self._idle) if self._idle else None)
+
+    def busy(self):
+        return bool(self.state and self.state["status"] in ("downloading", "verifying"))
+
+    def start(self, model_id):
+        total = 100 * 1024 ** 2
+        self.state = {"model": model_id, "status": "downloading", "done": 0, "total": total, "error": None}
+
+        def run():
+            for i in range(1, 11):
+                time.sleep(0.2)
+                self.state = {**self.state, "done": total * i // 10, "status": "done" if i == 10 else "downloading"}
+        threading.Thread(target=run, daemon=True).start()
+        return self.status()
+
+    def cancel(self):
+        if self.busy():
+            self.state = {**self.state, "status": "cancelled"}
+
+
+app_module.asr_downloads = FakeDownload()
+app_module.local_llm.installer = FakeDownload(idle={"status": "idle"})
+
+DISCOVER_ROOT = tempfile.mkdtemp(prefix="dictum-discover-")
+os.environ["DICTUM_DISCOVER_ROOTS"] = DISCOVER_ROOT
+if os.getenv("ONBOARDING"):
+    import wave
+    with wave.open(os.path.join(DISCOVER_ROOT, "Звонок с дилером.wav"), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(16000)
+        w.writeframes(b"\0\0" * 16000)
+    with open(os.path.join(DISCOVER_ROOT, "Регламент обработки заявок.md"), "w", encoding="utf-8") as f:
+        f.write("# Регламент обработки заявок\n\nОтвет дилеру даётся не позднее двух часов.\n")
+else:
+    StateFile().set("onboarding:v5", True)
+app_module.app.add_url_rule("/__fake/discover-root", "fake_discover_root", lambda: app_module.jsonify({"root": DISCOVER_ROOT}))
+
+
+def fake_reset_onboarding():
+    """The next language's run of onboarding.mjs starts over: a fresh install's state and permissions."""
+    FAKE_PERMS.update({w: "undetermined" for w in permissions_mod.WHICH})
+    state = StateFile()
+    state.set("onboarding:v5", False)
+    state.set("onboarding:v5:step", 1)
+    return app_module.jsonify({"ok": True})
+
+
+app_module.app.add_url_rule("/__fake/reset-onboarding", "fake_reset_onboarding", fake_reset_onboarding, methods=["POST"])
+
 if __name__ == "__main__":
     app_module.start_background()               # the reminder check, as the launcher starts it
     app_module.app.run(host="127.0.0.1", port=int(sys.argv[1]) if len(sys.argv) > 1 else 5098, threaded=True)
