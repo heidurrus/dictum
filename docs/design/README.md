@@ -67,7 +67,7 @@ Steps 1–4 are low-risk polish that fixes every AA failure. Steps 5–6 change 
 
 | File | What |
 |---|---|
-| [`v5-foresight.md`](v5-foresight.md) | Brief for the next shell: Material-style rail and tonal cards, Meetings as the home with a notes pane in the session, a real first-run gate, and an Obsidian-like vault for materials. Release order 5.0–5.5 |
+| [`v5-foresight.md`](v5-foresight.md) | Brief for the next shell: Material-style rail and tonal cards, Meetings as the home with a notes pane in the session, a voice inbox (Шепнуть), a real first-run gate, and an Obsidian-like vault for materials. Release order 5.0–5.6 |
 | [`prototype-v5.html`](prototype-v5.html) | Clickable prototype, no dependencies. `#onboarding` restarts the first run; ⌘1…⌘8 switch pages; the moon toggles dark |
 | `prototype-v5-screens/` | Screenshots of every page at 1440, light and dark, plus a phone width |
 | [`../research/foresight-teardown.md`](../research/foresight-teardown.md) | The teardown the brief is based on |

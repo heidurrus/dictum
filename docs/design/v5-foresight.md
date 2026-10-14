@@ -136,7 +136,34 @@ Code: `core/vault.py` (layout, writers, watcher), `core/index.py` (FTS5 + local 
 the existing local LLM runtime), routes `/api/projects/<id>/vault/*`, `/api/ask`, a `Library.svelte`
 and `Ask.svelte`.
 
-## 5. Order of work
+## 5. Шепнуть: voice capture for the analyst, not for the project
+
+Taken from the quick voice-memo apps (HiNotes and the like): press, speak, and the thing you said
+becomes a task, a note, a reminder or an idea. It lives in a personal inbox that is separate from
+every project. Nothing from it reaches requirements, documents or Jira unless the user presses
+"Сделать вопросом" on an item.
+
+Decisions:
+
+- **One screen (`#/whisper`)**, one big button. Idle: "Нажмите и скажите, что нужно сделать".
+  Listening: the words appear as GigaAM recognises them, a second press or two seconds of silence
+  stops. Result: what was said, the parsed card (type chips Задача / Заметка / Напоминание / Идея,
+  an editable title, the due time parsed from speech, the project guessed from words), and when one
+  utterance holds two things, both are offered. "Сохранить", "Переговорить", "Отменить".
+- **Global shortcut** (⌥ Space) and a menu-bar microphone: the window comes forward on the whisper
+  screen already listening. Reminders fire as macOS notifications.
+- **Inbox** on the right: grouped Сегодня / Вчера / Раньше, filters Все / Открытые / Задачи /
+  Заметки / Напоминания, a checkbox on tasks and reminders, search.
+- **Storage**: a `whispers` table (kind, text, title, due_at, done, project_id nullable,
+  audio file) and a `Шепот/` folder in the vault root, outside any project, one `.md` per item.
+  The audio clip is kept next to it.
+- **Parsing** runs through the local LLM with a small fixed prompt (type, title, due, project
+  candidates); the raw transcript is always kept so a wrong parse costs one edit.
+
+Code: `core/whisper.py` (capture → GigaAM → parse → store), `Whisper.svelte`, a global hotkey in
+`desktop_api.py`, notifications through the existing macOS bridge.
+
+## 6. Order of work
 
 Each release ships on its own and keeps every existing test green.
 
@@ -145,12 +172,15 @@ Each release ships on its own and keeps every existing test green.
 | 5.0 | Shell: tokens, bundled font, rail, headline rows, status chip, dark | `tokens.css`, `app.css`, `App.svelte`, `Screen.svelte`, new `Rail.svelte` |
 | 5.1 | Meetings home with details panel; title editable everywhere; search | `Meetings.svelte`, `/api/sources` search, FTS5 |
 | 5.2 | Session screen: notes pane, live requirements, recap styles, auto-stop | `Transcript.svelte` → `Meeting.svelte`, `notes` column, extractor window |
-| 5.3 | Onboarding gate and tutorial | `FirstRun` route, `/api/discover`, `setup-state.json` |
-| 5.4 | Vault on disk with watcher; Library page | `core/vault.py`, `Library.svelte` |
-| 5.5 | Local index and Спросить with citations | `core/index.py`, `Ask.svelte` |
+| 5.3 | Шепнуть: capture, parse, inbox, global shortcut | `core/whisper.py`, `Whisper.svelte`, `whispers` table |
+| 5.4 | Onboarding gate and tutorial | `FirstRun` route, `/api/discover`, `setup-state.json` |
+| 5.5 | Vault on disk with watcher; Library page | `core/vault.py`, `Library.svelte` |
+| 5.6 | Local index and Спросить with citations | `core/index.py`, `Ask.svelte` |
 
-## 6. Assumptions and open points
+## 7. Assumptions and open points
 
+- Assumed: the whisper inbox is personal and cross-project; items can be linked to a project but never
+  live inside one.
 - Assumed: the app stays Russian-first with the English set; the prototype is Russian only.
 - Assumed: we bundle Inter rather than license Google Sans. If you prefer the system font, only
   the headline weight changes.

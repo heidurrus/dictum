@@ -266,6 +266,39 @@ svg { flex: none; }
 .link:hover { background: var(--surface-2); }
 .link .wl { color: var(--primary); font-weight: 500; }
 
+
+/* ---------- Whisper ---------- */
+.whisper { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 38%); gap: 16px; height: 100%; }
+.wcap { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px; text-align: center; position: relative; min-height: 0; }
+.wbtn { width: 112px; height: 112px; border-radius: 56px; background: var(--primary); color: var(--on-primary); display: grid; place-items: center; box-shadow: var(--shadow-2); transition: transform .15s, background .15s; }
+.wbtn:hover { transform: scale(1.04); }
+.wbtn.live { background: var(--rec); color: #fff; animation: wpulse 1.4s infinite; }
+@keyframes wpulse { 0%,100% { box-shadow: 0 0 0 0 rgba(217,48,37,.35), var(--shadow-2);} 50% { box-shadow: 0 0 0 22px rgba(217,48,37,0), var(--shadow-2);} }
+.wcap h2 { font-size: 22px; font-weight: 600; letter-spacing: -.015em; margin-top: 24px; }
+.wcap .hint { color: var(--text-3); margin-top: 6px; font-size: 13px; }
+.wlive { margin-top: 24px; max-width: 560px; font-size: 18px; line-height: 28px; color: var(--text); min-height: 56px; }
+.wlive .cursor { display: inline-block; width: 2px; height: 20px; background: var(--primary); vertical-align: -3px; margin-left: 2px; animation: blink 1s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.wres { width: min(620px, 100%); text-align: left; margin-top: 8px; display: grid; gap: 12px; animation: fade .25s; }
+.wres .said { color: var(--text-2); font-size: 15px; line-height: 23px; padding: 14px 18px; border-radius: 16px; background: var(--surface-2); }
+.wres .said small { display: block; color: var(--text-3); font-size: 12px; margin-bottom: 4px; }
+.wparsed { border-radius: 20px; background: var(--surface); box-shadow: inset 0 0 0 2px var(--primary-c); padding: 16px 18px; display: grid; gap: 10px; }
+.wparsed .types { display: flex; gap: 6px; flex-wrap: wrap; }
+.wparsed .title { font-size: 17px; font-weight: 600; outline: none; border-radius: 6px; }
+.wparsed .title:focus { box-shadow: 0 0 0 2px var(--primary); padding: 0 4px; }
+.wparsed .meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; color: var(--text-2); font-size: 13px; }
+.wparsed .acts { display: flex; gap: 8px; margin-top: 4px; }
+.wkind { width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; flex: none; }
+.wkind.task { background: var(--primary-c); color: var(--on-primary-c); } .wkind.note { background: var(--warn-c); color: var(--warn); } .wkind.remind { background: var(--danger-c); color: var(--danger); } .wkind.idea { background: var(--ok-c); color: var(--ok); }
+.winbox { display: flex; flex-direction: column; min-height: 0; }
+.wsec { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); padding: 14px 16px 6px; }
+.witem { display: grid; grid-template-columns: auto 36px minmax(0, 1fr); gap: 12px; align-items: start; padding: 10px 16px; margin: 0 8px; border-radius: 14px; cursor: pointer; }
+.witem:hover { background: var(--surface-2); }
+.witem .cb { margin-top: 9px; } .witem .cb.none { visibility: hidden; }
+.witem .tx { line-height: 20px; } .witem.done .tx { color: var(--text-3); text-decoration: line-through; }
+.witem .m { color: var(--text-3); font-size: 12px; margin-top: 2px; display: flex; gap: 8px; flex-wrap: wrap; }
+.witem .m .due { color: var(--danger); font-weight: 500; } .witem .m .due.ok { color: var(--ok); }
+
 /* ---------- Ask ---------- */
 .ask { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; height: 100%; }
 .chat { display: flex; flex-direction: column; min-height: 0; }
@@ -366,8 +399,9 @@ svg { flex: none; }
   .page-head .actions .outlined, .topbar .status-chip span + *, .topbar .icon-btn[title^="Справка"] { display: none; }
   .status-chip { font-size: 0; gap: 0; padding: 0 10px; } .status-chip .ring { width: 18px; height: 18px; }
   .page-head h1 { font-size: 26px; line-height: 32px; }
-  .meetings, .library, .sess-body, .ask, .settings, .panels { grid-template-columns: 1fr; grid-template-rows: none; }
+  .meetings, .library, .sess-body, .ask, .settings, .panels, .whisper { grid-template-columns: 1fr; grid-template-rows: none; }
   .meetings > .panel, .library > .panel, .ask > .hist, .library .tree, .settings .setnav { display: none; }
+  .whisper .wcap { min-height: 360px; }
   .search { min-width: 0; }
   .onb-top, .onb-body, .onb-bot { padding-left: 16px; padding-right: 16px; }
   .q-card { left: 16px; right: 16px; width: auto; }
@@ -435,6 +469,17 @@ const FILES = [
   { id: 8, name: "FR-12 Проверка дублей по VIN и телефону", ext: "md", folder: "Требования", labels: [], imported: "14 окт", changed: "5 мин назад", size: "1 КБ", ctx: true, back: ["[[Встречи/2026-10-14 Звонок]]", "[[ТЗ v3]]"], preview: "---\nid: FR-12\ntype: functional\nstatus: accepted\nsource: [[Встречи/2026-10-14 Звонок]]\n---\nСистема проверяет VIN и телефон клиента при создании заявки…" },
 ];
 
+
+const WHISPERS = [
+  { id: 1, kind: "task", text: "Отправить Олегу регламент v2 и спросить про утверждение статусов", when: "Сегодня", due: "до 18:00", done: false, project: "Портал дилера" },
+  { id: 2, kind: "remind", text: "Позвонить в дилерский центр насчёт демо", when: "Сегодня", due: "завтра, 10:00", done: false, project: "" },
+  { id: 3, kind: "note", text: "Мысль: конфликт по SLA (2 ч и 4 ч) лучше вынести отдельным вопросом в протокол, а не прятать в ТЗ", when: "Сегодня", due: "", done: false, project: "Портал дилера" },
+  { id: 4, kind: "idea", text: "Для воркшопов делать шаблон «боль → причина → ожидание» прямо в заметках встречи", when: "Вчера", due: "", done: false, project: "" },
+  { id: 5, kind: "task", text: "Проверить, что Jira-токен не протух перед выгрузкой бэклога", when: "Вчера", due: "вчера", done: true, project: "Портал дилера" },
+  { id: 6, kind: "task", text: "Купить переходник USB-C для диктофона", when: "Раньше", due: "", done: true, project: "" },
+];
+const WKIND = { task: ["Задача", "check"], note: ["Заметка", "edit"], remind: ["Напоминание", "bell"], idea: ["Идея", "bolt"] };
+
 /* ---------- State ---------- */
 const S = {
   page: "meetings", theme: localStorage.getItem("wb5.theme") || "", onb: 0, tut: 0,
@@ -443,6 +488,7 @@ const S = {
   paused: false, secs: 1935, qcard: true, notes: "- Дубли заявок: VIN + телефон\n- SLA 2 часа (!)\n- Кто утверждает статус? → уточнить у Олега\n- История изменений",
   perms: { mic: true, sys: false, notif: false }, model: "e4b", dl: 0, disc: { 1: true, 2: true, 3: false },
   setsec: "models", ctxOnly: true, toast: "",
+  wstate: "idle", wtext: "", wkind: "task", wfilter: "all",
 };
 try { if (!localStorage.getItem("wb5.seen")) S.onb = 1; } catch (_) {}
 function theme() { document.documentElement.dataset.theme = S.theme; }
@@ -458,7 +504,7 @@ const fmtSecs = n => `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n 
 /* ---------- Shell ---------- */
 const NAV = [
   ["meetings", "meet", "Встречи"], ["library", "lib", "Материалы"], ["requirements", "req", "Требования", { badge: 9 }],
-  ["documents", "doc", "Документы", { dot: true }], ["backlog", "tree", "Бэклог"], ["ask", "chat", "Спросить"],
+  ["documents", "doc", "Документы", { dot: true }], ["backlog", "tree", "Бэклог"], ["ask", "chat", "Спросить"], ["whisper", "mic", "Шепнуть"],
 ];
 function shell(content) {
   const act = S.page === "session" ? "meetings" : S.page;
@@ -467,7 +513,7 @@ function shell(content) {
     <nav class="rail" aria-label="Разделы">
       <div class="logo" title="Requirements Workbench">${ic("req", 22)}</div>
       <button class="rec-fab" id="t-rec" title="Записать встречу (⌘R)" onclick="S.page='session';S.paused=false;go('session')"><span class="dot"></span></button>
-      ${NAV.map(([p, i, l, o = {}]) => html`<button class="nav-item ${act === p ? "active" : ""} ${["backlog", "documents"].includes(p) ? "opt" : ""}" id="t-${p}" onclick="go('${p}')">
+      ${NAV.map(([p, i, l, o = {}]) => html`<button class="nav-item ${act === p ? "active" : ""} ${["backlog", "documents", "ask"].includes(p) ? "opt" : ""}" id="t-${p}" onclick="go('${p}')">
         <span class="pill">${ic(i, 22)}</span>${l}${o.badge ? `<span class="badge">${o.badge}</span>` : ""}${o.dot ? `<span class="dotb"></span>` : ""}</button>`).join("")}
       <span class="spacer"></span>
       <button class="nav-item ${act === "settings" ? "active" : ""}" onclick="go('settings')"><span class="pill">${ic("set", 22)}</span>Настройки</button>
@@ -643,6 +689,57 @@ function pageLibrary() {
   </div>`;
 }
 
+
+/* ---------- Whisper: press, speak, get a task / note / reminder. Never touches requirements. ---------- */
+const WSAMPLE = "Напомни завтра в десять позвонить Ирине насчёт истории изменений заявки, и ещё надо отправить Олегу регламент до вечера";
+function pageWhisper() {
+  const items = WHISPERS.filter(w => S.wfilter === "all" || (S.wfilter === "open" ? (w.kind === "task" || w.kind === "remind") && !w.done : w.kind === S.wfilter));
+  const groups = ["Сегодня", "Вчера", "Раньше"].map(g => [g, items.filter(w => w.when === g)]).filter(([, l]) => l.length);
+  const cap = S.wstate === "idle" ? html`
+      <button class="wbtn" onclick="wStart()" title="Говорите (⌥ Пробел)">${ic("mic", 44)}</button>
+      <h2>Нажмите и скажите, что нужно сделать</h2>
+      <p class="hint">Задача, заметка, напоминание или идея — Workbench распознает речь на этом Mac и сам поймёт, что это.<br>Из любого окна: <span class="kbd">⌥ Пробел</span> · из строки меню: значок микрофона</p>`
+    : S.wstate === "listening" ? html`
+      <button class="wbtn live" onclick="wStop()" title="Готово">${ic("stop", 40)}</button>
+      <h2>Слушаю…</h2><p class="hint">Нажмите ещё раз, когда закончите. Пауза в две секунды тоже остановит запись.</p>
+      <div class="wlive"><span id="wlive">${S.wtext}</span><span class="cursor"></span></div>`
+    : html`
+      <div class="wres">
+        <div class="said"><small>Вы сказали · 0:07 · GigaAM, локально</small>${S.wtext}</div>
+        <div class="wparsed">
+          <div class="types">${Object.entries(WKIND).map(([k, [l, i]]) => `<span class="chip sm ${S.wkind === k ? "on" : ""}" onclick="S.wkind='${k}';render()">${ic(i, 14)} ${l}</span>`).join("")}</div>
+          <div class="title" contenteditable="true" spellcheck="false">Позвонить Ирине насчёт истории изменений заявки</div>
+          <div class="meta"><span class="tag danger">${ic("bell", 12)} завтра, 10:00</span><span class="tag">Портал дилера</span><span class="t3">· проект угадан по словам «заявки» и «Ирина»</span></div>
+          <div class="meta t3" style="font-size:12px">${ic("plus", 12)} Ещё одно в этой же фразе: <b class="t2">Задача · отправить Олегу регламент · до 18:00</b> — создать обе</div>
+          <div class="acts"><button class="btn filled" onclick="wSave()">Сохранить 2 ${ic("check", 16)}</button><button class="btn" onclick="wStart()">${ic("mic", 16)} Переговорить</button><button class="btn text" onclick="S.wstate='idle';render()">Отменить</button></div>
+        </div>
+        <p class="t3" style="font-size:12px;text-align:center">Это личный ящик. В требования, документы и Jira отсюда ничего не попадает, пока вы сами не нажмёте «Сделать вопросом».</p>
+      </div>`;
+  return html`
+  ${head("Шепнуть", "Личный ящик: задачи, заметки и напоминания голосом · отдельно от требований", html`<div class="seg">${[["all", "Все"], ["open", "Открытые"], ["task", "Задачи"], ["note", "Заметки"], ["remind", "Напоминания"]].map(([k, l]) => `<button class="${S.wfilter === k ? "on" : ""}" onclick="S.wfilter='${k}';render()">${l}</button>`).join("")}</div>`)}
+  <div class="body whisper">
+    <div class="card wcap" id="t-whisper">${cap}</div>
+    <div class="card winbox">
+      <div class="list-tools"><label class="search sm grow">${ic("search", 16)}<input placeholder="Искать в ящике"></label><span class="t3" style="font-size:12px">${WHISPERS.filter(w => !w.done && w.kind !== "note" && w.kind !== "idea").length} открытых</span></div>
+      <div class="scroll grow" style="padding-bottom:8px">
+        ${groups.map(([g, l]) => `<div class="wsec">${g}</div>` + l.map(w => `<div class="witem ${w.done ? "done" : ""}">
+          <span class="cb ${w.done ? "on" : ""} ${w.kind === "note" || w.kind === "idea" ? "none" : ""}" onclick="WHISPERS.find(x=>x.id===${w.id}).done=!${w.done};render()">${w.done ? ic("check", 14) : ""}</span>
+          <span class="wkind ${w.kind}">${ic(WKIND[w.kind][1], 18)}</span>
+          <div><div class="tx">${w.text}</div><div class="m"><span>${WKIND[w.kind][0]}</span>${w.due ? `<span class="due ${w.done ? "ok" : ""}">${ic("bell", 11)} ${w.due}</span>` : ""}${w.project ? `<span>· ${w.project}</span>` : ""}<span class="grow"></span><span style="color:var(--primary);cursor:pointer" onclick="toast('Создан вопрос Q-10 в проекте «Портал дилера»')">Сделать вопросом</span></div></div>
+        </div>`).join("")).join("") || `<div class="empty">Пусто. Скажите что-нибудь.</div>`}
+      </div>
+    </div>
+  </div>`;
+}
+let wTimer = null;
+window.wStart = () => { clearTimeout(wTimer); S.wstate = "listening"; S.wtext = ""; render(); const words = WSAMPLE.split(" "); let i = 0;
+  const tick = () => { if (S.wstate !== "listening") return; S.wtext = words.slice(0, ++i).join(" "); const el = document.getElementById("wlive"); if (el) el.textContent = S.wtext; if (i < words.length) wTimer = setTimeout(tick, 170 + Math.random() * 120); else wTimer = setTimeout(wStop, 900); };
+  wTimer = setTimeout(tick, 500); };
+window.wStop = () => { clearTimeout(wTimer); S.wtext = S.wtext || WSAMPLE; S.wstate = "result"; S.wkind = "remind"; render(); };
+window.wSave = () => { WHISPERS.unshift({ id: Date.now(), kind: "task", text: "Отправить Олегу регламент", when: "Сегодня", due: "до 18:00", done: false, project: "Портал дилера" },
+  { id: Date.now() + 1, kind: "remind", text: "Позвонить Ирине насчёт истории изменений заявки", when: "Сегодня", due: "завтра, 10:00", done: false, project: "Портал дилера" });
+  S.wstate = "idle"; render(); toast("Сохранено: напоминание и задача · уведомление завтра в 10:00"); };
+
 /* ---------- Ask ---------- */
 function pageAsk() {
   return html`
@@ -712,7 +809,7 @@ function pageSettings() {
       <div class="row"><div class="l"><b>Микрофон</b><small>MacBook Pro Microphone</small></div><button class="btn sm">Сменить</button></div>
       <div class="row"><div class="l"><b>Останавливать при тишине</b><small>Через 10 минут без речи · с уведомлением</small></div><span class="switch on"></span></div>
       <div class="row"><div class="l"><b>Требования на лету</b><small>Извлекать требования из последних минут во время записи</small></div><span class="switch on"></span></div></div>`
-  : S.setsec === "keys" ? html`<div class="card setcard"><h3>Горячие клавиши</h3><div class="d">Дважды кликните, чтобы изменить</div>${[["Записать встречу", "⌘ R"], ["Показать окно", "⌘ ⇧ W"], ["Поиск по проекту", "⌘ K"], ["Спросить", "⌘ J"], ["Тема", "⌘ ⇧ L"]].map(([a, k]) => `<div class="row"><div class="l"><b>${a}</b></div><span class="kbd">${k}</span></div>`).join("")}</div>`
+  : S.setsec === "keys" ? html`<div class="card setcard"><h3>Горячие клавиши</h3><div class="d">Дважды кликните, чтобы изменить</div>${[["Записать встречу", "⌘ R"], ["Шепнуть", "⌥ Пробел"], ["Показать окно", "⌘ ⇧ W"], ["Поиск по проекту", "⌘ K"], ["Спросить", "⌘ J"], ["Тема", "⌘ ⇧ L"]].map(([a, k]) => `<div class="row"><div class="l"><b>${a}</b></div><span class="kbd">${k}</span></div>`).join("")}</div>`
   : html`<div class="card setcard"><h3>Jira</h3><div class="d">Вход через браузер, токены не хранятся в системной связке</div><div class="row"><div class="l"><b>sundocarme-1787295249165.atlassian.net</b><small>Проект SCRUM · подключено</small></div><button class="btn sm">Выйти</button></div></div>`;
   return html`${head("Настройки", "")}<div class="body settings"><div class="card setnav" style="padding:10px 8px;align-self:start">${secs.map(([k, i, l]) => `<div class="node ${S.setsec === k ? "on" : ""}" onclick="S.setsec='${k}';render()">${ic(i, 18)}${l}</div>`).join("")}</div><div class="setcards scroll">${body}</div></div>`;
 }
@@ -764,7 +861,7 @@ function onboarding() {
     next = `Добавить ${Object.values(S.disc).filter(Boolean).length} и продолжить`;
   } else {
     body = html`<h1>Всё готово</h1><p class="lead">Покажем четыре места, с которых начинается работа. Подсказки можно вызвать снова из справки.</p>
-    <div class="panels" style="grid-template-columns:repeat(2,1fr)">${[["mic", "Записать встречу", "Кнопка слева сверху или ⌘R"], ["meet", "Встречи", "Список, резюме, транскрипт и заметки"], ["lib", "Материалы", "Папка проекта: файлы, ссылки, метки"], ["chat", "Спросить", "Вопросы по всему проекту с цитатами"]].map(([i, t, d]) => `<div class="card" style="padding:20px;display:flex;gap:14px;align-items:center"><span style="width:44px;height:44px;border-radius:14px;background:var(--primary-c);color:var(--on-primary-c);display:grid;place-items:center">${ic(i, 22)}</span><div><b>${t}</b><div class="t2" style="font-size:13px">${d}</div></div></div>`).join("")}</div>`;
+    <div class="panels" style="grid-template-columns:repeat(2,1fr)">${[["mic", "Записать встречу", "Кнопка слева сверху или ⌘R"], ["meet", "Встречи", "Список, резюме, транскрипт и заметки"], ["lib", "Материалы", "Папка проекта: файлы, ссылки, метки"], ["chat", "Спросить", "Вопросы по всему проекту с цитатами"], ["bell", "Шепнуть", "Задача или напоминание голосом, ⌥ Пробел"], ["set", "Настройки", "Модели, приватность, папка проекта"]].map(([i, t, d]) => `<div class="card" style="padding:20px;display:flex;gap:14px;align-items:center"><span style="width:44px;height:44px;border-radius:14px;background:var(--primary-c);color:var(--on-primary-c);display:grid;place-items:center">${ic(i, 22)}</span><div><b>${t}</b><div class="t2" style="font-size:13px">${d}</div></div></div>`).join("")}</div>`;
     next = "Показать подсказки"; nextFn = "finishOnb(true)"; skip = `<button class="btn text" onclick="finishOnb(false)">Пропустить</button>`;
   }
   return html`<div class="onb"><div class="onb-top"><span style="width:32px;height:32px;border-radius:10px;background:var(--primary);color:var(--on-primary);display:grid;place-items:center">${ic("req", 18)}</span><b>Requirements Workbench</b><span class="t3">· первый запуск</span>${steps}</div>
@@ -775,7 +872,7 @@ window.dlTick = () => { if (S.onb !== 4 || S.dl >= 100) return; S.dl = Math.min(
 window.finishOnb = tut => { S.onb = 0; try { localStorage.setItem("wb5.seen", "1"); } catch (_) {} S.tut = tut ? 1 : 0; go("meetings"); render(); };
 
 /* ---------- Tutorial ---------- */
-const TUT = [["t-rec", "Записать встречу", "Одна кнопка: микрофон и системный звук пишутся раздельно, транскрипт и требования появляются по ходу встречи."], ["t-list", "Встречи", "Все записи, импорты и тексты проекта. Переименуйте прямо в списке, ищите по словам из разговора."], ["t-library", "Материалы", "Папка проекта на диске. Добавляйте документы и ссылки — ИИ будет их цитировать."], ["t-ask", "Спросить", "Вопрос по всему проекту: ответ с цитатами из встреч и файлов, всё считается локально."]];
+const TUT = [["t-rec", "Записать встречу", "Одна кнопка: микрофон и системный звук пишутся раздельно, транскрипт и требования появляются по ходу встречи."], ["t-whisper", "Шепнуть", "Скажите задачу, заметку или напоминание — они лягут в личный ящик и не смешаются с требованиями. ⌥ Пробел из любого окна."], ["t-list", "Встречи", "Все записи, импорты и тексты проекта. Переименуйте прямо в списке, ищите по словам из разговора."], ["t-library", "Материалы", "Папка проекта на диске. Добавляйте документы и ссылки — ИИ будет их цитировать."], ["t-ask", "Спросить", "Вопрос по всему проекту: ответ с цитатами из встреч и файлов, всё считается локально."]];
 function tutorial() {
   const [id, t, d] = TUT[S.tut - 1];
   const el = document.getElementById(id);
@@ -786,7 +883,7 @@ function tutorial() {
 }
 
 /* ---------- Router ---------- */
-const PAGES = { meetings: pageMeetings, session: pageSession, library: pageLibrary, ask: pageAsk, requirements: pageRequirements, documents: pageDocuments, backlog: pageBacklog, settings: pageSettings };
+const PAGES = { meetings: pageMeetings, session: pageSession, library: pageLibrary, ask: pageAsk, whisper: pageWhisper, requirements: pageRequirements, documents: pageDocuments, backlog: pageBacklog, settings: pageSettings };
 function render() {
   const h = location.hash.replace("#", "") || "meetings";
   if (h === "onboarding") { S.onb = S.onb || 1; }
@@ -799,7 +896,8 @@ function render() {
 addEventListener("hashchange", () => { if (location.hash === "#onboarding") S.onb = 1; render(); });
 addEventListener("resize", () => { if (S.tut) render(); });
 addEventListener("keydown", e => {
-  if ((e.metaKey || e.ctrlKey) && e.key >= "1" && e.key <= "8") { e.preventDefault(); go(["meetings", "library", "requirements", "documents", "backlog", "ask", "settings", "session"][+e.key - 1]); }
+  if ((e.metaKey || e.ctrlKey) && e.key >= "1" && e.key <= "9") { e.preventDefault(); go(["meetings", "library", "requirements", "documents", "backlog", "ask", "settings", "session", "whisper"][+e.key - 1]); }
+  if (e.altKey && e.code === "Space") { e.preventDefault(); go("whisper"); setTimeout(() => wStart(), 50); }
   if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "l") { e.preventDefault(); S.theme = S.theme === "dark" ? "light" : "dark"; localStorage.setItem("wb5.theme", S.theme); theme(); }
   if (e.key === "Escape" && S.tut) { S.tut = 0; render(); }
 });
