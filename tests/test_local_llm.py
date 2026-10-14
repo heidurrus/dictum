@@ -102,8 +102,8 @@ def test_network_failure_gives_a_clear_error(tmp_path):
 
 # ── choice of model ──────────────────────────────────────────────────────────
 
-@pytest.mark.parametrize("ram_gb,expect", [(64, "gemma-4-12b"), (15.5, "gemma-4-12b"), (8, "qwen3.5-4b"),
-                                           (4, "qwen3.5-4b"), (0, "qwen3.5-4b")])
+@pytest.mark.parametrize("ram_gb,expect", [(64, "qwen3.6-35b-a3b"), (32, "qwen3.6-35b-a3b"), (24, "gemma-4-12b"),
+                                           (15.5, "gemma-4-12b"), (8, "qwen3.5-4b"), (4, "qwen3.5-4b"), (0, "qwen3.5-4b")])
 def test_recommended_model_follows_memory(ram_gb, expect):
     assert recommended_model_id(ram_gb * GB) == expect
 
@@ -260,7 +260,7 @@ def test_deleting_the_running_model_stops_the_server(fake_engine):
 def test_status_and_download_api(client, app_module, monkeypatch, tmp_path):
     monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path))
     body = client.get("/api/local-llm").get_json()
-    assert {m["id"] for m in body["models"]} == {"gemma-4-12b", "qwen3.5-4b"}
+    assert [m["id"] for m in body["models"]] == ["qwen3.6-35b-a3b", "qwen3.8-27b", "gemma-4-12b", "qwen3.5-9b", "qwen3.5-4b"]
     assert sum(m["recommended"] for m in body["models"]) == 1 and body["download"]["status"] == "idle"
     assert client.post("/api/local-llm/download", json={"model": "nope"}).status_code == 400
     started = []
@@ -312,7 +312,8 @@ def gpu(gb, name="GPU"):
 
 
 @pytest.mark.parametrize("ram_gb,gpu_,expect", [
-    (32, gpu(12), "gemma-4-12b"),        # RTX 3060 12 GB: the big model runs fast
+    (32, gpu(24, "Apple M2 Pro"), "qwen3.6-35b-a3b"),   # 32 GB Mac: the MoE fits the GPU's share
+    (32, gpu(12), "gemma-4-12b"),        # RTX 3060 12 GB: the 35B and 27B would half run on the CPU
     (32, gpu(6), "qwen3.5-4b"),          # 6 GB card: Gemma would half run on the CPU
     (16, {}, "qwen3.5-4b"),              # no usable GPU: the small model, on the CPU
     (8, gpu(24), "qwen3.5-4b"),          # plenty of VRAM but too little RAM

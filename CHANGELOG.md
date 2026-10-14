@@ -1,5 +1,9 @@
 # Changelog
 
+## 4.2.0 (2026-10-14): Bigger built-in models
+
+- **Three more models in Settings → AI**: Qwen3.6 35B-A3B (a mixture-of-experts model, about 3B parameters active per token, so it runs fast and is the recommended choice on a 32 GB Mac), Qwen3.8 27B (the strongest answers of the list, a dense model and several times slower), and Qwen3.5 9B (a step up from the 4B on 16 GB machines). Files are pinned to a revision and verified by checksum like the others. The 35B and 27B need 32 GB of memory; on a 16 GB Mac they are listed as "not enough memory" and Gemma 4 12B stays the recommendation.
+
 ## 4.1.1 (2026-10-09): Save a source's audio
 
 - **Save audio…** on the Source screen's "Ещё" menu and in the Sources list inspector. A recording offers both sides mixed, your microphone and the other side as separate files; an import offers the file you dropped in, under its original name. Works for recordings that are not transcribed yet.

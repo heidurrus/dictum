@@ -70,13 +70,31 @@ def _hf(repo, revision, file):
     return f"https://huggingface.co/{repo}/resolve/{revision}/{file}"
 
 
-# Apache-2.0 models that are good in Russian and English. Largest first.
+# Open-weight models that are good in Russian and English, largest first. The recommendation
+# is the first one that fits the machine's memory and runs at full speed (recommended_model_id).
+# Every Qwen file here is the "qwen35" / "qwen35moe" GGUF architecture, which engine b11223 knows.
 MODELS = [
+    # 35B total, about 3B active per token: the fastest strong model on a 32 GB Mac.
+    Model("qwen3.6-35b-a3b", "Qwen3.6 35B-A3B", "Qwen3.6-35B-A3B-UD-IQ4_XS.gguf",
+          Asset(_hf("unsloth/Qwen3.6-35B-A3B-GGUF", "a483e9e6cbd595906af30beda3187c2663a1118c",
+                    "Qwen3.6-35B-A3B-UD-IQ4_XS.gguf"),
+                "649d7508507b84638732c4f52c24c8b15843c6dca2f3ff793ae07c14a67ebbb3", 17730509792),
+          min_ram_gb=32, context=32768, gpu_gb=20),
+    # Dense 27B: the best answers of the list, several times slower than the MoE above.
+    Model("qwen3.8-27b", "Qwen3.8 27B", "Qwen3.8-27B-UD-Q4_K_M.gguf",
+          Asset(_hf("unsloth/Qwen3.8-27B-GGUF", "4ca720788d1e01f1bff70c033e0d0028fd02e502",
+                    "Qwen3.8-27B-UD-Q4_K_M.gguf"),
+                "322e194ff79741c7baa497c240f677f54b201b0efab44ca8e50f122b39123482", 16464440224),
+          min_ram_gb=32, context=32768, gpu_gb=18),
     Model("gemma-4-12b", "Gemma 4 12B", "gemma-4-12b-it-qat-q4_0.gguf",
           Asset(_hf("google/gemma-4-12B-it-qat-q4_0-gguf", "29d097773436b69ff9feafd636ab4cf873786537",
                     "gemma-4-12b-it-qat-q4_0.gguf"),
                 "93567e57a8fe10b23569b9d9ec38cd005deedf71e29477c421a4b83f418a538b", 6975879296),
           min_ram_gb=16, context=32768, gpu_gb=8),
+    Model("qwen3.5-9b", "Qwen3.5 9B", "Qwen3.5-9B-Q4_K_M.gguf",
+          Asset(_hf("unsloth/Qwen3.5-9B-GGUF", "3885219b6810b007914f3a7950a8d1b469d598a5", "Qwen3.5-9B-Q4_K_M.gguf"),
+                "03b74727a860a56338e042c4420bb3f04b2fec5734175f4cb9fa853daf52b7e8", 5680522464),
+          min_ram_gb=16, context=32768, gpu_gb=6.5),
     Model("qwen3.5-4b", "Qwen3.5 4B", "Qwen3.5-4B-Q4_K_M.gguf",
           Asset(_hf("unsloth/Qwen3.5-4B-GGUF", "e87f176479d0855a907a41277aca2f8ee7a09523", "Qwen3.5-4B-Q4_K_M.gguf"),
                 "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4", 2740937888),
