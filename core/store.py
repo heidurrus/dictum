@@ -35,7 +35,11 @@ JIRA_QUOTES = {"auto", "full", "link", "none"}
 DOC_STATUSES = {"draft", "review", "approved"}
 ACTION_STATUSES = {"open", "done"}
 RECAP_STYLES = ("brief", "bullets", "actions")
-SOURCE_KINDS = {"recording", "audio", "transcript", "document", "email"}
+SOURCE_KINDS = {"recording", "audio", "transcript", "document", "email", "material"}
+MATERIAL_KINDS = ("file", "url", "note")
+# The label palette (prototype-v5 LABELS): a new label takes the next colour, then the palette repeats.
+LABEL_COLORS = ("#0B57D0", "#5B45C9", "#0A6D66", "#B0471B", "#9A3A9E", "#1E8E3E", "#6A5A36", "#8F5200")
+SNIPPET_OPEN, SNIPPET_CLOSE = "\x02", "\x03"     # around the matched words in search snippets
 SOURCE_STATUSES = {"recording", "recorded", "processing", "ready", "failed"}
 
 SCHEMA = """
@@ -126,6 +130,15 @@ CREATE TABLE IF NOT EXISTS quality_dismissals (
   document_id TEXT NOT NULL REFERENCES documents(id), atom_id TEXT NOT NULL, rule TEXT NOT NULL,
   statement TEXT NOT NULL, created_at REAL NOT NULL, created_by TEXT NOT NULL,
   PRIMARY KEY (document_id, atom_id, rule));
+CREATE TABLE IF NOT EXISTS materials (
+  source_id TEXT PRIMARY KEY REFERENCES sources(id), material_kind TEXT NOT NULL,
+  path TEXT, url TEXT, size INTEGER, in_context INTEGER NOT NULL DEFAULT 1, synced_at REAL, error TEXT);
+CREATE TABLE IF NOT EXISTS labels (
+  id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id), name TEXT NOT NULL, color TEXT NOT NULL,
+  centroid BLOB, created_at REAL NOT NULL, UNIQUE(project_id, name));
+CREATE TABLE IF NOT EXISTS material_labels (
+  source_id TEXT NOT NULL REFERENCES sources(id), label_id TEXT NOT NULL REFERENCES labels(id),
+  assigned_by TEXT NOT NULL, score REAL, PRIMARY KEY (source_id, label_id));
 """
 
 PROJECT_FIELDS = ("id", "name", "local_only", "archived", "language", "jira_quotes", "auto_extract",
@@ -199,6 +212,12 @@ class Store:
             for col in cols:
                 if col.split()[0] not in have:
                     c.execute(f"ALTER TABLE {table} ADD COLUMN {col}")
+        # v9 part 4 (5.0 C5): keyword search over meeting lines, notes, materials and atoms. Created here rather
+        # than in SCHEMA so a database that predates it is filled once from what it already holds.
+        if not c.execute("SELECT 1 FROM sqlite_master WHERE name = 'search'").fetchone():
+            c.execute("CREATE VIRTUAL TABLE search USING fts5(entity, entity_id, project_id UNINDEXED, text, "
+                      "tokenize='unicode61 remove_diacritics 2')")
+            Store._fts_backfill(c)
         # 3.2: "FRD" became the SRS document type; old default titles follow.
         c.execute("UPDATE documents SET title = 'SRS — ' || substr(title, 7) WHERE title LIKE 'FRD — %' AND kind IS NULL")
 
@@ -380,7 +399,7 @@ class Store:
             return "import"
         return "text"
 
-    def list_sources(self, project_id, q=None, sort="new"):
+    def list_sources(self, project_id, q=None, sort="new", include_materials=False):
         """The project's sources, newest first by default. `q` matches the title, the source text and the
         segment text, case-insensitively (any script). Each row carries `people`, `atoms` and `tags`."""
         order = self.SOURCE_SORTS.get(sort or "new")
@@ -388,6 +407,8 @@ class Store:
             raise StoreError(f"unknown sort {sort}")
         needle = (q or "").strip().casefold()
         where, args = "s.project_id = ? AND s.deleted_at IS NULL", [project_id]
+        if not include_materials:                     # materials live in Материалы, not among the meetings
+            where += " AND s.kind != 'material'"
         if needle:
             where += """ AND (ci_has(s.title, ?) OR ci_has(s.text, ?)
                          OR EXISTS (SELECT 1 FROM segments g WHERE g.source_id = s.id AND ci_has(g.text, ?)))"""
@@ -457,6 +478,8 @@ class Store:
             after = self._row(c.execute("SELECT * FROM sources WHERE id = ?", (source_id,)).fetchone(), SOURCE_FIELDS)
             if audit:
                 self._audit(c, "source", source_id, "update", before, after)
+            if after["kind"] == "material" and {"title", "text"} & set(changes):
+                self._fts_material(c, source_id)
         return after
 
     def delete_source(self, source_id):
@@ -492,6 +515,7 @@ class Store:
             c.executemany('INSERT INTO segments (source_id, idx, speaker, start, "end", text) VALUES (?,?,?,?,?,?)',
                           [(source_id, i, s.get("speaker"), s.get("start"), s.get("end"), s.get("text", ""))
                            for i, s in enumerate(segments)])
+            self._fts_segments(c, source_id)
         changes = dict(status="ready", error=None, text=result.get("text", ""),
                        diarized=bool(result.get("diarized")), speakers=len(speakers) or None,
                        words_json=json.dumps(result["words"], ensure_ascii=False) if result.get("words") else None)
@@ -526,6 +550,7 @@ class Store:
             now, by = self._stamp()
             c.execute("UPDATE sources SET text = ?, updated_at = ?, updated_by = ? WHERE id = ?", (full, now, by, source_id))
             self._audit(c, "source", source_id, "edit_segment", {"idx": idx, "text": row["text"]}, {"idx": idx, "text": text})
+            self._fts_segments(c, source_id)
             broken = [r["atom_id"] for r in c.execute("SELECT atom_id, quote FROM evidence WHERE source_id = ? AND segment_idx = ?",
                                                       (source_id, idx)) if normalize(r["quote"]) not in normalize(text)]
         return {"broken": sorted(set(broken))}
@@ -713,6 +738,7 @@ class Store:
                 raise StoreError("the notes are too long")
             now, by = self._stamp()
             c.execute("UPDATE sources SET notes = ?, updated_at = ?, updated_by = ? WHERE id = ?", (text, now, by, source_id))
+            self._fts_note(c, source_id)
             last = c.execute("SELECT id, action, at, by, before_json FROM audit_log WHERE entity = 'source' AND entity_id = ? "
                              "ORDER BY at DESC LIMIT 1", (source_id,)).fetchone()
             if (action == "notes" and last and last["action"] == "notes" and last["by"] == by
@@ -771,6 +797,332 @@ class Store:
                  "label": r["label"], "before": json.loads(r["before_json"]) if r["before_json"] else None,
                  "after": json.loads(r["after_json"]) if r["after_json"] else None} for r in rows]
 
+    # ── keyword search (5.0 C5) ───────────────────────────────────────────────
+    # One FTS5 table over everything a BA may look for: meeting lines ("segment", id "<source>:<idx>"), meeting
+    # notes ("note", the source id), materials ("material", title and text) and atoms ("atom"). Rows are written
+    # where the text is saved; deleted or merged things stay in the index and are dropped when a search reads them.
+    @staticmethod
+    def _fts_drop(c, entity, entity_id=None, prefix=None):
+        if prefix is not None:
+            c.execute("DELETE FROM search WHERE entity = ? AND entity_id LIKE ?", (entity, prefix.replace("%", "") + "%"))
+        else:
+            c.execute("DELETE FROM search WHERE entity = ? AND entity_id = ?", (entity, entity_id))
+
+    @staticmethod
+    def _fts_add(c, entity, entity_id, project_id, text):
+        if text and text.strip():
+            c.execute("INSERT INTO search (entity, entity_id, project_id, text) VALUES (?,?,?,?)",
+                      (entity, entity_id, project_id, text))
+
+    @classmethod
+    def _fts_segments(cls, c, source_id):
+        """A meeting's lines (the final ones: the live pass's provisional lines are replaced on stop)."""
+        s = c.execute("SELECT project_id, kind FROM sources WHERE id = ?", (source_id,)).fetchone()
+        cls._fts_drop(c, "segment", prefix=source_id + ":")
+        if s is None or s["kind"] == "material":         # a material is indexed whole, as one "material" row
+            return
+        for r in c.execute("SELECT idx, text FROM segments WHERE source_id = ? AND provisional = 0", (source_id,)).fetchall():
+            cls._fts_add(c, "segment", f"{source_id}:{r['idx']}", s["project_id"], r["text"])
+
+    @classmethod
+    def _fts_note(cls, c, source_id):
+        s = c.execute("SELECT project_id, notes FROM sources WHERE id = ?", (source_id,)).fetchone()
+        cls._fts_drop(c, "note", source_id)
+        if s is not None:
+            cls._fts_add(c, "note", source_id, s["project_id"], s["notes"])
+
+    @classmethod
+    def _fts_material(cls, c, source_id):
+        s = c.execute("SELECT project_id, title, text FROM sources WHERE id = ?", (source_id,)).fetchone()
+        cls._fts_drop(c, "material", source_id)
+        if s is not None:
+            cls._fts_add(c, "material", source_id, s["project_id"], "\n".join(x for x in (s["title"], s["text"]) if x))
+
+    @classmethod
+    def _fts_atom(cls, c, atom_id):
+        a = c.execute("SELECT project_id, statement, answer FROM atoms WHERE id = ?", (atom_id,)).fetchone()
+        cls._fts_drop(c, "atom", atom_id)
+        if a is not None:
+            cls._fts_add(c, "atom", atom_id, a["project_id"], "\n".join(x for x in (a["statement"], a["answer"]) if x))
+
+    @staticmethod
+    def _fts_backfill(c, project_id=None):
+        """Index what the database already holds (the v9 migration; an imported project)."""
+        only, args = ("AND s.project_id = ?", [project_id]) if project_id else ("", [])
+        c.execute(f"""INSERT INTO search (entity, entity_id, project_id, text)
+                      SELECT 'segment', g.source_id || ':' || g.idx, s.project_id, g.text FROM segments g
+                      JOIN sources s ON s.id = g.source_id WHERE s.kind != 'material' AND g.provisional = 0
+                      AND trim(g.text) != '' {only}""", args)
+        c.execute(f"""INSERT INTO search (entity, entity_id, project_id, text) SELECT 'note', s.id, s.project_id, s.notes
+                      FROM sources s WHERE s.notes IS NOT NULL AND trim(s.notes) != '' {only}""", args)
+        c.execute(f"""INSERT INTO search (entity, entity_id, project_id, text)
+                      SELECT 'material', s.id, s.project_id, s.title || char(10) || COALESCE(s.text, '')
+                      FROM sources s WHERE s.kind = 'material' {only}""", args)
+        c.execute(f"""INSERT INTO search (entity, entity_id, project_id, text)
+                      SELECT 'atom', s.id, s.project_id, s.statement || COALESCE(char(10) || s.answer, '')
+                      FROM atoms s WHERE 1 = 1 {only}""", args)
+
+    @staticmethod
+    def fts_query(q):
+        """The FTS5 expression for what the BA typed: every word, as a prefix, in the text column."""
+        terms = re.findall(r"\w+", (q or "").casefold())[:12]
+        return "text : (" + " AND ".join(f'"{t}"*' for t in terms) + ")" if terms else None
+
+    def search(self, project_id, q, limit=30):
+        """Mixed hits, best first: {entity, id, title, snippet, ...}. The snippet marks the matched words with
+        SNIPPET_OPEN / SNIPPET_CLOSE. Segment hits carry source_id, idx and start; atom hits their type."""
+        match = self.fts_query(q)
+        if not match:
+            return []
+        limit = max(1, min(int(limit or 30), 200))
+        out = []
+        with self._conn() as c:
+            rows = c.execute("SELECT entity, entity_id, snippet(search, 3, ?, ?, '…', 16) AS snip FROM search "
+                             "WHERE search MATCH ? AND project_id = ? ORDER BY bm25(search) LIMIT ?",
+                             (SNIPPET_OPEN, SNIPPET_CLOSE, match, project_id, limit * 4)).fetchall()
+            for r in rows:
+                hit = {"entity": r["entity"], "id": r["entity_id"], "snippet": r["snip"]}
+                if r["entity"] == "atom":
+                    a = c.execute("SELECT statement, type, status, deleted_at FROM atoms WHERE id = ?",
+                                  (r["entity_id"],)).fetchone()
+                    if a is None or a["deleted_at"] or a["status"] == "merged":
+                        continue
+                    hit.update(title=a["statement"], type=a["type"], status=a["status"])
+                else:
+                    sid, _, idx = r["entity_id"].partition(":")
+                    s = c.execute("SELECT s.title, s.kind, s.deleted_at, s.import_format, m.material_kind FROM sources s "
+                                  "LEFT JOIN materials m ON m.source_id = s.id WHERE s.id = ?", (sid,)).fetchone()
+                    if s is None or s["deleted_at"]:
+                        continue
+                    hit.update(title=s["title"], source_id=sid, kind=s["kind"])
+                    if r["entity"] == "segment":
+                        g = c.execute("SELECT start, speaker FROM segments WHERE source_id = ? AND idx = ?",
+                                      (sid, int(idx))).fetchone()
+                        if g is None:
+                            continue
+                        hit.update(idx=int(idx), start=g["start"], speaker=g["speaker"])
+                    elif r["entity"] == "material":
+                        hit.update(material_kind=s["material_kind"],
+                                   ext=self.material_ext(s["material_kind"], s["import_format"]))
+                out.append(hit)
+                if len(out) >= limit:
+                    break
+        return out
+
+    # ── materials (5.0 C5) ────────────────────────────────────────────────────
+    # A material IS a source (kind "material"): its paragraphs are segments, so extraction, evidence and the audit
+    # log work on it unchanged. The `materials` row adds what only a material has.
+    MATERIAL_FIELDS = ("material_kind", "path", "url", "size", "in_context", "synced_at", "error")
+    # sources has an `error` column too: the material's own comes back as m_error
+    _MATERIAL_COLS = "m.material_kind, m.path, m.url, m.size, m.in_context, m.synced_at, m.error AS m_error"
+    PREVIEW_CHARS = 1200             # the text shown in the details panel
+
+    @staticmethod
+    def material_ext(material_kind, import_format):
+        """The type badge: the file's format, "url" for a link, "md" for pasted text."""
+        if material_kind == "url":
+            return "url"
+        if material_kind == "note":
+            return "md"
+        return (import_format or "txt").lower()
+
+    def material_dir(self, project_id):
+        """Where imported files are copied: <data>/library/<project>/materials/."""
+        return os.path.join(self.root, project_id, "materials")
+
+    def create_material(self, project_id, material_kind, title, original_filename=None, import_format=None,
+                        path=None, url=None, size=None, error=None, synced_at=None):
+        if material_kind not in MATERIAL_KINDS:
+            raise StoreError(f"unknown material kind {material_kind}")
+        source = self.create_source(project_id, "material", title, original_filename=original_filename,
+                                    import_format=import_format)
+        with self._write() as c:
+            c.execute("INSERT INTO materials (source_id, material_kind, path, url, size, in_context, synced_at, error) "
+                      "VALUES (?,?,?,?,?,1,?,?)", (source["id"], material_kind, path, url, size, synced_at, error))
+            self._fts_material(c, source["id"])
+        return source
+
+    def set_material_text(self, source_id, paragraphs, **changes):
+        """Store the material's text: one segment per paragraph (no timestamps), the source ready, indexed."""
+        paragraphs = [p.strip() for p in paragraphs if p and p.strip()]
+        self.save_transcript(source_id, {"text": "\n\n".join(paragraphs), "segments": [{"text": p} for p in paragraphs]})
+        if changes:
+            self._set_material(source_id, changes, audit=False)
+        return self.get_material(source_id)
+
+    def _set_material(self, source_id, changes, audit=True):
+        unknown = set(changes) - set(self.MATERIAL_FIELDS[1:])
+        if unknown:
+            raise StoreError(f"cannot change {sorted(unknown)}")
+        if "in_context" in changes:
+            changes["in_context"] = int(bool(changes["in_context"]))
+        with self._write() as c:
+            before = c.execute("SELECT * FROM materials WHERE source_id = ?", (source_id,)).fetchone()
+            if before is None:
+                raise StoreError("material not found")
+            sets = ", ".join(f"{k} = ?" for k in changes)
+            c.execute(f"UPDATE materials SET {sets} WHERE source_id = ?", (*changes.values(), source_id))
+            if audit:
+                self._audit(c, "source", source_id, "material", {k: before[k] for k in changes}, changes)
+
+    def update_material(self, source_id, **changes):
+        """PATCH: the title and the in-context flag."""
+        if set(changes) - {"title", "in_context"}:
+            raise StoreError("only the title and in_context can be changed")
+        if not changes:
+            raise StoreError("nothing to change")
+        self.get_material(source_id)
+        if "title" in changes:
+            self.update_source(source_id, title=changes["title"])
+        if "in_context" in changes:
+            self._set_material(source_id, {"in_context": changes["in_context"]})
+        return self.get_material(source_id)
+
+    @staticmethod
+    def _material_labels(c, ids):
+        out = {i: [] for i in ids}
+        if not ids:
+            return out
+        marks = ",".join("?" * len(ids))
+        for r in c.execute(f"""SELECT ml.source_id, ml.assigned_by, ml.score, l.id, l.name, l.color FROM material_labels ml
+                               JOIN labels l ON l.id = ml.label_id WHERE ml.source_id IN ({marks})
+                               AND ml.assigned_by != 'removed' ORDER BY l.created_at, l.rowid""", list(ids)):
+            out[r["source_id"]].append({"id": r["id"], "name": r["name"], "color": r["color"],
+                                        "assigned_by": r["assigned_by"], "score": r["score"]})
+        return out
+
+    def _material_row(self, r, labels):
+        m = self._row(r, SOURCE_FIELDS)
+        for k in self.MATERIAL_FIELDS:
+            m[k] = r["m_error" if k == "error" else k]
+        m["in_context"] = bool(m["in_context"])
+        m["ext"] = self.material_ext(m["material_kind"], m["import_format"])
+        m["chars"] = r["chars"] or 0
+        m["labels"] = labels
+        return m
+
+    def get_material(self, source_id, include_deleted=False):
+        """The material with its labels and its whole text (`text`)."""
+        with self._conn() as c:
+            r = c.execute(f"""SELECT s.*, {self._MATERIAL_COLS}, length(s.text) AS chars FROM sources s JOIN materials m ON m.source_id = s.id
+                             WHERE s.id = ?""", (source_id,)).fetchone()
+            if r is None or (r["deleted_at"] and not include_deleted):
+                raise StoreError("material not found")
+            out = self._material_row(r, self._material_labels(c, [source_id])[source_id])
+        out["text"] = r["text"] or ""
+        return out
+
+    def list_materials(self, project_id, kind=None, label=None, q=None):
+        """The project's materials, newest first, each with its labels (no text). `kind` is file | url | note,
+        `label` a label id, `q` a case-insensitive match on the title or the text."""
+        if kind and kind not in MATERIAL_KINDS:
+            raise StoreError(f"unknown material kind {kind}")
+        where, args = "s.project_id = ? AND s.deleted_at IS NULL", [project_id]
+        if kind:
+            where += " AND m.material_kind = ?"
+            args.append(kind)
+        if label:
+            where += (" AND EXISTS (SELECT 1 FROM material_labels ml WHERE ml.source_id = s.id AND ml.label_id = ?"
+                      " AND ml.assigned_by != 'removed')")
+            args.append(label)
+        needle = (q or "").strip().casefold()
+        if needle:
+            where += " AND (ci_has(s.title, ?) OR ci_has(s.text, ?))"
+            args += [needle, needle]
+        with self._conn() as c:
+            c.create_function("ci_has", 2, lambda hay, n: int(bool(hay) and n in hay.casefold()), deterministic=True)
+            rows = c.execute(f"""SELECT s.*, {self._MATERIAL_COLS}, length(s.text) AS chars FROM sources s JOIN materials m ON m.source_id = s.id
+                                 WHERE {where} ORDER BY s.created_at DESC, s.rowid DESC""", args).fetchall()
+            labels = self._material_labels(c, [r["id"] for r in rows])
+        return [self._material_row(r, labels[r["id"]]) for r in rows]
+
+    # ── labels (5.0 C5; assigning by meaning comes with the index) ───────────
+    _LABEL_FIELDS = ("id", "project_id", "name", "color", "created_at")
+
+    def list_labels(self, project_id):
+        """The project's labels in the order they were made, with how many live materials carry each."""
+        with self._conn() as c:
+            rows = c.execute("""SELECT l.*, (SELECT COUNT(*) FROM material_labels ml JOIN sources s ON s.id = ml.source_id
+                                  WHERE ml.label_id = l.id AND ml.assigned_by != 'removed' AND s.deleted_at IS NULL) AS count
+                                FROM labels l WHERE l.project_id = ? ORDER BY l.created_at, l.rowid""", (project_id,)).fetchall()
+        return [{**{k: r[k] for k in self._LABEL_FIELDS}, "count": r["count"]} for r in rows]
+
+    def get_label(self, label_id):
+        with self._conn() as c:
+            r = c.execute("SELECT * FROM labels WHERE id = ?", (label_id,)).fetchone()
+        if r is None:
+            raise StoreError("label not found")
+        return {k: r[k] for k in self._LABEL_FIELDS}
+
+    def create_label(self, project_id, name, color=None):
+        name = " ".join((name or "").split())[:60]
+        if not name:
+            raise StoreError("the label needs a name")
+        self.get_project(project_id)
+        with self._write() as c:
+            have = c.execute("SELECT name FROM labels WHERE project_id = ?", (project_id,)).fetchall()
+            if any(r["name"].casefold() == name.casefold() for r in have):
+                raise StoreError(f"a label named {name!r} already exists")
+            now, _by = self._stamp()
+            lid = str(uuid.uuid4())
+            color = color or LABEL_COLORS[len(have) % len(LABEL_COLORS)]
+            c.execute("INSERT INTO labels (id, project_id, name, color, created_at) VALUES (?,?,?,?,?)",
+                      (lid, project_id, name, color, now))
+            self._audit(c, "label", lid, "create", after={"project_id": project_id, "name": name, "color": color})
+        return {**self.get_label(lid), "count": 0}
+
+    def delete_label(self, label_id):
+        label = self.get_label(label_id)
+        with self._write() as c:
+            c.execute("DELETE FROM material_labels WHERE label_id = ?", (label_id,))
+            c.execute("DELETE FROM labels WHERE id = ?", (label_id,))
+            self._audit(c, "label", label_id, "delete", before=label)
+
+    @staticmethod
+    def _label_pair(c, source_id, label_id):
+        m = c.execute("SELECT s.project_id, s.deleted_at FROM sources s JOIN materials m ON m.source_id = s.id "
+                      "WHERE s.id = ?", (source_id,)).fetchone()
+        if m is None or m["deleted_at"]:
+            raise StoreError("material not found")
+        lab = c.execute("SELECT project_id FROM labels WHERE id = ?", (label_id,)).fetchone()
+        if lab is None:
+            raise StoreError("label not found")
+        if lab["project_id"] != m["project_id"]:
+            raise StoreError("the label belongs to another project")
+
+    def assign_label(self, source_id, label_id, by="user", score=None):
+        """Put a label on a material. By hand ("user") always wins; an automatic assignment ("auto") never
+        overrides a user's row or a removal tombstone. Returns True when the row was written."""
+        if by not in ("user", "auto"):
+            raise StoreError("assigned_by must be user or auto")
+        with self._write() as c:
+            self._label_pair(c, source_id, label_id)
+            old = c.execute("SELECT assigned_by FROM material_labels WHERE source_id = ? AND label_id = ?",
+                            (source_id, label_id)).fetchone()
+            if old is not None and (old["assigned_by"] == by == "user"
+                                    or (by == "auto" and old["assigned_by"] in ("user", "removed"))):
+                return False
+            c.execute("INSERT OR REPLACE INTO material_labels (source_id, label_id, assigned_by, score) VALUES (?,?,?,?)",
+                      (source_id, label_id, by, score))
+            self._audit(c, "source", source_id, "label", None, {"label_id": label_id, "assigned_by": by})
+        return True
+
+    def unassign_label(self, source_id, label_id):
+        """Take a label off. A label put there automatically leaves a "removed" tombstone, so an automatic run
+        never puts it back; one put by hand is simply deleted."""
+        with self._write() as c:
+            self._label_pair(c, source_id, label_id)
+            old = c.execute("SELECT assigned_by FROM material_labels WHERE source_id = ? AND label_id = ?",
+                            (source_id, label_id)).fetchone()
+            if old is None or old["assigned_by"] == "removed":
+                raise StoreError("this material does not have that label")
+            if old["assigned_by"] == "auto":
+                c.execute("UPDATE material_labels SET assigned_by = 'removed' WHERE source_id = ? AND label_id = ?",
+                          (source_id, label_id))
+            else:
+                c.execute("DELETE FROM material_labels WHERE source_id = ? AND label_id = ?", (source_id, label_id))
+            self._audit(c, "source", source_id, "unlabel", {"label_id": label_id, "assigned_by": old["assigned_by"]}, None)
+
     # ── project export / import (PM-31) ───────────────────────────────────────
     _EXPORT_TABLES = (  # table, how rows belong to the project
         ("projects", "id = ?"), ("sources", "project_id = ?"),
@@ -784,6 +1136,8 @@ class Store:
         ("free_blocks", "document_id IN (SELECT id FROM documents WHERE project_id = ?)"),
         ("quality_dismissals", "document_id IN (SELECT id FROM documents WHERE project_id = ?)"),
         ("project_skills", "project_id = ?"), ("backlog_items", "project_id = ?"), ("action_items", "project_id = ?"),
+        ("materials", "source_id IN (SELECT id FROM sources WHERE project_id = ?)"), ("labels", "project_id = ?"),
+        ("material_labels", "label_id IN (SELECT id FROM labels WHERE project_id = ?)"),
     )
 
     def export_project(self, project_id):
@@ -833,6 +1187,7 @@ class Store:
                 c.execute("INSERT OR IGNORE INTO audit_log (id, entity, entity_id, action, before_json, after_json, at, by) "
                           "VALUES (?,?,?,?,?,?,?,?)", (r["id"], r["entity"], r["entity_id"], r["action"], r.get("before_json"),
                                                        r.get("after_json"), r["at"], r["by"]))
+            self._fts_backfill(c, project["id"])
             self._audit(c, "project", project["id"], "import", after={"name": name})
         return self.get_project(project["id"])
 
@@ -869,6 +1224,7 @@ class Store:
                               (str(uuid.uuid4()), aid, ev["source_id"], ev.get("segment_idx"), ev.get("start"),
                                ev.get("speaker"), ev["quote"], now))
                 self._audit(c, "atom", aid, "create", after={"type": a["type"], "statement": statement})
+                self._fts_atom(c, aid)
                 created.append(aid)
         return created
 
@@ -956,6 +1312,8 @@ class Store:
             after = self._atom_row(c, atom_id)
             action = changes.get("status") if changes.get("status") and set(changes) <= {"status", "reject_reason"} else "edit"
             self._audit(c, "atom", atom_id, action, {k: before[k] for k in changes}, {k: after[k] for k in changes})
+            if "statement" in changes:
+                self._fts_atom(c, atom_id)
         return self.get_atom(atom_id)
 
     def bulk_update_atoms(self, project_id, items):
@@ -1206,6 +1564,7 @@ class Store:
                       "WHERE id = ?", (answer, (source or "").strip() or None, now, by, question_atom_id))
             self._audit(c, "atom", question_atom_id, "answer", {"q_state": before["q_state"], "answer": before["answer"]},
                         {"q_state": "answered", "answer": answer, "source": source})
+            self._fts_atom(c, question_atom_id)
             conf = c.execute("SELECT id FROM conflicts WHERE question_atom = ? AND status = 'awaiting_answer'",
                              (question_atom_id,)).fetchone()
         if conf and resolution:
@@ -1239,6 +1598,7 @@ class Store:
                           (str(uuid.uuid4()), aid, source_id, segment_idx, seg["start"], seg["speaker"], seg["text"], now))
             self._audit(c, "atom", aid, "create", after={"type": type, "statement": statement, "origin": "ba",
                                                          "note": (note or "").strip() or None})
+            self._fts_atom(c, aid)
         return self.get_atom(aid)
 
     # ── action items (PM-19): kept, never part of the FRD ─────────────────────

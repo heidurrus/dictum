@@ -13,6 +13,7 @@
   import Skills from "./screens/Skills.svelte";
   import Backlog from "./screens/Backlog.svelte";
   import Export from "./screens/Export.svelte";
+  import Library from "./screens/Library.svelte";
   import Soon from "./screens/Soon.svelte";
   import { api, setProgressTranslator, setLangSource, setJobStartedHook } from "./lib/api.js";
   import { actionFor } from "./lib/hotkeys.js";
@@ -114,7 +115,7 @@
         {:else if app.route.name === "settings"}
           <Settings />
         {:else if app.route.name === "library"}
-          <Soon title={t("nav.library")} icon="file" />
+          <Library />
         {:else if app.route.name === "ask"}
           <Soon title={t("nav.ask")} icon="search" />
         {:else if app.route.name === "whisper"}
