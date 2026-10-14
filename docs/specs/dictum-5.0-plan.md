@@ -20,8 +20,8 @@ depends on an unmerged one.
 | 05 | Meeting page: transcript search/filter, notes pane with append, per-style recap with incremental update | C3 | 4.9.4 | merged |
 | 06 | Live transcript while recording, pause/resume, `recording` source state | C4.1 | 4.9.5 | merged |
 | 07 | Requirements on the fly, auto-stop on silence (question card deferred to 10) | C4.2, C4.3 | 4.9.6 | merged |
-| 08 | Materials A: materials as sources, import file/url/text/folder, kinds, in-context, list/grid, FTS5 `search` + `/search`, manual labels | C5 | 4.9.7 | in progress |
-| 09 | Materials B: embedding model, index job, related, graph, labels with auto-assign and tombstones, used-in | C5 | 4.9.8 | planned |
+| 08 | Materials A: materials as sources, import file/url/text/folder, kinds, in-context, list/grid, FTS5 `search` + `/search`, manual labels | C5 | 4.9.7 | merged |
+| 09 | Materials B: embedding model, index job, related, graph, labels with auto-assign and tombstones, used-in | C5 | 4.9.8 | in progress |
 | 10 | Спросить with citations and history; question card in the live session | C6, C4.3 | 4.9.9 | planned |
 | 11 | Шепнуть: capture, parse, inbox, reminders, to-question (window-level ⌥Space) | C7 | 4.9.10 | planned |
 | 12 | Menu-bar item and global hotkey (macOS) | C7 | 4.9.11 | planned |
@@ -40,3 +40,4 @@ depends on an unmerged one.
 - 2026-10-15 · 05 merged (c8f2a71). 434 tests, i18n 1236 keys, meeting.mjs in ru and en, screenshots ru/en/dark OK. Recap prompts are built-in skills (recap-brief/-bullets/-actions). Worktree isolation worked; .claude/ added to .gitignore.
 - 2026-10-15 · 06 merged (dcb0997). 454 tests, i18n 1247, session.mjs ru/en with FAKE_RECORDER=1; live reader audited (read-only, no file ops). dmg 4.9.5 built from the worktree for a real-recording check by the user. Deviation accepted: stop only transcribes when options are sent (the client always sends them).
 - 2026-10-15 · 07 merged (333b7b2). 479 tests, i18n 1256, session.mjs ru/en shows a live requirement; sent back once (stale_evidence not cleared on merge), fixed. Speech floor -50 dBFS for auto-stop accepted.
+- 2026-10-15 · 08 merged (c6999de). 508 tests, i18n 1326, library.mjs ru/en, 11 suites; screenshots OK. Known: FTS5 prefix search misses Russian endings (no stemmer); folder import takes a typed path. material_chunks deferred to 09.
