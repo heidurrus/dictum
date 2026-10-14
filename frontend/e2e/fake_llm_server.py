@@ -22,6 +22,7 @@ if _data_dir:
 
 import app as app_module  # noqa: E402
 from core import atoms  # noqa: E402
+from core import usage as usage_mod  # noqa: E402
 
 
 def fake_complete(system, user, schema, prefs, api_key, ollama_url):
@@ -81,6 +82,9 @@ def fake_recap_generate(prefs, api_key):
         RECAPS.append({"style": style, "incremental": incremental, "length": len(user), "lines": lines})
         text = f"## {style}\n- recap {style}: {lines} lines" + (" (updated)" if incremental else "")
         on_delta(text)
+        # Counted like a real call (Settings → stats, e2e/settings.mjs): about four characters a token.
+        usage_mod.record("llm_local" if prefs and prefs.get("llm_provider") != "claude" else "llm_cloud",
+                         len(system + user) // 4, len(text) // 4)
         return text
     return generate
 
