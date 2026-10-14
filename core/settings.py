@@ -23,6 +23,10 @@ DEFAULTS = {
     "claude_model": "claude-opus-5",
     "ollama_model": "qwen3:8b",
     "local_model": "",                 # built-in model id; empty = the downloaded one
+    "hotkeys": {                       # action → key combo, read by the UI's one key handler
+        "record": "cmd+r", "palette": "cmd+k", "theme": "cmd+shift+l", "ask": "cmd+j", "whisper": "alt+space",
+        **{f"nav{i}": f"cmd+{i}" for i in range(1, 9)},
+    },
 }
 CLAUDE_MODELS = [
     ("claude-opus-5", "Claude Opus 5 (best quality)"),
@@ -87,14 +91,29 @@ def secret(key):
 
 
 def load_settings():
-    data = dict(DEFAULTS)
+    data = {**DEFAULTS, "hotkeys": dict(DEFAULTS["hotkeys"])}
     try:
         with open(settings_file(), encoding="utf-8") as f:
             stored = json.load(f)
-        data.update({k: v for k, v in stored.items() if k in DEFAULTS})
+        data.update({k: v for k, v in stored.items() if k in DEFAULTS and k != "hotkeys"})
+        if isinstance(stored.get("hotkeys"), dict):
+            data["hotkeys"].update({k: v for k, v in stored["hotkeys"].items() if k in DEFAULTS["hotkeys"]})
     except (OSError, ValueError):
         pass
     return data
+
+
+def _hotkeys(current, value):
+    """Merge a partial {action: combo} map; unknown actions and non-text combos are refused."""
+    if not isinstance(value, dict):
+        raise ValueError("hotkeys must be an object")
+    unknown = sorted(set(value) - set(DEFAULTS["hotkeys"]))
+    if unknown:
+        raise ValueError(f"unknown hotkey {unknown[0]}")
+    for action, combo in value.items():
+        if not isinstance(combo, str):
+            raise ValueError(f"hotkey {action} must be text")
+    return {**current, **{a: c.strip().lower() for a, c in value.items()}}
 
 
 def save_settings(updates):
@@ -103,6 +122,9 @@ def save_settings(updates):
     for key, value in updates.items():
         if key not in DEFAULTS:
             raise ValueError(f"unknown setting {key}")
+        if key == "hotkeys":
+            data[key] = _hotkeys(data[key], value)
+            continue
         value = str(value).strip()
         if key == "llm_provider" and value not in PROVIDERS:
             raise ValueError(f"llm_provider must be one of {sorted(PROVIDERS)}")

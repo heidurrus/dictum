@@ -632,6 +632,7 @@ def _settings_payload():
         "claude_model": prefs["claude_model"],
         "ollama_model": prefs["ollama_model"],
         "local_model": prefs["local_model"],
+        "hotkeys": prefs["hotkeys"],
         "claude_models": [{"id": m, "label": label} for m, label in settings.CLAUDE_MODELS],
     }
 
@@ -646,7 +647,7 @@ def save_settings():
     """Update only the fields present: hf_token, anthropic_api_key, llm_provider, claude_model, ollama_model."""
     global hf_token, _diarization_pipeline
     data = request.get_json(silent=True) or {}
-    prefs = {k: data[k] for k in ("llm_provider", "claude_model", "ollama_model", "local_model") if k in data}
+    prefs = {k: data[k] for k in ("llm_provider", "claude_model", "ollama_model", "local_model", "hotkeys") if k in data}
     try:
         if prefs:
             settings.save_settings(prefs)

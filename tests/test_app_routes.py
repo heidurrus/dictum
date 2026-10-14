@@ -205,6 +205,20 @@ def test_settings_roundtrip_keeps_key_secret(client, monkeypatch, tmp_path):
     assert client.post("/settings", json={"llm_provider": "gpt"}).status_code == 400
 
 
+def test_hotkeys_map_roundtrips_and_rejects_unknown_actions(client, monkeypatch, tmp_path):
+    monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path))
+    keys = client.get("/settings").get_json()["hotkeys"]
+    assert keys["record"] == "cmd+r" and keys["palette"] == "cmd+k" and keys["nav8"] == "cmd+8"
+    body = client.post("/settings", json={"hotkeys": {"ask": "cmd+shift+j"}}).get_json()
+    assert body["hotkeys"]["ask"] == "cmd+shift+j" and body["hotkeys"]["record"] == "cmd+r"
+    assert client.get("/settings").get_json()["hotkeys"]["ask"] == "cmd+shift+j"
+    res = client.post("/settings", json={"hotkeys": {"launch_rockets": "cmd+x"}})
+    assert res.status_code == 400 and "launch_rockets" in res.get_json()["error"]
+    assert client.post("/settings", json={"hotkeys": "cmd+k"}).status_code == 400
+    assert client.post("/settings", json={"hotkeys": {"ask": 5}}).status_code == 400
+    assert client.get("/settings").get_json()["hotkeys"]["ask"] == "cmd+shift+j"
+
+
 def test_summarize_without_key_asks_for_setup(client, monkeypatch, tmp_path):
     monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path))
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
