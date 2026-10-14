@@ -1,0 +1,35 @@
+# Dictum 5.0: increment plan and log
+
+Process: the orchestrator (the main session) writes a brief per increment; a fresh dev agent
+builds it on branch `inc/NN-<name>` with tests, `svelte-check` and the build committed, and
+reports; the orchestrator verifies (pytest, e2e where relevant, screenshots, a dmg for increments
+that touch recording, storage or packaging), merges with `--no-ff` into `master`, bumps nothing
+itself (the increment sets `VERSION` and the changelog), and writes the next brief. The user
+pushes and tags. Spec: `dictum-5.0-spec.md`. Pre-release versions are `4.9.N`.
+
+Sizing rule: one increment = one agent run of roughly 2 to 4 hours of focused work, touching at
+most one backend module and two or three Svelte files, with its own tests. Nothing in an increment
+depends on an unmerged one.
+
+| # | Increment | Spec | Version | Status |
+|---|---|---|---|---|
+| 01 | Rename to Dictum, data-dir migration, bundle id | C0 | 4.9.0 | planned |
+| 02 | Shell A: tonal tokens, Inter, Rail, Page, TopBar, theme, phone bar; old screens inside; Sidebar removed | C1 | 4.9.1 | planned |
+| 03 | Shell B: `/api/jobs`, status chip with jobs popover, `hotkeys` settings map, key handler, palette routes | C1 | 4.9.2 | planned |
+| 04 | Встречи home: list, search (LIKE), sort, panel with tabs, rename, pipeline strip; Overview removed | C2 | 4.9.3 | planned |
+| 05 | Meeting page: transcript search/filter, notes pane with append, per-style recap with incremental update | C3 | 4.9.4 | planned |
+| 06 | Live transcript while recording, pause/resume, `recording` source state | C4.1 | 4.9.5 | planned |
+| 07 | Requirements on the fly, auto-stop on silence (question card deferred to 10) | C4.2, C4.3 | 4.9.6 | planned |
+| 08 | Materials A: materials as sources, import file/url/text/folder, kinds, in-context, list/grid, FTS5 `search` + `/search` | C5 | 4.9.7 | planned |
+| 09 | Materials B: embedding model, index job, related, graph, labels with auto-assign and tombstones, used-in | C5 | 4.9.8 | planned |
+| 10 | Спросить with citations and history; question card in the live session | C6, C4.3 | 4.9.9 | planned |
+| 11 | Шепнуть: capture, parse, inbox, reminders, to-question (window-level ⌥Space) | C7 | 4.9.10 | planned |
+| 12 | Menu-bar item and global hotkey (macOS) | C7 | 4.9.11 | planned |
+| 13 | Onboarding, permissions API, discovery, tutorial, e2e gate | C8 | 4.9.12 | planned |
+| 14 | Settings sections, stats, storage move, hotkeys UI | C9 | 4.9.13 | planned |
+| 15 | Requirements, Documents, Backlog, Export, Skills restyled; old tokens deleted | C10 | 4.9.14 | planned |
+| 16 | Release: Windows parity, README, changelog, screenshots, 5.0.0 | C11 | 5.0.0 | planned |
+
+## Log
+
+(one line per increment: date, outcome, what the verification found, what was sent back)
