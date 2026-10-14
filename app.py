@@ -26,6 +26,7 @@ from core.ffmpeg import ensure_ffmpeg_on_path
 from core import live as live_mod, live_atoms as live_atoms_mod, macos_audio, settings
 from core.summarize import SummaryError, summarize
 from core import notes as meeting_notes, summarize as summarize_mod
+from core import ask as ask_mod, live_questions as live_questions_mod
 from core.atoms import extract_atoms
 from core import backlog, exports, frd, jira, materials, skills, suggest
 from core import index as local_index
@@ -87,7 +88,8 @@ _active_tap = None  # macOS system-audio tap while recording
 # The meeting being recorded and the helpers around it: live transcript (5.0 C4.1), live requirements (C4.2) and
 # the silence watch (C4.3); the start request's transcription options and UI language (auto-stop uses them), and
 # why the last recording stopped when it was not the Stop button.
-_session = {"source_id": None, "live": None, "atoms": None, "silence": None, "opts": None, "lang": "ru", "stopped": None}
+_session = {"source_id": None, "live": None, "atoms": None, "questions": None, "silence": None, "opts": None, "lang": "ru",
+            "stopped": None}
 IS_DESKTOP = False
 
 AVAILABLE_MODELS = [
@@ -545,6 +547,22 @@ def _start_live_atoms(source, window=None, min_segments=None, complete=None):
         min_segments=min_segments or live_atoms_mod.MIN_SEGMENTS).start()
 
 
+def _start_live_questions(source, window=None, generate=None):
+    """The question card for this recording (5.0 C4.3), or None when the setting `live_questions` is off or the
+    project's AI is not set up. It reads the transcript and the index through the store, never the audio; see
+    core/live_questions.py."""
+    if not settings.load_settings().get("live_questions", False):
+        return None
+    project = library.get_project(source["project_id"])
+    prefs, api_key, problem = _ai_prefs(project)
+    if problem:
+        return None
+    answer = live_questions_mod.answerer(library, project["id"], generate or _ask_generate(prefs, api_key),
+                                         skillset=_skillset(project["id"]))
+    return live_questions_mod.LiveQuestions(source["id"], library, answer,
+                                            window=window or live_questions_mod.WINDOW).start()
+
+
 def _start_silence_watch(source, folder, recorder):
     """Auto-stop after `silence_stop_minutes` without speech (5.0 C4.3); None when the setting is 0."""
     minutes = int(settings.load_settings().get("silence_stop_minutes", 10) or 0)
@@ -633,7 +651,8 @@ def desktop_record_start():
         _recorder = DualChannelRecorder(recordings_dir(), {"mic": mic, "sys": sys_source})
         recording_id = _recorder.start(folder=folder)
         lang = data.get("lang") if data.get("lang") in AUTO_STOP_TEXT else "ru"
-        _session.update(source_id=source["id"], live=None, atoms=None, silence=None, opts=opts, lang=lang, stopped=None)
+        _session.update(source_id=source["id"], live=None, atoms=None, questions=None, silence=None, opts=opts, lang=lang,
+                        stopped=None)
         try:
             _session["live"] = _start_live(source, folder, opts, _recorder)
         except Exception:               # live mode is a convenience: the recording runs without it
@@ -642,6 +661,10 @@ def desktop_record_start():
             _session["atoms"] = _start_live_atoms(source)
         except Exception:               # so are live requirements
             job_log.exception("Live requirements could not start")
+        try:
+            _session["questions"] = _start_live_questions(source)
+        except Exception:               # and the question card
+            job_log.exception("Live questions could not start")
         try:
             _session["silence"] = _start_silence_watch(source, folder, _recorder)
         except Exception:               # and the auto-stop
@@ -695,8 +718,8 @@ def _finish_recording(opts, title=None, expect_source=None):
         result = _recorder.stop()
         _close_active_tap()
         source_id = _session["source_id"]
-        helpers = [_session.get(k) for k in ("live", "atoms", "silence")]
-        _session.update(source_id=None, live=None, atoms=None, silence=None)
+        helpers = [_session.get(k) for k in ("live", "atoms", "questions", "silence")]
+        _session.update(source_id=None, live=None, atoms=None, questions=None, silence=None)
     for helper in helpers:
         if helper is not None:
             helper.stop()                   # no provisional line or live atom is added after this
@@ -818,6 +841,7 @@ def _settings_payload():
         "hotkeys": prefs["hotkeys"],
         "live_transcription": prefs["live_transcription"],
         "live_requirements": prefs["live_requirements"],
+        "live_questions": prefs["live_questions"],
         "live_window_atoms": prefs["live_window_atoms"],
         "silence_stop_minutes": prefs["silence_stop_minutes"],
         "claude_models": [{"id": m, "label": label} for m, label in settings.CLAUDE_MODELS],
@@ -835,7 +859,7 @@ def save_settings():
     global hf_token, _diarization_pipeline
     data = request.get_json(silent=True) or {}
     prefs = {k: data[k] for k in ("llm_provider", "claude_model", "ollama_model", "local_model", "hotkeys",
-                                 "live_transcription", "live_requirements", "live_window_atoms",
+                                 "live_transcription", "live_requirements", "live_questions", "live_window_atoms",
                                  "silence_stop_minutes") if k in data}
     try:
         if prefs:
@@ -1402,6 +1426,7 @@ def api_source_live(source_id):
         mine = bool(st and st["recording"] and _session["source_id"] == source_id)
         live = _live_state(source_id) if mine else "off"
         watch = _session.get("silence") if mine else None
+        questions = _session.get("questions") if mine else None
         stopped = _session.get("stopped")
     paused = bool(mine and st["paused"])
     atoms = [{**{k: a[k] for k in ("id", "type", "statement", "status", "quote", "segment_idx", "start", "speaker",
@@ -1412,8 +1437,18 @@ def api_source_live(source_id):
                     "elapsed": st["elapsed"] if mine else 0, "live": live,
                     "listening": mine and not paused and live != "off", "atoms": atoms,
                     "silence": int(watch.silent) if watch else 0, "silence_stop": watch.limit if watch else 0,
+                    "question": questions.current() if questions else None,
                     "stopped": stopped and {"reason": stopped["reason"], "minutes": stopped["minutes"],
                                             "job_id": stopped["job_id"]}})
+
+
+@app.route("/api/sources/<source_id>/live/question/dismiss", methods=["POST"])
+def api_live_question_dismiss(source_id):
+    """"Скрыть" (or "Добавить в заметки") on the question card: it is not shown again."""
+    card_id = (request.get_json(silent=True) or {}).get("id")
+    with _recorder_lock:
+        questions = _session.get("questions") if _session["source_id"] == source_id else None
+    return jsonify({"ok": True, "dismissed": bool(questions and questions.dismiss(card_id))})
 
 
 # ── meeting notes and recap styles (5.0 C3) ──────────────────────────────────
@@ -1475,6 +1510,71 @@ def api_recap(source_id):
     threading.Thread(target=_run_recap, args=(job_id, source_id, style, incremental, prefs, api_key, project),
                      daemon=True).start()
     return jsonify({"job_id": job_id, "job": job_id})
+
+
+# ── Спросить (5.0 C6) ────────────────────────────────────────────────────────
+def _ask_generate(prefs, api_key):
+    """The model call of an answer (and of the question card); the e2e fake server replaces this."""
+    return lambda system, user, on_delta: summarize_mod.generate(system, user, prefs, api_key, OLLAMA_URL, on_delta)
+
+
+ASK_PROGRESS = {"search": (10, "Searching the project…"), "generate": (40, "Writing the answer…")}
+
+
+def _run_ask(job_id, project, question, context_only, prefs, api_key):
+    try:
+        out = ask_mod.answer(library, project["id"], question, context_only, _ask_generate(prefs, api_key),
+                             skillset=_skillset(project["id"]), model=model_name(prefs),
+                             language_rule=language_rule(project),
+                             on_delta=lambda piece: jobs.append_partial(job_id, piece),
+                             on_stage=lambda st: jobs.set_progress(job_id, *ASK_PROGRESS[st]))
+    except (SummaryError, ValueError, StoreError) as e:
+        jobs.fail(job_id, e)
+    except Exception as e:  # unexpected: keep the message, don't crash the worker
+        job_log.exception("Answer failed")
+        jobs.fail(job_id, f"Answer failed: {e}")
+    else:
+        jobs.finish(job_id, out)
+
+
+@app.route("/api/projects/<project_id>/ask", methods=["POST"])
+def api_ask(project_id):
+    """A question across the project's meetings, requirements and materials; the answer streams into the job."""
+    data = request.get_json(silent=True) or {}
+    question = str(data.get("question") or "").strip()
+    try:
+        project = library.get_project(project_id)
+    except StoreError as e:
+        return jsonify({"error": str(e)}), 404
+    if not question:
+        return jsonify({"error": "Ask a question first."}), 400
+    prefs, api_key, problem = _ai_prefs(project)
+    if problem:
+        return problem
+    job_id = jobs.create("ask", question[:80])
+    jobs.set_progress(job_id, *ASK_PROGRESS["search"])
+    threading.Thread(target=_run_ask, args=(job_id, project, question, data.get("context_only", True) is not False,
+                                            prefs, api_key), daemon=True).start()
+    return jsonify({"job": job_id, "job_id": job_id})
+
+
+@app.route("/api/projects/<project_id>/ask/history")
+def api_ask_history(project_id):
+    """The project's questions, newest first; whether there is anything to ask about and whether the index works."""
+    try:
+        library.get_project(project_id)
+        limit = int(request.args.get("limit") or 50)
+    except StoreError as e:
+        return jsonify({"error": str(e)}), 404
+    except ValueError:
+        return jsonify({"error": "limit must be a number"}), 400
+    return jsonify({"items": library.ask_history(project_id, limit), "searchable": library.has_searchable(project_id),
+                    "indexed": local_index.available()})
+
+
+@app.route("/api/ask/<ask_id>", methods=["DELETE"])
+def api_ask_delete(ask_id):
+    return _store_call(library.delete_ask, ask_id)
 
 
 @app.route("/api/sources/<source_id>/segments/<int:idx>", methods=["PATCH"])
@@ -2749,7 +2849,8 @@ def _contracts():
     return {"extract": atoms_mod.EXTRACT_CONTRACT, "dedup": atoms_mod.DEDUP_CONTRACT,
             "frd": frd.FULL_CONTRACT.replace("{extra}", "").replace("{rules}", "(from the quality skill)"),
             "quality": "The rules are applied while the FRD is written; vague words are also checked by the app.",
-            "fix": frd.FIX_CONTRACT, "summary": "", "global": "", "export": ""}
+            "fix": frd.FIX_CONTRACT, "summary": "", "global": "", "export": "",
+            "ask": ask_mod.CONTRACT + "\n\nShort mode (the question card in a live call):\n" + ask_mod.SHORT_CONTRACT}
 
 
 def _skill_call(fn, *args, **kwargs):
