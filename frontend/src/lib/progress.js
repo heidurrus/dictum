@@ -24,6 +24,8 @@ const MAP = [
   [/^Checking coverage…$/, "pg.coverage"],
   [/^Checking stories…$/, "pg.invest"],
   [/^Writing summary…$/, "pg.summary"],
+  [/^Writing the recap…$/, "pg.recap"],
+  [/^Updating the recap…$/, "pg.recap_update"],
   [/^Reading Jira…$/, "pg.jira_read"],
   [/^Connecting to Jira…$/, "pg.jira_connect"],
   [/^Trying the skill…$/, "pg.try"],

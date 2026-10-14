@@ -22,7 +22,8 @@ const ALIASES = { sources: "meetings", overview: "meetings", requirements: "atom
 export function parseRoute(hash = location.hash) {
   const parts = hash.replace(/^#\/?/, "").split("/").filter(Boolean);
   if (ALIASES[parts[0]]) parts[0] = ALIASES[parts[0]];
-  if (parts[0] === "source" && parts[1]) return { name: "transcript", id: parts[1], summarize: parts[2] === "summarize",
+  // A meeting: #/meeting/<id> is the address; #/source/<id> (4.x and the atoms' links) opens the same page.
+  if ((parts[0] === "meeting" || parts[0] === "source") && parts[1]) return { name: "transcript", id: parts[1], summarize: parts[2] === "summarize",
                                                   seg: parts[2] === "seg" ? Number(parts[3]) : null };
   if (parts[0] === "document") return { name: "document", doc: parts[1] && parts[1] !== "new" ? parts[1] : null,
                                        newKind: parts[1] === "new" ? parts[2] : null };

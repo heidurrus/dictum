@@ -58,14 +58,14 @@ for (const [lang, s] of Object.entries(L)) {
 
   await page.locator(".item", { hasText: s.renamed }).click();
   await page.getByRole("button", { name: s.open }).click();
-  await page.waitForURL(/#\/source\//);
+  await page.waitForURL(/#\/meeting\//);
   await page.locator(".screen-title", { hasText: s.renamed }).waitFor();
   step("Открыть встречу opens the meeting page with the new title");
 
   // Back home, double-click opens it too.
   await page.goto(base + "/#/meetings");
   await page.locator(".item", { hasText: s.renamed }).dblclick();
-  await page.waitForURL(/#\/source\//);
+  await page.waitForURL(/#\/meeting\//);
   step("double-click opens the meeting");
   await ctx.close();
 }

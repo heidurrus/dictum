@@ -27,6 +27,7 @@ export function esc(value) {
 export function renderMarkdown(md) {
   const inline = t => t
     .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
+    .replace(/(^|[^*\w])\*(?!\s)([^*]+?)\*(?![*\w])/g, "$1<i>$2</i>")        // *italic* (meeting notes)
     .replace(/\[([^[\]]{1,60}?,\s*\d{1,2}:\d{2}(?::\d{2})?(?:\s*[–-]\s*\d{1,2}:\d{2}(?::\d{2})?)?)\]/g, '<span class="ref">[$1]</span>');
   let html = "", list = null;
   const close = () => { if (list) { html += `</${list}>`; list = null; } };
@@ -36,7 +37,9 @@ export function renderMarkdown(md) {
     if ((m = line.match(/^#{1,6}\s+(.*)$/))) { close(); html += `<h3>${inline(m[1])}</h3>`; }
     else if ((m = line.match(/^\s*[-*•]\s+(.*)$/))) {
       if (list !== "ul") { close(); html += "<ul>"; list = "ul"; }
-      html += `<li>${inline(m[1])}</li>`;
+      const box = m[1].match(/^\[([ xX])\]\s+(.*)$/);                             // - [ ] task, - [x] done
+      html += box ? `<li class="task${box[1] === " " ? "" : " done"}">${box[1] === " " ? "☐" : "☑"} ${inline(box[2])}</li>`
+                  : `<li>${inline(m[1])}</li>`;
     } else if ((m = line.match(/^\s*\d+[.)]\s+(.*)$/))) {
       if (list !== "ol") { close(); html += "<ol>"; list = "ol"; }
       html += `<li>${inline(m[1])}</li>`;
