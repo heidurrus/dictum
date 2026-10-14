@@ -424,6 +424,25 @@ class Store:
             return "import"
         return "text"
 
+    def imported_files(self):
+        """{(original filename, size)} of every file imported into any project (5.0 C8 discovery skips them).
+        Materials keep their size; for audio the size is that of the kept original."""
+        with self._conn() as c:
+            rows = c.execute("""SELECT s.id, s.project_id, s.original_filename, m.size FROM sources s
+                                LEFT JOIN materials m ON m.source_id = s.id
+                                WHERE s.original_filename IS NOT NULL AND s.deleted_at IS NULL""").fetchall()
+        out = set()
+        for r in rows:
+            size = r["size"]
+            if size is None:
+                path = os.path.join(self.source_dir(r), "original" + os.path.splitext(r["original_filename"])[1].lower())
+                if not os.path.exists(path):
+                    path = os.path.join(self.source_dir(r), r["original_filename"])
+                size = os.path.getsize(path) if os.path.exists(path) else None
+            if size is not None:
+                out.add((r["original_filename"], size))
+        return out
+
     def list_sources(self, project_id, q=None, sort="new", include_materials=False):
         """The project's sources, newest first by default. `q` matches the title, the source text and the
         segment text, case-insensitively (any script). Each row carries `people`, `atoms` and `tags`."""

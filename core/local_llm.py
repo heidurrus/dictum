@@ -162,6 +162,25 @@ def total_ram_bytes():
         return None
 
 
+_machine_cache = {}
+
+
+def machine_info(run=subprocess.run):
+    """{ram, chip, os} for the first run's "На этом Mac 16 ГБ памяти и чип M1 Pro" (5.0 C8). chip: the Apple chip
+    ("M1 Pro") on a Mac, else None (Windows reports cryptic processor strings; the GPU line covers those)."""
+    if "m" in _machine_cache:
+        return _machine_cache["m"]
+    chip = None
+    try:
+        if sys.platform == "darwin":
+            brand = run(["sysctl", "-n", "machdep.cpu.brand_string"], capture_output=True, text=True, timeout=5).stdout.strip()
+            chip = re.sub(r"^Apple\s+", "", brand) or None
+    except Exception:
+        chip = None
+    _machine_cache["m"] = {"ram": total_ram_bytes(), "chip": chip, "os": sys.platform}
+    return _machine_cache["m"]
+
+
 # ── GPU ──────────────────────────────────────────────────────────────────────
 # What decides speed is GPU memory: a model that fits runs fast; one that half
 # fits runs partly on the CPU; with no usable GPU it all runs on the CPU (slow).
@@ -679,6 +698,7 @@ def status():
         "supported": engine_asset() is not None,
         "engine_installed": server_binary() is not None,
         "ram": ram,
+        "machine": machine_info(),
         "disk_free": shutil.disk_usage(root_dir()).free,
         "recommended": recommended,
         "running": runtime.running_model(),
