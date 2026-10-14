@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.9.0 (2026-10-14): Dictum
+
+- **The app is now called Dictum.** It was Requirements Workbench up to 4.2. The Mac app is `Dictum.app` (bundle id `com.heidurrus.dictum`), the downloads are `Dictum-<version>-macos-arm64.dmg` and `Dictum-<version>-Setup.exe`. This is the first pre-release of 5.0.
+- **Your data moves by itself.** On the first start the `RequirementsWorkbench` data folder (`~/Library/Application Support` on macOS, `%LOCALAPPDATA%` on Windows) is renamed to `Dictum`, before anything can record, so projects, recordings, settings, the runtime and the downloaded models are all kept and nothing downloads again. A `migrated-from.txt` inside notes where it came from. If a 4.x copy is still running, or the folder cannot be moved, the app keeps using the old folder and tries again on the next start. If both folders exist, neither is touched.
+- Because the bundle id changed, macOS asks again for microphone and system audio access on the first recording. On Windows the old Start menu and desktop shortcuts are replaced.
+- Project exports are written as `dictum-project`; files exported by 4.x still import. `DICTUM_DATA_DIR` overrides the data folder (`WORKBENCH_DATA_DIR` still works).
+
 ## 4.2.2 (2026-10-14): Icon, final colours
 
 - The icon is blue with white bars, and the three text lines are the same length.

@@ -18,14 +18,14 @@ import webbrowser
 
 from werkzeug.serving import make_server
 
-from core import instance
+from core import instance, paths
 from core.hardware import detect
 from core.security import BIND_HOST
 from core.setup_plan import build_plan
 from core.setup_runner import SetupRunner
 from core.setup_server import create_setup_app
 
-APP_TITLE = "Requirements Workbench"
+APP_TITLE = "Dictum"
 
 
 class ServerSlot:
@@ -40,6 +40,8 @@ class ServerSlot:
 
     def serve(self, wsgi_app):
         first_bind = not self._bound_once
+        paths.app_data_dir()        # moves a 4.x data folder, if any, before anything can record
+        paths.mark_server_started()
         self.stop()
         if first_bind and self.port and instance.port_accepts_connections(self.port):
             # Binding can "succeed" on a port another server listens on (SO_REUSEADDR),

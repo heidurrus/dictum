@@ -438,7 +438,7 @@ def audio_devices():
 MIC_NO_AUDIO = ("the microphone delivers no audio. Check that it's connected and, on macOS, allowed in "
                 "System Settings → Privacy & Security → Microphone")
 SYS_SILENT = ("system audio was silent the whole time. If the call's audio was playing, allow "
-              "Requirements Workbench in System Settings → Privacy & Security → Screen & System Audio Recording")
+              "Dictum in System Settings → Privacy & Security → Screen & System Audio Recording")
 
 
 def _mic_source(device_index):
@@ -1086,7 +1086,7 @@ def api_import_project():
         data = json.loads(z.read("project.json"))
         project = library.import_project(data)
     except (zipfile.BadZipFile, KeyError, ValueError):
-        return jsonify({"error": "this is not a Requirements Workbench project file"}), 400
+        return jsonify({"error": "this is not a Dictum project file"}), 400
     except StoreError as e:
         return jsonify({"error": str(e)}), 400
     for src in data["tables"].get("sources") or []:
@@ -1103,7 +1103,7 @@ def api_import_project():
 def api_notify():
     """A system notification when a long job finishes and the BA is elsewhere (PM-30). macOS only for now."""
     d = request.get_json(silent=True) or {}
-    title, text = str(d.get("title") or "Requirements Workbench")[:120], str(d.get("text") or "")[:240]
+    title, text = str(d.get("title") or "Dictum")[:120], str(d.get("text") or "")[:240]
     if sys.platform == "darwin":
         script = f'display notification {json.dumps(text)} with title {json.dumps(title)}'
         try:
@@ -1987,12 +1987,12 @@ def api_jira_callback():
         try:
             jira_auth.finish(request.args.get("state"), request.args.get("code"))
             library.audit_event("jira", "account", "connect")
-            ok, text = True, "Jira подключена. Вернитесь в Requirements Workbench — это окно можно закрыть."
+            ok, text = True, "Jira подключена. Вернитесь в Dictum — это окно можно закрыть."
         except AuthError as e:
             ok, text = False, str(e)
     colour = "#3A6A4B" if ok else "#9E3626"
     safe = text.replace("&", "&amp;").replace("<", "&lt;")
-    return (f"<!doctype html><meta charset=utf-8><title>Requirements Workbench</title>"
+    return (f"<!doctype html><meta charset=utf-8><title>Dictum</title>"
             f"<body style='font:16px -apple-system,Segoe UI,sans-serif;display:grid;place-items:center;height:90vh;"
             f"background:#EDEFEC'><p style='max-width:520px;color:{colour}'>{safe}</p></body>")
 

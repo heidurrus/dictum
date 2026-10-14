@@ -1,4 +1,4 @@
-; Requirements Workbench - Inno Setup Script
+; Dictum - Inno Setup Script
 ; Requires Inno Setup 6.1+: https://jrsoftware.org/isinfo.php
 ;
 ; Built by packaging/build.py --target windows-x64, which stages a standalone
@@ -8,9 +8,10 @@
 ;
 ; The app was called "GigaAM Transcriber" up to 1.0. AppId keeps that old
 ; identity (1.0 had no explicit AppId, so Inno used its name), so installing
-; over 1.0 upgrades it in place instead of adding a second copy.
+; over 1.0 upgrades it in place instead of adding a second copy. Up to 4.2 it
+; was "Requirements Workbench"; 4.9 renamed it to Dictum.
 
-#define AppName "Requirements Workbench"
+#define AppName "Dictum"
 #ifndef AppVersion
   #define AppVersion "0.0.0-dev"
 #endif
@@ -20,7 +21,7 @@
 #define AppPublisher "heidurrus"
 #define AppURL "https://github.com/heidurrus/gigaam-transcriber"
 ; Per-user data folder used by the app (core/paths.py APP_DIR_NAME)
-#define DataDirName "RequirementsWorkbench"
+#define DataDirName "Dictum"
 #define WebView2Guid "{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
 
 [Setup]
@@ -33,13 +34,14 @@ AppSupportURL={#AppURL}
 DefaultDirName={localappdata}\Programs\{#AppName}
 DefaultGroupName={#AppName}
 OutputDir=Output
-OutputBaseFilename=RequirementsWorkbench-{#AppVersion}-Setup
+OutputBaseFilename=Dictum-{#AppVersion}-Setup
 Compression=lzma2/ultra64
 SolidCompression=yes
 ; No admin rights needed: per-user install
 PrivilegesRequired=lowest
 WizardStyle=modern
 DisableProgramGroupPage=yes
+UsePreviousGroup=no
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
@@ -64,6 +66,9 @@ Type: filesandordirs; Name: "{app}\static"
 ; 1.0 shortcuts under the old name
 Type: filesandordirs; Name: "{userprograms}\GigaAM Transcriber"
 Type: files; Name: "{userdesktop}\GigaAM Transcriber.lnk"
+; 2.0–4.2 shortcuts under the old name
+Type: filesandordirs; Name: "{userprograms}\Requirements Workbench"
+Type: files; Name: "{userdesktop}\Requirements Workbench.lnk"
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\app\boot.py"""; WorkingDir: "{app}\app"; IconFilename: "{app}\python\pythonw.exe"
