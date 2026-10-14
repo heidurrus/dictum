@@ -269,7 +269,7 @@
       <input class="input title-input" bind:value={titleDraft} autofocus onblur={saveTitle} aria-label={t("tr.edit_title")}
              onkeydown={e => { if (e.key === "Enter") saveTitle(); if (e.key === "Escape") editingTitle = false; }} />
     {:else}
-      <h1 class="screen-title"><button class="tb-crumb" onclick={() => go("/sources")}>{t("sources.title")}</button><span class="tb-crumb">{" › "}</span>{#if source}<button
+      <h1 class="screen-title">{#if source}<button
           class="title-btn" title={t("tr.edit_title")} onclick={() => { editingTitle = true; titleDraft = source.title; }}>{source.title}</button>{/if}</h1>
     {/if}
   {/snippet}

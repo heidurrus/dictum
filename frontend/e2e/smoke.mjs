@@ -47,7 +47,7 @@ await page.locator(".seg-row .spk", { hasText: "Иван Петров" }).first(
 step("speaker rename shows in the transcript");
 
 // Back to the list, the import is there; delete it and undo.
-await page.locator(".screen-head").getByRole("button", { name: "Источники", exact: true }).click();
+await page.locator(".screen-head").getByRole("button", { name: "Назад: Источники", exact: true }).click();
 await page.locator(".workspace").getByRole("button", { name: "Встреча с заказчиком", exact: true }).waitFor();
 await page.locator(".item", { hasText: "Встреча с заказчиком" }).locator(".kind").click();
 await page.locator(".inspector").getByRole("button", { name: "Удалить источник" }).click();
@@ -66,7 +66,7 @@ await page.getByText("От: Ivan Petrov").waitFor();
 await page.locator(".block-title", { hasText: "Письмо" }).waitFor();
 if (await page.locator(".seg-meta").count()) throw new Error("an email must render as paragraphs, not timed segments");
 step("email import opens as a letter with sender and paragraphs");
-await page.locator(".screen-head").getByRole("button", { name: "Источники", exact: true }).click();
+await page.locator(".screen-head").getByRole("button", { name: "Назад: Источники", exact: true }).click();
 
 // Create a project and switch to it: the list is empty there.
 await page.locator(".proj").click();
