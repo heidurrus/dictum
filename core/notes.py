@@ -25,6 +25,10 @@ UPDATE_CONTRACT = ("You are updating an existing recap, not writing a new one. Y
                    "they correct or settle. Do not drop points because the new lines do not repeat them. "
                    "Return the whole updated recap in Markdown, nothing else.")
 
+# Settings → Запись → notes_style "concise" (5.0 C9): the same recap, said in fewer words.
+CONCISE_RULE = ("Keep the recap concise: about half the length you would otherwise write, only the points that matter "
+                "most, no repetition.")
+
 _LISTED = re.compile(r"^(?:[-*•]\s|#|\d+[.)]\s)")
 
 
@@ -50,8 +54,10 @@ def append_note(store, source_id, line):
                               action="notes_append")
 
 
-def system_prompt(skillset, style, incremental, language_rule=""):
+def system_prompt(skillset, style, incremental, language_rule="", concise=False):
     system = skills.compose(skillset, STAGE[style], UPDATE_CONTRACT if incremental else FULL_CONTRACT)
+    if concise:
+        system += "\n\n" + CONCISE_RULE
     return system + ("\n\n" + language_rule if language_rule else "")
 
 
@@ -81,14 +87,14 @@ def plan(store, source_id, style, incremental):
 
 
 def recap(store, source_id, style, incremental, generate, skillset, provider, model, language_rule="",
-          on_delta=lambda _t: None):
+          on_delta=lambda _t: None, concise=False):
     """Write (or update) the recap of one style and store it as that style's row.
     `generate(system, user, on_delta)` → text. Returns the row plus {"incremental", "unchanged"}."""
     p = plan(store, source_id, style, incremental)
     store.set_recap_style(source_id, style)
     if p["user"] is None:
         return {**p["previous"], "incremental": True, "unchanged": True}
-    text = generate(system_prompt(skillset, style, p["incremental"], language_rule), p["user"], on_delta)
+    text = generate(system_prompt(skillset, style, p["incremental"], language_rule, concise), p["user"], on_delta)
     if not (text or "").strip():
         raise ValueError("The model returned an empty recap.")
     row = store.add_summary(source_id, provider, model, text.strip(), style=style, through_idx=p["through_idx"])
