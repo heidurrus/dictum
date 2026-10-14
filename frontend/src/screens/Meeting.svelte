@@ -701,7 +701,7 @@
   .card { background: var(--surface); border-radius: var(--r-l); box-shadow: var(--shadow-1); min-width: 0; }
   .pad { padding: var(--s-6) var(--gutter); display: grid; gap: var(--s-6); }
   .skeleton { display: grid; gap: var(--s-5); max-width: 72ch; }
-  .skeleton i { height: 12px; border-radius: var(--r-xs); background: var(--c-fill-2); animation: breathe 1.6s ease-in-out infinite; }
+  .skeleton i { height: 12px; border-radius: var(--r-xs); background: var(--surface-3); animation: breathe 1.6s ease-in-out infinite; }
   @keyframes breathe { 50% { opacity: .45; } }
 
   :global(.page-head.sess-head) { background: var(--surface); border-radius: var(--r-l); box-shadow: var(--shadow-1); padding: 14px 18px;
@@ -751,12 +751,12 @@
     position: relative; transition: background var(--d-fast); scroll-margin: 80px 0; }
   .line.para { grid-template-columns: 36px minmax(0, 1fr); }
   .seg-meta { display: contents; }
-  .line:hover { background: var(--c-fill-1); }
-  .line.focus { background: var(--c-fill-2); }
-  .line.playing { background: var(--c-accent-tint); }
-  .line.playing::before { content: ""; position: absolute; left: 0; top: 6px; bottom: 6px; width: 3px; border-radius: 2px; background: var(--c-accent); }
+  .line:hover { background: var(--surface-2); }
+  .line.focus { background: var(--surface-3); }
+  .line.playing { background: var(--primary-c); }
+  .line.playing::before { content: ""; position: absolute; left: 0; top: 6px; bottom: 6px; width: 3px; border-radius: 2px; background: var(--primary); }
   .line.flash { animation: flash 2.4s ease-out; }
-  @keyframes flash { 0%, 40% { background: var(--c-mark); } }
+  @keyframes flash { 0%, 40% { background: var(--mark); } }
   .time { border: 0; background: none; padding: 3px 0 0; color: var(--text-3); font-family: var(--mono); font-size: 12px; cursor: pointer; text-align: left;
     height: 22px; font-variant-numeric: tabular-nums; align-self: start; }
   .time:hover:not(:disabled) { color: var(--primary); }
@@ -765,7 +765,7 @@
   .spk::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
   .seg-text { min-width: 0; }
   .seg-text p { font: 400 14px/22px var(--font); text-wrap: pretty; }
-  .para .seg-text p { font-size: var(--t-read); line-height: var(--lh-read); }
+  .para .seg-text p { font-size: var(--size-read); line-height: var(--lh-read); }
   mark { color: inherit; }
   mark.q { background: var(--mark); border-radius: 3px; padding: 0 2px; }
   mark.hit { background: var(--primary-c); color: var(--on-primary-c); border-radius: 3px; padding: 0; }
@@ -783,7 +783,7 @@
     flex: none; cursor: pointer; transition: transform var(--d-instant); }
   .play:active { transform: scale(.94); }
   .scrub { flex: 1; min-width: 80px; appearance: none; -webkit-appearance: none; height: 4px; border-radius: var(--r-full); cursor: pointer;
-    background: linear-gradient(90deg, var(--c-accent) var(--p), var(--c-fill-3) var(--p)); }
+    background: linear-gradient(90deg, var(--primary) var(--p), var(--surface-4) var(--p)); }
   .scrub::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #fff;
     box-shadow: 0 0 0 0.5px rgba(0,0,0,.2), 0 1px 3px rgba(0,0,0,.3); }
   .up :global(.menu) { top: auto; bottom: calc(100% + 8px); min-width: 120px; }

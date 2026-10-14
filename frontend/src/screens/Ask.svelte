@@ -228,7 +228,7 @@
     padding: 12px 16px; max-width: 70%; white-space: pre-wrap; word-break: break-word; }
   .msg.ai { max-width: 80%; line-height: 22px; border-radius: 12px; }
   .msg.ai.flash { animation: flash 1.6s ease-out; }
-  @keyframes flash { from { background: var(--c-accent-tint); } to { background: transparent; } }
+  @keyframes flash { from { background: var(--primary-c); } to { background: transparent; } }
   .msg.ai .st { color: var(--text-3); font-size: 12px; margin-bottom: 8px; display: flex; gap: 8px; align-items: center; }
   .msg.ai .st.err { color: var(--danger); }
   .text { white-space: pre-wrap; word-break: break-word; }

@@ -96,7 +96,7 @@
   .ok { width: 8px; height: 8px; border-radius: 50%; background: var(--surface-4); flex: none; }
   .jobs-pop { right: 0; top: calc(100% + 6px); width: 320px; }
   .job { padding: 6px var(--s-4) 8px; display: grid; gap: 6px; }
-  .job + .job { border-top: 1px solid var(--c-line); }
+  .job + .job { border-top: 1px solid var(--outline-2); }
   .row { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
   .bar { height: 4px; border-radius: 2px; background: var(--surface-3); overflow: hidden; }
   .bar i { display: block; height: 100%; background: var(--primary); border-radius: 2px; }

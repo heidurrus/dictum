@@ -81,7 +81,7 @@
 </div>
 
 <style>
-  .path { font-family: var(--font-mono); font-size: 13px; word-break: break-all; }
+  .path { font-family: var(--mono); font-size: 13px; word-break: break-all; }
   .move .input-row { flex-wrap: wrap; }
   .move .input { flex: 1; min-width: 240px; }
   .restart { margin-top: 8px; display: flex; gap: 6px; align-items: center; }

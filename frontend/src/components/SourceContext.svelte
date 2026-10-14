@@ -58,14 +58,14 @@
 </div>
 
 <style>
-  .none { padding: var(--s-9) var(--s-7); color: var(--c-text-3); text-align: center; }
-  .src { padding: var(--s-5) var(--s-6) 0; font-size: var(--t-foot); }
+  .none { padding: var(--s-9) var(--s-7); color: var(--text-3); text-align: center; }
+  .src { padding: var(--s-5) var(--s-6) 0; font-size: var(--size-foot); }
   .line { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: var(--s-4); padding: var(--s-4) var(--s-6); position: relative; }
-  .line.hit { background: var(--c-accent-tint); }
-  .line.hit::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--c-accent); }
+  .line.hit { background: var(--primary-c); }
+  .line.hit::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--primary); }
   .line time { padding-top: 1px; }
-  .line p { line-height: 20px; color: var(--c-text-2); text-wrap: pretty; }
-  .line.hit p { color: var(--c-text); }
+  .line p { line-height: 20px; color: var(--text-2); text-wrap: pretty; }
+  .line.hit p { color: var(--text); }
   .spk { display: inline-flex; align-items: center; gap: var(--s-3); font-weight: var(--w-medium); }
   .spk::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
 </style>

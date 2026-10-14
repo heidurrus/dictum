@@ -118,16 +118,16 @@
 <style>
   .opts { display: grid; gap: var(--s-6); grid-template-columns: minmax(0, 1fr); }
   .field { justify-items: start; }
-  .warn-t { color: var(--c-warn); }
+  .warn-t { color: var(--warn); }
   .sw { display: flex; align-items: center; gap: var(--s-6); justify-content: space-between; cursor: pointer; }
   .sw b { font-weight: var(--w-medium); display: block; }
   .sw .hint { display: block; }
-  .models { list-style: none; margin: 0; padding: 0; width: 100%; border-radius: var(--r-md); box-shadow: 0 0 0 1px var(--c-line); background: var(--c-content); overflow: hidden; }
+  .models { list-style: none; margin: 0; padding: 0; width: 100%; border-radius: var(--r-m); box-shadow: 0 0 0 1px var(--outline-2); background: var(--surface); overflow: hidden; }
   .model { display: flex; align-items: center; gap: var(--s-5); flex-wrap: wrap; padding: var(--s-4) var(--s-5); }
-  .model + .model { border-top: 1px solid var(--c-line); }
-  .model.on { background: var(--c-accent-tint); }
+  .model + .model { border-top: 1px solid var(--outline-2); }
+  .model.on { background: var(--primary-c); }
   .name { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-4); min-width: 0; flex: 1 1 260px; }
-  .name b { font: var(--w-medium) var(--t-mono)/var(--lh-body) var(--font-mono); }
+  .name b { font: var(--w-medium) var(--size-mono)/var(--lh-body) var(--mono); }
   .name .hint { flex-basis: 100%; }
   .side { display: flex; align-items: center; gap: var(--s-4); margin-left: auto; }
   .dl { display: grid; gap: var(--s-2); width: 180px; }

@@ -105,19 +105,19 @@
 {/if}
 
 <style>
-  .palette { width: min(640px, 92vw); border-radius: var(--r-xl); background: var(--c-raised); box-shadow: var(--e-4); overflow: hidden;
+  .palette { width: min(640px, 92vw); border-radius: var(--r-xl); background: var(--surface); box-shadow: var(--shadow-3); overflow: hidden;
     animation: drop var(--d-slow) var(--ease-out); }
-  .palette-input { display: flex; align-items: center; gap: var(--s-5); height: 52px; padding: 0 var(--s-7); border-bottom: 1px solid var(--c-line);
-    color: var(--c-text-3); }
-  .palette-input input { flex: 1; border: 0; background: none; outline: none; box-shadow: none; font-size: var(--t-title-2); color: var(--c-text); min-width: 0; }
+  .palette-input { display: flex; align-items: center; gap: var(--s-5); height: 52px; padding: 0 var(--s-7); border-bottom: 1px solid var(--outline-2);
+    color: var(--text-3); }
+  .palette-input input { flex: 1; border: 0; background: none; outline: none; box-shadow: none; font-size: var(--size-title-2); color: var(--text); min-width: 0; }
   .palette-list { max-height: 384px; padding: var(--s-3); }
   .palette-list .cap { padding: var(--s-4) var(--s-5) var(--s-2); }
-  .pl { display: flex; align-items: center; gap: var(--s-5); height: 36px; padding: 0 var(--s-5); border-radius: var(--r-md); border: 0;
+  .pl { display: flex; align-items: center; gap: var(--s-5); height: 36px; padding: 0 var(--s-5); border-radius: var(--r-m); border: 0;
     background: none; width: 100%; text-align: left; cursor: pointer; }
-  .pl :global(svg) { color: var(--c-text-2); }
-  .pl.on { background: var(--c-accent); color: #fff; }
+  .pl :global(svg) { color: var(--text-2); }
+  .pl.on { background: var(--primary); color: #fff; }
   .pl.on :global(svg), .pl.on .t3 { color: #fff; }
   .pl.on .kbd { background: rgba(255,255,255,.2); color: #fff; }
   .keys { margin-left: auto; display: flex; gap: var(--s-2); }
-  .none { padding: var(--s-8); text-align: center; color: var(--c-text-3); }
+  .none { padding: var(--s-8); text-align: center; color: var(--text-3); }
 </style>

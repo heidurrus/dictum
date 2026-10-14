@@ -164,7 +164,7 @@
   .proj-menu { left: 0; top: calc(100% + 6px); width: 300px; }
   .find { margin: var(--s-2) var(--s-2) var(--s-3); }
   .menu-new { display: flex; gap: var(--s-3); padding: 0 var(--s-2) var(--s-3); }
-  .menu-new .input { height: var(--h-ctl-sm); font-size: var(--t-foot); min-width: 0; flex: 1; }
+  .menu-new .input { height: var(--h-ctl-sm); font-size: var(--size-foot); min-width: 0; flex: 1; }
   .mode { color: var(--text-2); }
   .arch { display: flex; align-items: center; gap: var(--s-4); padding: var(--s-1) var(--s-4) var(--s-1) 28px; }
   .icon-btn-m { width: 36px; height: 36px; border: 0; border-radius: 18px; display: grid; place-items: center; background: none;
