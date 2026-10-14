@@ -99,6 +99,13 @@ def fake_transcribe(job_id, audio_path, model_name, diarize, word_timestamps, de
 
 app_module._transcribe = fake_transcribe
 
+# The local index (5.0 C5): embeddings are a hashed bag of words (tests/fake_embed.py), so texts that share words are
+# close; the index counts as available and its passes run as real jobs.
+from core import index as local_index  # noqa: E402
+from tests import fake_embed  # noqa: E402
+
+fake_embed.install(None, local_index)
+
 # Jira: a fake Atlassian sign-in and an in-memory Jira project "SBX". Nothing real is ever contacted.
 from core.fake_jira import FakeJira  # noqa: E402
 
