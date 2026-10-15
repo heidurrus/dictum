@@ -143,6 +143,12 @@ export function currentProject() {
   return app.projects.find(p => p.id === app.currentProjectId) || null;
 }
 
+// 5.0.4: business analysis can be switched off per project (Settings → Project). Off, the project is a meeting
+// recorder: the requirements, document, decomposition and Jira screens are hidden, nothing is deleted.
+export const analysisOn = () => currentProject()?.analysis !== false;
+export const BA_ROUTES = new Set(["atoms", "document", "backlog", "export"]);
+export const BA_PATHS = new Set(["/atoms", "/document", "/backlog", "/export"]);
+
 export async function loadProjects() {
   const body = await api("/api/projects?archived=1");
   app.projects = body.projects.filter(p => !p.archived);

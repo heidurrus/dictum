@@ -18,7 +18,7 @@
   import { fmtTime, fmtDate, fmtDuration, speakerClass, speakerDisplay } from "../lib/format.js";
   import { saveText } from "../lib/save.js";
   import { audioLabel, fmtBytes, saveAudio } from "../lib/audio.js";
-  import { app, t, go, loadSources, toast, rememberSource } from "../lib/state.svelte.js";
+  import { app, t, go, loadSources, toast, rememberSource, analysisOn } from "../lib/state.svelte.js";
 
   let { id, autoSummarize = false, focusSeg = null } = $props();
 
@@ -33,8 +33,10 @@
   let titleEl = $state(null);
   let recapText = $state("");
 
+  // Business analysis off (5.0.4): no extraction, requirement chips, quote marks, "with requirements" filter or panel.
+  const ba = $derived(analysisOn());
   // Lines that became atoms (FR-TR-03 / PM-17) and in-place corrections (PM-25).
-  const marks = $derived(source?.atom_marks || {});
+  const marks = $derived(ba ? source?.atom_marks || {} : {});
   let editSeg = $state(null);            // {idx, text}
   async function saveSegment() {
     const e = editSeg;
@@ -42,7 +44,7 @@
     try {
       const r = await api(`/api/sources/${id}/segments/${e.idx}`, { method: "PATCH", body: { text: e.text } });
       await load();
-      if (r.broken.length) toast(t("tr.quote_broken", { n: r.broken.length }), { kind: "danger", action: t("at.open"),
+      if (r.broken.length && ba) toast(t("tr.quote_broken", { n: r.broken.length }), { kind: "danger", action: t("at.open"),
                                                                                   onAction: () => go(`/atoms/atom/${r.broken[0]}`) });
     } catch (err) { toast(err.message, { kind: "danger" }); }
   }
@@ -247,7 +249,7 @@
   let hitAt = $state(0);
   const needle = $derived(find.trim().toLowerCase());
   const markedCount = $derived(Object.keys(marks).length);
-  const lines = $derived(!source ? [] : source.segments.filter(s => !only || marks[s.idx]));
+  const lines = $derived(!source ? [] : source.segments.filter(s => !only || !ba || marks[s.idx]));
   const PREFIX = { functional: "FR", nfr: "NFR", question: "Q", business: "BR", risk: "RSK", current: "AS" };
   const typeClass = { functional: "fr", nfr: "nfr", question: "q", business: "br", risk: "rsk", current: "as" };
   $effect(() => { if (audio) audio.playbackRate = speed; });
@@ -314,7 +316,7 @@
   $effect(() => {
     const sid = id;
     app.atomsVersion; atomCount; source?.status;
-    if (!sid || !app.currentProjectId) return;
+    if (!sid || !app.currentProjectId || !ba) { atoms = []; return; }
     api(`/api/projects/${app.currentProjectId}/atoms?source_id=${sid}`).then(b => { if (sid === id) atoms = b.atoms.filter(a => a.status !== "merged"); }).catch(() => {});
   });
   const quoteOf = a => a.evidence.find(e => e.source_id === id) || null;
@@ -380,9 +382,11 @@
                  items={[{ value: "copy", label: copied ? t("tr.copied") : t("tr.copy_text"), icon: "copy" },
                          { value: "txt", label: t("tr.save_txt"), icon: "download" },
                          ...(audioItems.length ? [{ sep: true }, ...audioItems] : []),
-                         ...(atomCount ? [{ sep: true }, { value: "extract", label: t("tr.extract_again"), icon: "refresh", disabled: !!app.extracting[id] }] : []),
+                         ...(atomCount && ba ? [{ sep: true }, { value: "extract", label: t("tr.extract_again"), icon: "refresh", disabled: !!app.extracting[id] }] : []),
                          ...(source.audio_url ? [{ sep: true }, { value: "asr", label: t("tr.asr_again"), icon: "wave" }] : [])]} />
-        {#if app.extracting[id]}
+        {#if !ba}
+          <!-- a meeting recorder: nothing to extract -->
+        {:else if app.extracting[id]}
           <button class="btn primary" disabled><span class="spinner"></span> {app.extracting[id].message || t("src.st.extracting")}</button>
         {:else if atomCount}
           <button class="btn primary" onclick={() => go(`/atoms/source/${id}`)}>{t("tr.to_atoms", { n: atomCount })} <Icon name="arrow" size={14} /></button>
@@ -569,6 +573,7 @@
 
           <section class="card col notes-card" aria-label={t("meet.tab.notes")}>
             <NotesEditor sourceId={id} value={source.notes} onsaved={text => { if (source) source.notes = text; }} />
+            {#if ba}
             <div class="live-req">
               <div class="col-head">
                 <h2>{t("mt.reqs")}</h2><span class="t3 num">{atoms.length || ""}</span><span class="grow"></span>
@@ -589,6 +594,7 @@
                 {/each}
               </div>
             </div>
+            {/if}
           </section>
         </div>
 
@@ -630,7 +636,7 @@
   {/if}
 </Page>
 
-{#if refine}
+{#if refine && ba}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <div class="scrim" onclick={e => e.target === e.currentTarget && (refine = null)}>
     <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="refine-h">

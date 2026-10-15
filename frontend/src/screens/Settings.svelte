@@ -12,7 +12,7 @@
   import { LANGS } from "../lib/i18n.js";
   import { DEFAULT_HOTKEYS, comboLabel } from "../lib/hotkeys.js";
   import { cap, loadMics } from "../lib/capture.svelte.js";
-  import { app, t, go, setLang, setTheme, currentProject, loadProjects, switchProject, toast } from "../lib/state.svelte.js";
+  import { app, t, go, setLang, setTheme, currentProject, loadProjects, switchProject, toast, analysisOn } from "../lib/state.svelte.js";
 
   let s = $state(null);              // server settings payload
   let projectName = $state("");
@@ -69,7 +69,9 @@
   // ── sections ──
   const ALL = [["project", "cube"], ["models", "spark"], ["privacy", "lock"], ["storage", "folder"], ["record", "mic"],
                ["jira", "jira"], ["keys", "bolt"], ["interface", "sun"], ["system", "info"]];
-  const sections = $derived(ALL.filter(([id]) => id !== "project" && id !== "privacy" || currentProject()));
+  // Business analysis off (5.0.4): the Jira section and the project's requirement settings are not shown.
+  const ba = $derived(analysisOn());
+  const sections = $derived(ALL.filter(([id]) => (id !== "project" && id !== "privacy" || currentProject()) && (id !== "jira" || ba)));
   const sec = $derived(sections.some(([id]) => id === app.route.section) ? app.route.section : sections[0][0]);
 
   // ── Запись ──
@@ -123,6 +125,11 @@
                    onblur={() => projectName.trim() && projectName.trim() !== currentProject().name && updateProject({ name: projectName.trim() })}
                    onkeydown={e => e.key === "Enter" && e.currentTarget.blur()} />
           </div>
+          <label class="row">
+            <span class="l"><b>{t("set.analysis")}</b><small>{t(ba ? "set.analysis_hint" : "set.analysis_hint_off")}</small></span>
+            <input type="checkbox" class="switch analysis" checked={ba} aria-label={t("set.analysis")}
+                   onchange={e => updateProject({ analysis: e.currentTarget.checked })} />
+          </label>
           <div class="row">
             <span class="l"><b>{t("set.out_lang")}</b><small>{t("set.out_lang_hint")}</small></span>
             <div class="seg out-lang" role="group" aria-label={t("set.out_lang")}>
@@ -131,6 +138,7 @@
               {/each}
             </div>
           </div>
+          {#if ba}
           <label class="row">
             <span class="l"><b>{t("set.auto_extract")}</b><small>{t("set.auto_extract_hint")}</small></span>
             <input type="checkbox" class="switch" checked={currentProject().auto_extract !== false}
@@ -144,6 +152,7 @@
               {/each}
             </div>
           </div>
+          {/if}
         </div>
         <div class="setcard card-m">
           <h3>{t("set.project_file")}</h3><p class="d">{t("set.project_file_hint")}</p>
@@ -180,7 +189,7 @@
         </div>
         <div class="setcard card-m">
           <h3>{t("set.pr.leaves")}</h3><p class="d">{t("set.pr.leaves_d")}</p>
-          {#each ["asr", "local", "index", "claude", "jira"] as p (p)}
+          {#each ["asr", "local", "index", "claude", ...(ba ? ["jira"] : [])] as p (p)}
             <div class="row provider-row" class:current={s && (p === s.llm_provider)}>
               <span class="l"><b>{t("set.pr.p." + p)}</b><small>{t("set.pr.s." + p)}</small></span>
               {#if p === "claude" && currentProject().local_only}<span class="tag ok">{t("set.pr.off_here")}</span>

@@ -14,6 +14,7 @@
   let archiveAsk = $state(null);   // the project the confirm sheet asks about
   let archiving = $state(false);
   let newName = $state("");
+  let newAnalysis = $state(true);          // 5.0.4: off makes the new project a meeting recorder
   let creating = $state(false);
   let query = $state("");
   let wrap = $state(null);
@@ -42,8 +43,9 @@
     if (!newName.trim()) return;
     creating = true;
     try {
-      const p = await api("/api/projects", { method: "POST", body: { name: newName.trim() } });
+      const p = await api("/api/projects", { method: "POST", body: { name: newName.trim(), analysis: newAnalysis } });
       newName = "";
+      newAnalysis = true;
       await loadProjects();
       await switchProject(p.id);
       menuOpen = false;
@@ -140,6 +142,7 @@
           <input class="input" bind:value={newName} placeholder={t("project.new_placeholder")} aria-label={t("project.new")} />
           <button class="btn sm primary" disabled={creating || !newName.trim()}>{t("project.create")}</button>
         </form>
+        <label class="menu-check" title={t("set.analysis_hint")}><input type="checkbox" class="new-analysis" bind:checked={newAnalysis} /> {t("set.analysis")}</label>
         <button class="menu-item import" role="menuitem" onclick={() => importInput.click()}>
           <span class="tick"></span><Icon name="upload" size={14} /> <span>{t("project.import")}</span></button>
         <input type="file" accept=".zip" class="hidden" bind:this={importInput} onchange={importProject} aria-label={t("project.import")} />
@@ -202,6 +205,7 @@
   .project-chip .av { width: 22px; height: 22px; border-radius: 7px; background: linear-gradient(135deg, #7C4DFF, #0B57D0); flex: none; }
   .proj-menu { left: 0; top: calc(100% + 6px); width: 300px; }
   .find { margin: var(--s-2) var(--s-2) var(--s-3); }
+  .menu-check { display: flex; align-items: center; gap: var(--s-3); padding: 0 var(--s-4) var(--s-3); font-size: var(--size-foot); color: var(--text-2); cursor: pointer; }
   .menu-new { display: flex; gap: var(--s-3); padding: 0 var(--s-2) var(--s-3); }
   .menu-new .input { height: var(--h-ctl-sm); font-size: var(--size-foot); min-width: 0; flex: 1; }
   .mode { color: var(--text-2); }

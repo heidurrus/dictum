@@ -3,7 +3,7 @@
   // ⌘K: every screen, source, document, requirement and command, by name.
   import Icon from "./Icon.svelte";
   import { api } from "../lib/api.js";
-  import { app, t, go, setTheme, isDark, switchProject } from "../lib/state.svelte.js";
+  import { app, t, go, setTheme, isDark, switchProject, analysisOn } from "../lib/state.svelte.js";
   import { DEFAULT_HOTKEYS, comboLabel } from "../lib/hotkeys.js";
   import { reopenOnboarding, startTutorial } from "../lib/onboarding.svelte.js";
 
@@ -17,23 +17,25 @@
     if (!app.palette) return;
     query = ""; index = 0;
     const pid = app.currentProjectId;
-    if (pid) api(`/api/projects/${pid}/atoms`).then(b => { atoms = (b.atoms || []).filter(a => a.status !== "rejected"); }).catch(() => { atoms = []; });
+    if (pid && analysisOn()) api(`/api/projects/${pid}/atoms`).then(b => { atoms = (b.atoms || []).filter(a => a.status !== "rejected"); }).catch(() => { atoms = []; });
   });
 
-  // In rail order, with the rail's shortcuts; Skills and Export are reached from here.
+  // In rail order, with the rail's shortcuts; Skills and Export are reached from here. The `ba` ones are left out in a
+  // project with business analysis off (5.0.4), as are its documents and requirements.
   const hk = $derived({ ...DEFAULT_HOTKEYS, ...(app.settings?.hotkeys || {}) });
+  const ba = $derived(analysisOn());
   const screens = $derived([
     { icon: "sources", label: t("nav.meetings"), keys: [comboLabel(hk.nav1)], run: () => go("/meetings") },
     { icon: "file", label: t("nav.library"), keys: [comboLabel(hk.nav2)], run: () => go("/library") },
-    { icon: "atoms", label: t("nav.atoms"), keys: [comboLabel(hk.nav3)], run: () => go("/atoms") },
-    { icon: "doc", label: t("nav.document"), keys: [comboLabel(hk.nav4)], run: () => go("/document") },
-    { icon: "tree", label: t("nav.decomposition"), keys: [comboLabel(hk.nav5)], run: () => go("/backlog") },
+    { icon: "atoms", label: t("nav.atoms"), keys: [comboLabel(hk.nav3)], run: () => go("/atoms"), ba: true },
+    { icon: "doc", label: t("nav.document"), keys: [comboLabel(hk.nav4)], run: () => go("/document"), ba: true },
+    { icon: "tree", label: t("nav.decomposition"), keys: [comboLabel(hk.nav5)], run: () => go("/backlog"), ba: true },
     { icon: "search", label: t("nav.ask"), keys: [comboLabel(hk.nav6)], run: () => go("/ask") },
     { icon: "mic", label: t("nav.whisper"), keys: [comboLabel(hk.nav7)], run: () => go("/whisper") },
     { icon: "gear", label: t("nav.settings"), keys: [comboLabel(hk.nav8)], run: () => go("/settings") },
     { icon: "skills", label: t("nav.skills"), run: () => go("/skills") },
-    { icon: "export", label: t("nav.export"), run: () => go("/export") },
-  ]);
+    { icon: "export", label: t("nav.export"), run: () => go("/export"), ba: true },
+  ].filter(s => ba || !s.ba));
   const commands = $derived([
     { icon: isDark() ? "sun" : "moon", label: t(isDark() ? "cmd.light" : "cmd.dark"), keys: [comboLabel(hk.theme)], run: () => setTheme(isDark() ? "light" : "dark") },
     { icon: "help", label: t("help.tips"), run: startTutorial },
@@ -48,9 +50,9 @@
     push(t("cmd.g.go"), screens.filter(s => hit(s.label)));
     push(t("nav.meetings"), app.sources.filter(s => hit(s.title)).slice(0, q ? 8 : 4)
       .map(s => ({ icon: s.kind === "audio" ? "wave" : "file", label: s.title, run: () => go(`/source/${s.id}`) })));
-    push(t("nav.document"), app.documents.filter(d => hit(d.title) || hit(d.short)).slice(0, 8)
+    if (ba) push(t("nav.document"), app.documents.filter(d => hit(d.title) || hit(d.short)).slice(0, 8)
       .map(d => ({ icon: "doc", label: d.title, hint: d.version ? "v" + d.version : "", run: () => go(`/document/${d.id}`) })));
-    if (q) push(t("nav.atoms"), atoms.filter(a => hit(a.statement)).slice(0, 8)
+    if (q && ba) push(t("nav.atoms"), atoms.filter(a => hit(a.statement)).slice(0, 8)
       .map(a => ({ icon: "atoms", label: a.statement, hint: PREFIX[a.type], run: () => go(`/atoms/atom/${a.id}`) })));
     push(t("cmd.g.project"), app.projects.filter(p => p.id !== app.currentProjectId && hit(p.name)).slice(0, q ? 8 : 3)
       .map(p => ({ icon: "cube", label: p.name, run: () => switchProject(p.id) })));
