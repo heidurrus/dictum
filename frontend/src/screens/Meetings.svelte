@@ -305,6 +305,23 @@
   function openModels() { recOpen = false; go("/settings/models"); }
 </script>
 
+<!-- After stop the live lines stay until the full transcript replaces them, and stay as the rough version when the full
+     pass failed or has not run (5.0.5). -->
+{#snippet roughLines(note)}
+  {@const rough = (cur?.segments || []).filter(x => x.provisional)}
+  {#if rough.length}
+    <div class="rough-lines">
+      <p class="rough-note">{t(note)}</p>
+      {#each rough as seg (seg.idx)}
+        <div class="line rough">
+          <span class="lt num">{seg.start != null ? fmtTime(seg.start) : ""}</span>
+          <div>{#if seg.speaker}<span class="spk {speakerClass(seg.speaker, speakerOrder)}">{speakerDisplay(seg.speaker, seg.speaker_name, t)}</span>{" "}{/if}<span class="tx">{seg.text}</span></div>
+        </div>
+      {/each}
+    </div>
+  {/if}
+{/snippet}
+
 <svelte:window onkeydown={onKey}
   ondragenter={e => { if (hasFiles(e)) { e.preventDefault(); dragging++; } }}
   ondragover={e => { if (hasFiles(e)) e.preventDefault(); }}
@@ -470,6 +487,7 @@
               <div class="empty"><span class="spinner"></span>
                 <p>{st.text}{#if app.jobs[selected.id]?.eta} · {app.jobs[selected.id].eta}{/if}</p>
                 <p class="t3 small">{t("meet.keep_working")}</p></div>
+              {@render roughLines("live.kept_processing")}
             {:else if selected.status === "recorded" || (selected.status === "failed" && selected.audio_file)}
               <div class="empty">
                 {#if selected.status === "failed" && selected.error}<div class="banner danger"><Icon name="warn" /><span class="grow">{selected.error}</span></div>{/if}
@@ -479,8 +497,10 @@
                   {#if cur?.audio_files?.length}<button class="btn" onclick={saveMainAudio}><Icon name="download" size={14} /> {t("tr.save_audio")}</button>{/if}
                 </div>
               </div>
+              {@render roughLines("live.kept_rough")}
             {:else if selected.status === "failed"}
               <div class="banner danger"><Icon name="warn" /><span class="grow">{selected.error || t("src.st.failed")}</span></div>
+              {@render roughLines("live.kept_rough")}
             {:else if tab === "summary"}
               {#if cur}<Recap source={cur} onref={openAt} onchange={reloadDetail} />{/if}
             {:else if tab === "transcript"}
@@ -632,6 +652,8 @@
   .notes-view { line-height: 22px; }
   .find-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
   .line { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 10px; padding: 8px 0; line-height: 22px; }
+  .line.rough .tx { color: var(--text-2); }
+  .rough-note { margin: 0 0 4px; color: var(--text-3); font-size: 13px; font-style: italic; }
   .lt { color: var(--text-3); font-family: var(--mono); font-size: 12px; padding-top: 1px; }
   .spk { font-weight: 600; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; }
   .spk::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
