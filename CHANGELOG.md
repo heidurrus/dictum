@@ -1,5 +1,9 @@
 # Changelog
 
+## 5.0.6 (2026-10-15)
+
+- Settings → Models: a speech model in use is tagged "for Russian" or "for other languages" instead of "active", since each language has its own model and two cards can be in use at once.
+
 ## 5.0.5 (2026-10-15)
 
 - **Whispers and meetings record again after your audio devices change.** Dictum read the list of microphones once, at start; when AirPods, an iPhone microphone or Teams appeared or disappeared later, it tried to open a device macOS no longer had and the whisper failed with an error. The list is now re-read every time a recording starts, and if the chosen microphone is gone, the default one is used. The microphone is remembered by name as well as by number, so it stays the same when devices renumber.

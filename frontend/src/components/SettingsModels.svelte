@@ -261,7 +261,7 @@
         <div class="model asr-card" class:on={m.installed && chosen(m)} data-model={m.id}>
           <b class="mono">{m.id}</b>
           <small>{t("asr.m." + m.id)} · {mb(m.size)} · {m.langs === "multi" ? t("asr.multi") : t("asr.ru")}</small>
-          {#if m.installed && chosen(m)}<span class="tag ok">{t("set.m.active")}</span>
+          {#if m.installed && chosen(m)}<span class="tag ok">{t("set.m.active_" + langOf(m))}</span>
           {:else if m.installed}<span class="tag">{t("onb.m.installed")}</span>
           {:else if m.recommended}<span class="tag accent">{t("onb.m.recommended")}</span>{/if}
           <div class="acts">
