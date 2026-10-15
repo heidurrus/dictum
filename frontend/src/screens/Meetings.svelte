@@ -8,6 +8,7 @@
   import PopMenu from "../components/PopMenu.svelte";
   import FirstRun from "../components/FirstRun.svelte";
   import Recap from "../components/Recap.svelte";
+  import MeetingLang from "../components/MeetingLang.svelte";
   import { api } from "../lib/api.js";
   import { cap, importFiles, transcribeSaved, loadMics, askThenRecord, confirmConsent, stopRecording } from "../lib/capture.svelte.js";
   import { extractAtoms } from "../lib/atoms.js";
@@ -256,44 +257,34 @@
     if (key === "ArrowDown" || key === "j") { if (rows[i + 1]) pick(rows[i + 1].id); }
     else if (key === "ArrowUp" || key === "k") { if (i > 0) pick(rows[i - 1].id); }
     else if (key === "Enter" && selected) open(selected.id);
-    else if (key === "Escape") recOpen = false;
+    else if (key === "Escape") { recOpen = false; impOpen = false; }
     else return;
     e.preventDefault();
     requestAnimationFrame(() => document.getElementById(`src-${selectedId}`)?.scrollIntoView({ block: "nearest" }));
   }
-  function onDoc(e) { if (recOpen && recWrap && !recWrap.contains(e.target)) recOpen = false; }
+  function onDoc(e) {
+    if (recOpen && recWrap && !recWrap.contains(e.target)) recOpen = false;
+    if (impOpen && impWrap && !impWrap.contains(e.target)) impOpen = false;
+  }
+  // The import menu (5.0.5): the language the audio is transcribed in, then the file picker.
+  let impOpen = $state(false);
+  let impWrap = $state(null);
+  let impChev = $state(null);
+  function pickFiles() { impOpen = false; fileInput?.click(); }
+  function closeImp() { impOpen = false; impChev?.focus(); }
   const hasFiles = e => [...(e.dataTransfer?.types || [])].includes("Files");
   function record() { recOpen = false; askThenRecord(); }
   function closeRec() { recOpen = false; recChev?.focus(); }
 
-  // ── the record panel: microphone, one line for system audio, one for the speech model, who-said-what ──────
+  // ── the record panel: microphone, one line for system audio, the meeting's language, who-said-what ──────
   // The model list, CPU/GPU and word timestamps live in Settings → Модели only.
   const macDesktop = $derived(app.device.desktop && app.health?.platform === "darwin");
-  let asr = $state(null);                // /api/asr/models
   let sysPerm = $state("");              // /api/permissions system_audio, on the macOS desktop only
   let sysHint = $state("");
   let sysAsking = $state(false);
-  let asrTimer = null;
-  const dlBusy = d => ["downloading", "verifying"].includes(d?.status);
-  async function loadAsr() {
-    try { asr = await api("/api/asr/models"); } catch (err) { toast(err.message, { kind: "danger" }); return; }
-    clearTimeout(asrTimer);
-    if (recOpen && dlBusy(asr.download)) asrTimer = setTimeout(loadAsr, 1000);
-  }
   $effect(() => {
-    if (!recOpen) return;
-    loadAsr();
-    if (macDesktop) api("/api/permissions").then(p => (sysPerm = p.system_audio)).catch(() => {});
-    return () => clearTimeout(asrTimer);
+    if (recOpen && macDesktop) api("/api/permissions").then(p => (sysPerm = p.system_audio)).catch(() => {});
   });
-  const model = $derived(asr?.models.find(m => m.id === app.options.model) || null);
-  const modelDl = $derived(dlBusy(asr?.download) && asr.download.model === app.options.model ? asr.download : null);
-  const mb = n => (n / 1048576 >= 1000 ? (n / 1073741824).toLocaleString(app.lang, { maximumFractionDigits: 1 }) + " " + t("llm.gb")
-                                        : Math.round(n / 1048576).toLocaleString(app.lang) + " " + t("asr.mb"));
-  async function downloadModel() {
-    try { asr = await api(`/api/asr/models/${app.options.model}/download`, { method: "POST" }); loadAsr(); }
-    catch (err) { toast(err.message, { kind: "danger" }); }
-  }
   async function allowSystemAudio() {
     sysAsking = true;
     try {
@@ -302,7 +293,7 @@
     } catch (err) { toast(err.message, { kind: "danger" }); }
     finally { sysAsking = false; }
   }
-  function openModels() { recOpen = false; go("/settings/models"); }
+  function openModels() { recOpen = false; impOpen = false; go("/settings/models"); }
 </script>
 
 <svelte:window onkeydown={onKey}
@@ -318,14 +309,28 @@
 
 <Page title={t("nav.meetings")} {sub} record={false} card={false}>
   {#snippet actions()}
-    <button class="btn lg outlined" onclick={() => fileInput.click()} disabled={cap.uploading} title="⌘O">
-      {#if cap.uploading}<span class="spinner"></span>{:else}<Icon name="upload" size={16} />{/if} {t("meet.import")}</button>
+    <span class="imp-wrap" bind:this={impWrap}>
+      <button class="btn lg outlined imain" onclick={() => fileInput.click()} disabled={cap.uploading} title="⌘O">
+        {#if cap.uploading}<span class="spinner"></span>{:else}<Icon name="upload" size={16} />{/if} {t("meet.import")}</button>
+      <button class="btn lg outlined ichev" bind:this={impChev} onclick={() => { impOpen = !impOpen; recOpen = false; }} aria-expanded={impOpen}
+              aria-haspopup="dialog" aria-label={t("meet.imp_options")} title={t("meet.imp_options")} disabled={cap.uploading}><Icon name="chevd" size={14} /></button>
+      {#if impOpen}
+        <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+        <div class="menu right rec-pop imp-pop" role="dialog" aria-labelledby="imp-pop-title" tabindex="-1"
+             onkeydown={e => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeImp(); } }}>
+          <h3 class="rp-title" id="imp-pop-title">{t("meet.imp_title")}</h3>
+          <MeetingLang onsettings={openModels} />
+          <p class="hint">{t("meet.imp_hint")}</p>
+          <button class="btn lg primary rp-start" onclick={pickFiles}><Icon name="upload" size={16} /> {t("meet.imp_pick")}</button>
+        </div>
+      {/if}
+    </span>
     <span class="rec-wrap" bind:this={recWrap}>
       {#if cap.recording}
         <button class="btn lg rec" onclick={stopRecording}><i class="recdot sq"></i> {t("rec.stop_save")}</button>
       {:else}
         <button class="btn lg rec rmain" onclick={record}><i class="recdot"></i> {t("shell.record")}</button>
-        <button class="btn lg rec chev" bind:this={recChev} onclick={() => (recOpen = !recOpen)} aria-expanded={recOpen} aria-haspopup="dialog"
+        <button class="btn lg rec chev" bind:this={recChev} onclick={() => { recOpen = !recOpen; impOpen = false; }} aria-expanded={recOpen} aria-haspopup="dialog"
                 aria-label={t("meet.rec_options")} title={t("meet.rec_options")}><Icon name="chevd" size={14} /></button>
       {/if}
       {#if recOpen}
@@ -361,23 +366,7 @@
           {:else if macDesktop && sysPerm === "denied"}
             <p class="hint rp-note">{t("perm.denied_hint")}</p>
           {/if}
-          <div class="rp-line rp-model" data-installed={model ? String(!!model.installed) : ""}>
-            <Icon name="transcript" size={16} />
-            <span class="grow">{t("meet.rp.model", { name: app.options.model })}{#if model?.installed}{" · "}<span class="t2">{t("meet.rp.installed")}</span>{/if}</span>
-            <button class="linkish" onclick={openModels}>{t("meet.rp.change")}</button>
-          </div>
-          {#if model && !model.installed}
-            <div class="rp-warn" role="status">
-              <span><Icon name="warn" size={14} /> {t("meet.rp.not_installed")}</span>
-              {#if modelDl}
-                <div class="rp-dl"><div class="progress"><i style="width: {Math.round(100 * modelDl.done / Math.max(modelDl.total, 1))}%"></i></div>
-                  <span class="t3 num">{modelDl.status === "verifying" ? t("llm.verifying") : `${mb(modelDl.done)} / ${mb(modelDl.total)}`}</span></div>
-              {:else}
-                <button class="btn sm" disabled={dlBusy(asr?.download)} onclick={downloadModel}>
-                  <Icon name="download" size={14} /> {t("asr.download", { size: mb(model.size) })}</button>
-              {/if}
-            </div>
-          {/if}
+          <MeetingLang onsettings={openModels} />
           <label class="rp-switch"><span><b>{t("opt.diarize")}</b><span class="hint">{t("opt.diarize_d")}</span></span>
             <input type="checkbox" class="switch" bind:checked={app.options.diarize} onchange={saveOptions} /></label>
           <button class="btn lg primary rp-start" onclick={record}><i class="recdot"></i> {t("rec.start")}</button>
@@ -454,7 +443,8 @@
             <div class="meta"><span class="num">{fmtDate(selected.created_at, app.lang)}</span>
               {#if selected.duration}<span class="num">{fmtTime(selected.duration)}</span>{/if}
               {#if who}<span>{who}</span>{/if}
-              {#if ba}<span>{t("src.atoms_n", { n: selected.atoms || 0 })}</span>{/if}</div>
+              {#if ba}<span>{t("src.atoms_n", { n: selected.atoms || 0 })}</span>{/if}
+              {#if selected.asr_model?.startsWith("multilingual")}<span class="tag ml-tag" title={selected.asr_model}>{t("mlang.multi")}</span>{/if}</div>
           </div>
           <div class="mtabs" role="tablist">
             {#each [["summary", t("meet.tab.summary")], ["transcript", t("nav.transcript")], ["notes", t("meet.tab.notes")],
@@ -657,7 +647,10 @@
   .recdot { width: 10px; height: 10px; border-radius: 50%; background: #fff; flex: none; }
   .rec-pop .recdot { background: var(--rec); }
   .recdot.sq { border-radius: 2px; width: 9px; height: 9px; }
-  .rec-wrap { position: relative; display: inline-flex; }
+  .rec-wrap, .imp-wrap { position: relative; display: inline-flex; }
+  .btn.outlined.imain { border-radius: 24px 0 0 24px; }
+  .btn.outlined.ichev { border-radius: 0 24px 24px 0; margin-left: -1px; padding: 0 12px; }
+  .imp-pop .hint { margin: 0; }
   .rec-pop { top: calc(100% + 6px); width: min(360px, calc(100vw - 32px)); max-width: none; max-height: none; padding: var(--s-6);
     display: grid; gap: var(--s-5); grid-template-columns: minmax(0, 1fr); text-align: left; justify-items: stretch; color: var(--text); font-weight: var(--w-regular); }
   .rec-pop:focus { outline: none; }
@@ -665,19 +658,12 @@
   .rp-line { display: flex; align-items: center; gap: var(--s-4); min-height: var(--h-ctl-sm); font-size: var(--size-foot); color: var(--text); }
   .rp-line :global(svg) { color: var(--text-3); flex: none; }
   .rp-line .grow { min-width: 0; }
-  .rp-model { flex-wrap: wrap; row-gap: var(--s-1); }
-  .rp-model .grow { flex: 1 0 auto; }
-  .rp-model .linkish { margin-left: auto; }
   .rp-line + .rp-note { margin-top: calc(-1 * var(--s-3)); }
   .linkish { border: 0; background: none; padding: 0; color: var(--primary); font: inherit; cursor: pointer; white-space: nowrap;
     display: inline-flex; align-items: center; gap: var(--s-2); }
   .linkish:hover:not(:disabled) { text-decoration: underline; }
   .linkish:focus-visible { box-shadow: var(--ring); border-radius: var(--r-s); }
   .linkish:disabled { color: var(--text-3); cursor: default; }
-  .rp-warn { display: grid; gap: var(--s-3); justify-items: start; padding: var(--s-4) var(--s-5); border-radius: var(--r-m);
-    background: var(--warn-c); color: var(--warn); font-size: var(--size-foot); }
-  .rp-warn :global(svg) { vertical-align: -2px; }
-  .rp-dl { display: grid; gap: var(--s-2); width: 100%; }
   .rp-switch { display: flex; align-items: center; gap: var(--s-6); justify-content: space-between; cursor: pointer;
     padding-top: var(--s-4); border-top: 1px solid var(--outline-2); }
   .rp-switch b { font-weight: var(--w-medium); display: block; }

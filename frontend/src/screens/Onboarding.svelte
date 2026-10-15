@@ -92,7 +92,11 @@
     const l = llm?.models.find(m => m.id === pickLlm);
     if (l && !l.installed) list.push({ kind: "llm", id: l.id, label: l.label, size: l.size });
     try {
-      if (pickAsr) { app.options.model = pickAsr; }
+      if (pickAsr) {
+        app.options.model = pickAsr;
+        const lang = a?.langs === "multi" ? "multi" : "ru";          // the model of its meeting language (5.0.5)
+        app.settings = { ...(app.settings || {}), ...(await api("/settings", { method: "POST", body: { ["asr_model_" + lang]: pickAsr } })) };
+      }
       if (l) {
         const s = await api("/settings", { method: "POST", body: { llm_provider: "local", local_model: l.id } });
         app.settings = { ...(app.settings || {}), ...s };

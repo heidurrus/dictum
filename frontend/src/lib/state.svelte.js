@@ -146,6 +146,19 @@ export function currentProject() {
 // 5.0.4: business analysis can be switched off per project (Settings → Project). Off, the project is a meeting
 // recorder: the requirements, document, decomposition and Jira screens are hidden, nothing is deleted.
 export const analysisOn = () => currentProject()?.analysis !== false;
+// 5.0.5: a meeting is in Russian or Multilingual, remembered per project (the record panel and the import menu
+// preselect it, a pick there updates it); Settings → Модели chooses the speech model behind each language.
+export const ASR_LANG_DEFAULTS = { ru: "v3_e2e_rnnt", multi: "multilingual_ctc" };
+export const asrModelFor = lang => app.settings?.asr_langs?.[lang] || ASR_LANG_DEFAULTS[lang] || ASR_LANG_DEFAULTS.ru;
+export const projectAsrLang = () => (currentProject()?.asr_lang === "multi" ? "multi" : "ru");
+export async function setProjectAsrLang(lang) {
+  const p = currentProject();
+  if (!p || (p.asr_lang || "ru") === lang) return;
+  p.asr_lang = lang;
+  try { await api(`/api/projects/${p.id}`, { method: "PATCH", body: { asr_lang: lang } }); }
+  catch (err) { toast(err.message, { kind: "danger" }); await loadProjects().catch(() => {}); }
+}
+
 export const BA_ROUTES = new Set(["atoms", "document", "backlog", "export"]);
 export const BA_PATHS = new Set(["/atoms", "/document", "/backlog", "/export"]);
 

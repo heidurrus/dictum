@@ -27,7 +27,7 @@ for (const [lang, locale] of [["ru", "ru-RU"], ["en", "en-US"]]) {
   });
   await page.goto(base + "/#/meetings");
   await page.locator(".rec-wrap .chev").click();
-  await page.locator(".rec-pop .rp-model[data-installed='true']").waitFor();
+  await page.locator(".rec-pop .ml[data-installed='true']").waitFor();
   await page.locator(".rec-pop .rp-sys[data-sys='granted']").waitFor();
   await page.waitForTimeout(300);
   const file = join(out, `meetings-record-menu-${lang}.png`);

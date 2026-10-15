@@ -4,7 +4,7 @@
   import Icon from "./Icon.svelte";
   import AsrOptions from "./AsrOptions.svelte";
   import { api } from "../lib/api.js";
-  import { app, t, saveOptions, toast } from "../lib/state.svelte.js";
+  import { app, t, saveOptions, toast, ASR_LANG_DEFAULTS } from "../lib/state.svelte.js";
 
   let { s, save } = $props();
 
@@ -57,7 +57,12 @@
   let allAsr = $state(false);
   // The ones that matter by default: what is on disk, the recommended one and the faster sibling; the rest on request.
   const asrShown = $derived(!asr ? [] : allAsr ? asr.models : asr.models.filter(m => m.installed || m.recommended || m.damaged
-    || m.partial || m.id === "v3_e2e_ctc" || m.id === app.options.model || asrDl?.model === m.id));
+    || m.partial || m.id === "v3_e2e_ctc" || chosen(m) || asrDl?.model === m.id));
+  // A meeting is Russian or Multilingual (5.0.5); here the model behind each language. The single model of 5.0.4 lives
+  // on as the Russian choice: it is also the fallback for whatever still reads it (the whisper inbox).
+  const langOf = m => (m.langs === "multi" ? "multi" : "ru");
+  const pick = $derived({ ru: s.asr_langs?.ru || ASR_LANG_DEFAULTS.ru, multi: s.asr_langs?.multi || ASR_LANG_DEFAULTS.multi });
+  const chosen = m => pick[langOf(m)] === m.id;
   async function asrDownload(id) {
     try { asr = await api(`/api/asr/models/${id}/download`, { method: "POST" }); asrLast = asr.download?.status; loadAsr(); }
     catch (err) { toast(err.message, { kind: "danger" }); }
@@ -67,10 +72,15 @@
     if (!confirm(t("asr.delete_confirm", { name: m.id }))) return;
     try {
       asr = await api(`/api/asr/models/${m.id}`, { method: "DELETE" });
-      if (app.options.model === m.id) { app.options.model = asr.models.find(x => x.installed)?.id || "v3_e2e_rnnt"; saveOptions(); }
+      if (app.options.model === m.id) { app.options.model = asr.models.find(x => x.installed && x.langs === "ru")?.id || "v3_e2e_rnnt"; saveOptions(); }
     } catch (err) { toast(err.message, { kind: "danger" }); }
   }
-  function asrPick(id) { app.options.model = id; saveOptions(); }
+  async function asrPick(id) {
+    const m = asr?.models.find(x => x.id === id);
+    if (!m) return;
+    if (langOf(m) === "ru") { app.options.model = id; saveOptions(); }
+    await save({ ["asr_model_" + langOf(m)]: id });
+  }
 
   // ── language models and the index model ──
   const llmDl = $derived(busy(llm?.download) ? llm.download : null);
@@ -233,12 +243,25 @@
 <div class="setcard card-m" id="set-asr">
   <h3>{t("onb.m.asr")}</h3><p class="d">{t("set.m.asr_d")}</p>
   {#if asr}
+    <div class="asr-langs">
+      {#each ["ru", "multi"] as lang (lang)}
+        <div class="field" data-lang={lang}>
+          <label class="label" for="asr-{lang}">{t("set.m.asr_for_" + lang)}</label>
+          <select class="select" id="asr-{lang}" value={pick[lang]} onchange={e => asrPick(e.currentTarget.value)}>
+            {#each asr.models.filter(m => langOf(m) === lang) as m (m.id)}
+              <option value={m.id}>{m.id} · {mb(m.size)}{m.installed ? "" : " · " + t("asr.not_installed")}</option>
+            {/each}
+          </select>
+        </div>
+      {/each}
+    </div>
+    <p class="hint">{t("set.m.asr_langs_d")}</p>
     <div class="models">
       {#each asrShown as m (m.id)}
-        <div class="model asr-card" class:on={m.installed && app.options.model === m.id} data-model={m.id}>
+        <div class="model asr-card" class:on={m.installed && chosen(m)} data-model={m.id}>
           <b class="mono">{m.id}</b>
           <small>{t("asr.m." + m.id)} · {mb(m.size)} · {m.langs === "multi" ? t("asr.multi") : t("asr.ru")}</small>
-          {#if m.installed && app.options.model === m.id}<span class="tag ok">{t("set.m.active")}</span>
+          {#if m.installed && chosen(m)}<span class="tag ok">{t("set.m.active")}</span>
           {:else if m.installed}<span class="tag">{t("onb.m.installed")}</span>
           {:else if m.recommended}<span class="tag accent">{t("onb.m.recommended")}</span>{/if}
           <div class="acts">
@@ -247,7 +270,7 @@
                 <span class="t3 num">{asrDl.status === "verifying" ? t("llm.verifying") : `${mb(asrDl.done)} / ${mb(asrDl.total)}`}</span></div>
               <button class="btn sm ghost" onclick={asrCancel}>{t("at.cancel")}</button>
             {:else if m.installed}
-              {#if app.options.model !== m.id}<button class="btn sm" onclick={() => asrPick(m.id)}>{t("set.m.use")}</button>{/if}
+              {#if !chosen(m)}<button class="btn sm" onclick={() => asrPick(m.id)}>{t("set.m.use")}</button>{/if}
               <button class="btn sm ghost danger" onclick={() => asrRemove(m)}>{t("llm.remove")}</button>
             {:else if m.damaged || m.partial}
               <span class="status danger"><Icon name="warn" size={12} /> {t("asr.damaged")}</span>
@@ -305,6 +328,9 @@
   .dl .progress { height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; display: block; }
   .dl .progress i { display: block; height: 100%; background: var(--primary); transition: width .4s; }
   .more { margin: -4px 0 8px; }
+  .asr-langs { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--s-5); margin: 4px 0 0; }
+  .asr-langs .select { width: 100%; }
+  .asr-langs + .hint { margin: 6px 0 12px; }
   .hf-note ul { margin: 4px 0 0; padding-left: 20px; }
   .ok { color: var(--ok) !important; } .bad { color: var(--danger) !important; }
   .stats-head { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }

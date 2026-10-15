@@ -4,20 +4,22 @@ import { api, pollJob } from "./api.js";
 import { DesktopRecorder, BrowserRecorder, listMicrophones } from "./recorder.js";
 import { fmtDate, isTranscriptFile } from "./format.js";
 import { followExtraction, notify } from "./atoms.js";
-import { app, t, go, loadSources, toast, rememberSource } from "./state.svelte.js";
+import { app, t, go, loadSources, toast, rememberSource, asrModelFor, projectAsrLang } from "./state.svelte.js";
 
 export const cap = $state({
   uploading: false, error: "",
   mics: [], mic: "",
   recording: false, elapsed: 0, problems: [], recError: "",
   paused: false, sourceId: null,          // the meeting being recorded (desktop): a source from the first second
+  asrModel: null,                         // the speech model it started with: the live pass and the full pass use it
   autoStopped: null,                      // {sourceId, minutes}: the recording stopped itself after a silence (C4.3)
   consentAsk: false,
 });
 
-export function optionsPayload() {
+// The speech model is the one of the project's meeting language (5.0.5); a recording keeps the model it started with.
+export function optionsPayload(model = asrModelFor(projectAsrLang())) {
   const o = app.options;
-  return { model: o.model, device: o.device, diarize: String(o.diarize),
+  return { model, device: o.device, diarize: String(o.diarize),
            word_timestamps: String(!o.diarize && o.word_timestamps) };
 }
 
@@ -92,9 +94,9 @@ export async function importFiles(list, kind = null) {
   }
 }
 
-export async function transcribeSaved(sourceId) {
+export async function transcribeSaved(sourceId, model) {
   try {
-    const res = await api(`/api/sources/${sourceId}/transcribe`, { method: "POST", body: optionsPayload() });
+    const res = await api(`/api/sources/${sourceId}/transcribe`, { method: "POST", body: optionsPayload(model) });
     await loadSources();
     track(sourceId, res.job_id);
   } catch (err) { toast(err.message, { kind: "danger" }); }
@@ -172,8 +174,10 @@ async function startRecording() {
     if (app.device.desktop) {
       recorder = new DesktopRecorder();
       const title = `${t("rec.meeting_title")} ${fmtDate(Date.now() / 1000, app.lang)}`;
+      const opts = optionsPayload();
       const body = await recorder.start(cap.mic === "" ? null : Number(cap.mic), onRecorderStatus,
-                                        { title, lang: app.lang, ...optionsPayload() });
+                                        { title, lang: app.lang, ...opts });
+      cap.asrModel = opts.model;
       cap.sourceId = body.source_id || null;
       cap.paused = false;
       cap.recording = true;
@@ -210,11 +214,12 @@ export async function stopRecording() {
   cap.paused = false;
   try {
     if (recorder instanceof DesktopRecorder) {
-      const { sourceId, jobId, errors } = await recorder.stop(optionsPayload());
+      const model = cap.asrModel || undefined;
+      const { sourceId, jobId, errors } = await recorder.stop(optionsPayload(model));
       cap.problems = Object.entries(errors).map(([n, e]) => `${channelName(n)}: ${e}`);
       await loadSources();
       if (sourceId && jobId) track(sourceId, jobId);
-      else if (sourceId) transcribeSaved(sourceId);
+      else if (sourceId) transcribeSaved(sourceId, model);
     } else {
       const blob = await recorder.stop();
       const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
@@ -228,6 +233,7 @@ export async function stopRecording() {
     loadSources().catch(() => {});
   }
   cap.sourceId = null;
+  cap.asrModel = null;
 }
 
 export const clock = s => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
