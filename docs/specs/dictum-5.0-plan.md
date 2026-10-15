@@ -30,7 +30,7 @@ depends on an unmerged one.
 | 15 | Requirements, Documents, Backlog, Export, Skills restyled; old tokens deleted | C10 | 4.9.14 | merged |
 | 16 | Release: Windows parity, README, changelog, screenshots, 5.0.0 | C11 | 5.0.0 | merged |
 | 17 | Hand-test feedback 1: system-audio Allow no longer hangs, consent reminder toggle, calm record panel, archive in the project picker | C8, C9, C2 | 5.0.2 | merged |
-| 18 | Hand-test feedback 2: remove Ollama and requirements on the fly | C4.2, C9 | 5.0.3 | in progress |
+| 18 | Hand-test feedback 2: remove Ollama and requirements on the fly | C4.2, C9 | 5.0.3 | merged |
 
 ## Log
 
@@ -53,3 +53,4 @@ depends on an unmerged one.
 - 2026-10-15 · 16 merged (b8e8dae). 701 tests, i18n 1735, tokens check, CI yaml valid, 15 suites; README and the consolidated 5.0.0 changelog reviewed. Windows left to check on a real machine: Alt+Space may be taken by the window menu; the taskbar may show Python's icon (no launcher exe). 5.0.0 dmg built and installed; the user pushes master and tags v5.0.0.
 - 2026-10-15 · 5.0.1 (b1c0d8f), orchestrator fix, no agent. First launch of 5.0.0 showed no window for 64 s (process 10:55:45, window 10:56:49: torch + GigaAM import before the window), read as "app not opening". The launcher now serves a starting page at once and imports the app on a thread, handing over on the same port like the setup screen; a failed import is shown on that page. 3 launcher tests added (703 total). dmg 5.0.1 built; install waits until the running copy is quit.
 - 2026-10-15 · 17 merged (f23ea23). 707 tests, i18n 1747, 15 suites by the agent; dry-run fix reviewed (reader thread, bounded wait, tap closed by whoever finishes last), record panel screenshots ru/en OK. Hand check: the real macOS system-audio prompt. Note for the user: ad-hoc signing makes TCC re-prompt after every build (Developer ID would fix it).
+- 2026-10-15 · 18 merged. 692 tests, i18n 1728, 15 suites by the agent; session.mjs re-run here; greps clean except the migration fixture. Deviation accepted: pending requirements found live in earlier recordings are no longer protected from re-extraction. 5.0.3 dmg built and installed.
