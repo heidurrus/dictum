@@ -1,5 +1,10 @@
 # Changelog
 
+## 5.0.5 (2026-10-15)
+
+- **Whispers and meetings record again after your audio devices change.** Dictum read the list of microphones once, at start; when AirPods, an iPhone microphone or Teams appeared or disappeared later, it tried to open a device macOS no longer had and the whisper failed with an error. The list is now re-read every time a recording starts, and if the chosen microphone is gone, the default one is used. The microphone is remembered by name as well as by number, so it stays the same when devices renumber.
+- **A log file for the app.** Warnings and errors from every part of Dictum go to `logs/dictum.log` in the data folder (next to `jobs.log`), so a failure like the one above leaves a trace.
+
 ## 5.0.4 (2026-10-15)
 
 - **Business analysis can be switched off per project.** Settings → Project has a new "Business analysis" switch, on by default, so existing projects do not change. Off, the project is a meeting recorder: record, transcribe, recaps, notes, the library, Ask, Whisper and Settings stay; Requirements, Documents and Backlog leave the rail, Export leaves More, and the ⌘K palette, ⌘3–⌘5, the pipeline strip and requirement counts on Meetings, the Requirements tab, Extract requirements, the requirements panel on the meeting page, the Jira section in Settings and the Jira line in Privacy are gone with them. Nothing is deleted: switch it back on and everything that was there is back.
