@@ -26,6 +26,8 @@ from core import usage as usage_mod  # noqa: E402
 
 
 def fake_complete(system, user, schema, prefs, api_key):
+    if SITE["on"]:
+        return site_complete(system, user, schema)
     props = schema["properties"]
     reqs = re.findall(r"^((?:FR|NFR|Q)-\d+) \[\w+\] (.+?)(?:  \(conflicts.*)?$", user, flags=re.M)
     if "epics" in props:                                         # backlog: decomposition
@@ -76,6 +78,8 @@ RECAPS = []
 
 def fake_recap_generate(prefs, api_key):
     def generate(system, user, on_delta):
+        if SITE["on"]:
+            return site_recap(system, user, on_delta)
         style = ("actions" if "list the outcomes" in system else "bullets" if "point-by-point" in system else "brief")
         incremental = "updating an existing recap" in system
         lines = len(re.findall(r"^(?:\[[^\]]*\] )?\[\d{1,2}:\d{2}", user, flags=re.M))
@@ -101,6 +105,8 @@ ASK_SHORT = {"ru": "Статус утверждает руководитель �
 
 def fake_ask_generate(prefs, api_key):
     def generate(system, user, on_delta):
+        if SITE["on"] and "at most two sentences" not in system:
+            return site_answer(user, on_delta)
         ru = "[Источник " in user
         word, lang = ("Источник", "ru") if ru else ("Source", "en")
         listed = re.findall(r"^\[(?:Источник|Source) (\d+)\] \((material|meeting|requirement) ", user, flags=re.M)
@@ -397,6 +403,167 @@ def fake_reset_onboarding():
 
 
 app_module.app.add_url_rule("/__fake/reset-onboarding", "fake_reset_onboarding", fake_reset_onboarding, methods=["POST"])
+
+# Site screenshots (e2e/site_shots.mjs): POST /__fake/site turns on realistic English output for one scripted project
+# (a contact-centre CRM): extraction keeps only the lines listed in SITE_ATOMS, and the recap, the answer, the document
+# and the backlog read like a real model's. Off by default, so the other suites see the plain fake output.
+SITE = {"on": False}
+# (words in the transcript line, type, statement, document group, story title, story, acceptance [(given, when, then)])
+SITE_ATOMS = [
+    ("within two seconds of an incoming call", "nfr", "The client card opens within 2 seconds of an incoming call.",
+     None, None, None, None),
+    ("look the caller up in the PBX", "functional",
+     "On ring, the CRM looks the caller up by phone number through the PBX and opens the matching client card.",
+     "Incoming call", "Open the client card on ring",
+     "As an operator, I want the client's card to open while the phone is still ringing, so that I can greet them by name.",
+     [("a known number calls", "the phone starts ringing", "the client card is on screen within 2 seconds"),
+      ("the PBX lookup times out", "the operator answers", "client search opens with the number filled in")]),
+    ("number is unknown", "functional",
+     "If the caller's number is not found, the CRM opens client search with the number pre-filled.",
+     "Incoming call", "Search for an unknown caller",
+     "As an operator, I want client search pre-filled with the caller's number, so that I can find or create the client quickly.",
+     [("the number is not in the CRM", "the phone rings", "client search opens with the number pre-filled")]),
+    ("Open orders, the last three calls", "functional",
+     "The client card shows open orders, the last three calls and any open complaint.",
+     "Client card", "See orders, calls and complaints on the card",
+     "As an operator, I want open orders, recent calls and open complaints on the card, so that the client never has to repeat themselves.",
+     [("the client has an open complaint", "the card opens", "the complaint is shown at the top of the card"),
+      ("the client called three times this week", "the card opens", "the last three calls are listed with their outcome")]),
+    ("listen in silently", "functional",
+     "A supervisor can listen in silently on any live call; neither the customer nor the operator is notified.",
+     "Supervision", "Listen in silently on a live call",
+     "As a supervisor, I want to listen in on a live call without anyone hearing it, so that I can coach operators on real conversations.",
+     [("a call is live", "the supervisor clicks Listen in", "the audio plays and neither party hears a tone"),
+      ("a listen-in ends", "the supervisor leaves the call", "the log records who listened, when and to which call")]),
+    ("Every listen-in is logged", "nfr", "Every listen-in is logged with the supervisor, the time and the call ID.",
+     None, None, None, None),
+    ("Who may listen in", "question", "Who may listen in on live calls: team leads, or only the quality team?",
+     None, None, None, None),
+    ("kept for ninety days", "nfr", "Call recordings are kept for 90 days and then deleted automatically.",
+     None, None, None, None),
+    ("API for the lookup", "question", "Does the PBX expose an API for the caller lookup, or does the CRM poll the call log?",
+     None, None, None, None),
+    ("webhook on ring", "functional", "The CRM receives the PBX ring webhook with the caller's number and starts the lookup.",
+     "Incoming call", "Start the lookup from the ring webhook",
+     "As an operator, I want the lookup to start the moment the PBX rings, so that the card is ready when I answer.",
+     [("the PBX sends a ring webhook", "the CRM receives it", "the lookup starts within 100 ms")]),
+    ("within 300 milliseconds", "nfr",
+     "The CRM answers the ring webhook within 300 ms so the client's name shows on the operator's handset.",
+     None, None, None, None),
+    ("Enterprise tier", "question", "Is the client's PBX licence on the Enterprise tier, which silent listen-in requires?",
+     None, None, None, None),
+]
+SITE_BY_STATEMENT = {a[2]: a for a in SITE_ATOMS}
+SITE_SUBTASKS = {"Open the client card on ring": ["PBX ring webhook handler", "Load test at the 95th percentile"],
+                 "Search for an unknown caller": ["Pre-filled search form"],
+                 "See orders, calls and complaints on the card": ["Card layout", "Complaints API"],
+                 "Listen in silently on a live call": ["Monitor call API", "Listen-in audit log"],
+                 "Start the lookup from the ring webhook": ["Webhook signature check"]}
+SITE_RECAPS = [
+    ("two seconds",
+     "Anna, head of the contact centre, wants the client card on screen **within two seconds** of an incoming call. "
+     "The CRM looks the caller up through the PBX while the phone is still ringing; an unknown number opens search "
+     "with the number filled in. The card leads with open orders, the last three calls and any open complaint.\n\n"
+     "Supervisors must be able to **listen in silently** on live calls, and every listen-in is logged for compliance. "
+     "Recordings are kept for 90 days.\n\n"
+     "**Open:** who may listen in, and whether the PBX vendor offers a lookup API. Mark asks the vendor next."),
+    ("webhook",
+     "Daniel confirmed the PBX sends a **webhook on ring** with the caller's number, usually within 100 ms. If the CRM "
+     "answers within 300 ms, the client's name shows on the operator's handset. Silent listen-in is available on the "
+     "**Enterprise tier** only, so the client's licence needs checking.\n\n"
+     "**Next:** Mark sends Daniel the list of lookup fields by Friday."),
+]
+
+
+def _site_atom(text):
+    return next((a for a in SITE_ATOMS if a[0].lower() in text.lower()), None)
+
+
+def site_complete(system, user, schema):
+    props = schema["properties"]
+    reqs = re.findall(r"^((?:FR|NFR|Q)-\d+) \[\w+\] (.+?)(?:  \(conflicts.*)?$", user, flags=re.M)
+    if "epics" in props:
+        frs = re.findall(r"^(FR-\d+) \(section [\d.]+\): (.+)$", user, flags=re.M)
+        nfrs = re.findall(r"^(NFR-\d+) \(section", user, flags=re.M)
+        epics = {}
+        for rid, text in frs:
+            a = SITE_BY_STATEMENT.get(text.strip()) or _site_atom(text)
+            if not a or not a[4]:
+                continue
+            epic = (("Supervision and compliance", "Supervisors coach on live calls, and every listen-in is on record")
+                    if a[3] == "Supervision" else
+                    ("Answer every call with the client in view",
+                     "Operators greet the caller by name with the history in front of them"))
+            epics.setdefault(epic, []).append(
+                {"title": a[4], "story": a[5], "refs": [rid],
+                 "acceptance": [{"given": g, "when": w, "then": t} for g, w, t in a[6]],
+                 "subtasks": SITE_SUBTASKS.get(a[4], [])})
+        first = frs[0][0] if frs else None
+        return {"epics": [{"title": t, "goal": g, "stories": s} for (t, g), s in epics.items()],
+                "nfr_links": [{"id": n, "stories_for": [first] if first else []} for n in nfrs]}
+    if "findings" in props:
+        return {"findings": []}
+    if "groups" in props:
+        groups = {}
+        for rid, text in reqs:
+            a = SITE_BY_STATEMENT.get(text.strip())
+            if rid.startswith("FR-"):
+                groups.setdefault(a[3] if a and a[3] else "Client card", []).append(rid)
+        return {"purpose": "This document sets out the requirements for the Contact-centre CRM: a client card that opens "
+                           "on an incoming call, the caller lookup through the PBX and silent listen-in for supervisors.",
+                "context": "Forty operators in two shifts take inbound calls through the client's PBX. Today the CRM "
+                           "takes up to ten seconds to load a client, so operators ask callers to repeat themselves. "
+                           "Supervisors follow quality on live calls.",
+                "assumptions": ["The PBX can notify the CRM when a call starts ringing."],
+                "out_of_scope": ["Outbound campaigns and the dialler."],
+                "groups": [{"title": t, "ids": ids} for t, ids in groups.items()],
+                "items": [{"id": r, "text": t} for r, t in reqs], "issues": []}
+    if "items" in props:
+        return {"items": [{"id": r, "text": t, "group": (SITE_BY_STATEMENT.get(t.strip()) or [None] * 4)[3] or ""}
+                          for r, t in reqs], "issues": []}
+    if "statement" in props:
+        return {"statement": "The client card opens within 2 seconds of an incoming call, at the 95th percentile."}
+    if "duplicates" in props:
+        return {"duplicates": [], "conflicts": []}
+    found = []
+    for idx, text in re.findall(r"^\[S(\d+)\] (?:\[[^\]]*\] )?(.+)$", user, flags=re.M):
+        a = _site_atom(text)
+        if a:
+            found.append({"type": a[1], "statement": a[2], "evidence": [{"segment": int(idx), "quote": text}]})
+    return {"atoms": found}
+
+
+def site_recap(system, user, on_delta):
+    text = next((r for key, r in SITE_RECAPS if key in user), SITE_RECAPS[0][1])
+    for i in range(0, len(text), 60):
+        on_delta(text[i:i + 60])
+    usage_mod.record("llm_cloud", len(system + user) // 4, len(text) // 4)
+    return text
+
+
+def site_answer(user, on_delta):
+    blocks = re.findall(r"^\[Source (\d+)\] \((material|meeting|requirement) «([^»]*)»[^\n]*\n(.*)$", user, flags=re.M)
+    meeting = next((n for n, k, _t, x in blocks if k == "meeting" and "two seconds" in x),
+                   next((n for n, k, *_ in blocks if k == "meeting"), "1"))
+    spec = next((n for n, k, _t, x in blocks if k == "material" and "two seconds" in x),
+                next((n for n, k, *_ in blocks if k == "material"), meeting))
+    text = (f"Anna was firm that the client card must be on screen **within two seconds** of an incoming call: today "
+            f"operators wait up to ten seconds for the CRM to load [Source {meeting}]. The spec sets the same target, "
+            f"measured at the 95th percentile, with the PBX lookup starting while the phone is still ringing "
+            f"[Source {spec}].")
+    for i in range(0, len(text), 24):
+        on_delta(text[i:i + 24])
+        time.sleep(0.03)
+    return text
+
+
+def fake_site():
+    SITE["on"] = bool((app_module.request.get_json(silent=True) or {}).get("on", True))
+    return app_module.jsonify(SITE)
+
+
+app_module.app.add_url_rule("/__fake/site", "fake_site", fake_site, methods=["POST"])
+
 
 if __name__ == "__main__":
     app_module.start_background()               # the reminder check, as the launcher starts it
