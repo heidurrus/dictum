@@ -4,6 +4,7 @@
   import Icon from "./Icon.svelte";
   import { app, t, go, toggleInspector, inspectorOn } from "../lib/state.svelte.js";
   import { recordFromShell } from "../lib/capture.svelte.js";
+  import { DEFAULT_HOTKEYS, comboLabel } from "../lib/hotkeys.js";
 
   let { title = "", crumb = "", crumbPath = "", sub = "", inspector = "", record = true, card = true, headClass = "", heading, actions, children } = $props();
 </script>
@@ -24,7 +25,7 @@
     {@render actions?.()}
     <!-- Phone width: the rail's record button moves here, unless the screen has its own (Sources: `record={false}`). -->
     {#if record}
-      <button class="ph-rec" onclick={recordFromShell} aria-label={t("shell.record")} title={t("shell.record_tip")}><span class="dot"></span></button>
+      <button class="ph-rec" onclick={recordFromShell} aria-label={t("shell.record")} title={t("shell.record_tip", { key: comboLabel(app.settings?.hotkeys?.record || DEFAULT_HOTKEYS.record) })}><span class="dot"></span></button>
     {/if}
     {#if inspector}
       <button class="btn ghost icon" class:on={inspectorOn(inspector) || app.inspectorOverlay} onclick={() => toggleInspector(inspector)}

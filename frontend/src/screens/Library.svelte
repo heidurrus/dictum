@@ -2,7 +2,7 @@
   // Материалы (spec 5.0 C5; prototype-v5 pageLibrary): documents, links and pasted text of the project.
   // Left: kinds and labels with counts. Middle: the add row, Граф (default) / Список / Плитка, the drop hint.
   // Right: the selected material: preview, labels (auto ones marked), the in-context switch, "Похожие материалы",
-  // "Где используется", Открыть / Показать в Finder / Ещё. The header search runs the project-wide keyword search.
+  // "Где используется", Открыть / Показать в Finder (в Проводнике on Windows) / Ещё. The header search runs the project-wide keyword search.
   // The graph, related materials and labels by meaning need the local index model; without it they offer the download.
   import Graph from "../components/Graph.svelte";
   import Icon from "../components/Icon.svelte";
@@ -562,7 +562,7 @@
         </div>
         <div class="panel-foot">
           <button class="btn lg tonal" onclick={openMaterial}><Icon name="pencil" size={14} /> {t("lib.open")}</button>
-          {#if desktop() && cur?.has_file}<button class="btn lg" onclick={reveal}><Icon name="doc" size={14} /> {t("lib.reveal")}</button>{/if}
+          {#if desktop() && cur?.has_file}<button class="btn lg" onclick={reveal}><Icon name="doc" size={14} /> {t(app.health?.platform === "win32" ? "lib.reveal_win" : "lib.reveal")}</button>{/if}
           {#if app.extracting[selected.id]}<span class="t3 small"><span class="spinner"></span> {app.extracting[selected.id].message}</span>{/if}
           <span class="up"><PopMenu cls="btn lg ghost icon" icon="more" chevron="" ariaLabel={t("tr.more")} title={t("tr.more")} align="right"
                             items={moreItems} onpick={more} /></span>

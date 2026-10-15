@@ -46,6 +46,7 @@
 
   let moreOpen = $state(false);
   let moreWrap = $state(null);
+  const recKey = $derived(comboLabel(app.settings?.hotkeys?.record || DEFAULT_HOTKEYS.record));
   const hk = n => comboLabel({ ...DEFAULT_HOTKEYS, ...(app.settings?.hotkeys || {}) }["nav" + n]);
 
   function onKey(e) {
@@ -75,7 +76,7 @@
       </g>
     </svg>
   </div>
-  <button class="rec-fab" id="t-rec" onclick={recordFromShell} aria-label={t("shell.record")} title={t("shell.record_tip")}><span class="dot"></span></button>
+  <button class="rec-fab" id="t-rec" onclick={recordFromShell} aria-label={t("shell.record")} title={t("shell.record_tip", { key: recKey })}><span class="dot"></span></button>
 
   {#each items as it, i (it.route)}
     <button class="nav-item" id={it.tid} class:active={current === it.route} class:opt={it.opt} aria-current={current === it.route ? "page" : undefined}

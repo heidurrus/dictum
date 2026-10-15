@@ -5,6 +5,7 @@
   import { api } from "../lib/api.js";
   import { renderMarkdown } from "../lib/format.js";
   import { app, t } from "../lib/state.svelte.js";
+  import { comboLabel } from "../lib/hotkeys.js";
 
   let { sourceId, value = "", onsaved = () => {} } = $props();
 
@@ -84,8 +85,8 @@
     select(start + out.length, start + out.length);
   }
   const TOOLS = [
-    { label: "B", tip: "nt.b", run: () => wrap("**", t("nt.bold_ph")), cls: "b" },
-    { label: "I", tip: "nt.i", run: () => wrap("*", t("nt.italic_ph")), cls: "i" },
+    { label: "B", tip: "nt.b", key: "cmd+b", run: () => wrap("**", t("nt.bold_ph")), cls: "b" },
+    { label: "I", tip: "nt.i", key: "cmd+i", run: () => wrap("*", t("nt.italic_ph")), cls: "i" },
     { label: "H", tip: "nt.h", run: () => prefix("## ") },
     { label: "•", tip: "nt.ul", run: () => prefix("- ") },
     { label: "1.", tip: "nt.ol", run: () => prefix("1. ") },
@@ -121,7 +122,7 @@
 {:else}
   <div class="fmt" role="toolbar" aria-label={t("nt.format")}>
     {#each TOOLS as tool (tool.label)}
-      <button class={tool.cls} title={t(tool.tip)} aria-label={t(tool.tip)} onmousedown={e => e.preventDefault()} onclick={tool.run}>{tool.label}</button>
+      <button class={tool.cls} title={t(tool.tip, { key: tool.key ? comboLabel(tool.key) : "" })} aria-label={t(tool.tip, { key: tool.key ? comboLabel(tool.key) : "" })} onmousedown={e => e.preventDefault()} onclick={tool.run}>{tool.label}</button>
     {/each}
   </div>
   <textarea class="notes-editor" bind:this={ta} bind:value={text} oninput={changed} onkeydown={onKey} onblur={() => timer && save()}

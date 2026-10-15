@@ -243,6 +243,7 @@ def test_storage_counts_and_size(client, app_module):
     lib.add_whispers([{"kind": "task", "text": "позвонить", "title": "Позвонить"}], "позвонить")
     after = client.get("/api/storage").get_json()
     assert after["path"] == paths.app_data_dir() and after["bytes"] > 0
+    assert after["logs"] == os.path.join(paths.app_data_dir(), "logs", "jobs.log")   # the platform's separator
     for k in ("meetings", "materials", "whispers"):
         assert after["counts"][k] == before["counts"][k] + 1, k
     assert after["counts"]["projects"] >= 1

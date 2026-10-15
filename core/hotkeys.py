@@ -582,8 +582,11 @@ def set_ui_lang(lang):
 
 
 def status():
-    """For GET /api/hotkeys/status: {available, whisper, record}, each "ok" | "taken" | "window" | "invalid" |
-    "off" (not registered: off macOS, in browser mode, or before the app has started)."""
+    """For GET /api/hotkeys/status: {available, supported, platform, whisper, record}. `available` is true once the
+    controller runs; `supported` is `available()` (macOS with Carbon: the platform can have global keys and the
+    menu-bar item at all; Settings hides the menu-bar switch when it is false); `platform` is sys.platform. whisper
+    and record are each "ok" | "taken" | "window" | "invalid" | "off" (not registered: off macOS, in browser mode,
+    or before the app has started)."""
     ctl = _controller
     st = dict(ctl.hotkeys.status) if ctl is not None else {a: "off" for a in ACTIONS}
-    return {"available": ctl is not None, **st}
+    return {"available": ctl is not None, "supported": available(), "platform": sys.platform, **st}

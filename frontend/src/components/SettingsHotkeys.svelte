@@ -10,7 +10,7 @@
 
   let { s, save } = $props();
 
-  let status = $state(null);                 // {available, whisper, record}
+  let status = $state(null);                 // {available, supported, platform, whisper, record}
   let recording = $state(null);              // the action being rebound
   let message = $state(null);                // {action, text}
   async function loadStatus() { status = await api("/api/hotkeys/status").catch(() => null); }
@@ -47,7 +47,7 @@
   }
 
   function problem(action, combo) {
-    if (!combo.includes("+") && !/^f\d{1,2}$/.test(combo)) return t("set.k.needs_mod");
+    if (!combo.includes("+") && !/^f\d{1,2}$/.test(combo)) return t(mac ? "set.k.needs_mod" : "set.k.needs_mod_win");
     if (SYSTEM.has(combo)) return t("set.k.system", { keys: comboLabel(combo) });
     const other = ACTIONS.find(a => a !== action && canon(map[a]) === combo);
     return other ? t("set.k.conflict", { keys: comboLabel(combo), action: name(other) }) : null;
@@ -105,12 +105,14 @@
   {/each}
 </div>
 
-<div class="setcard card-m">
+{#if status?.supported}<!-- the menu-bar item exists on macOS only (core/hotkeys.available); hidden on Windows -->
+<div class="setcard card-m menubar">
   <label class="row">
     <span class="l"><b>{t("set.k.menubar")}</b><small>{t("set.k.menubar_d")}</small></span>
     <input type="checkbox" class="switch" checked={s.menubar} onchange={e => save({ menubar: e.currentTarget.checked })} aria-label={t("set.k.menubar")} />
   </label>
 </div>
+{/if}
 
 <style>
   .hk { user-select: none; }

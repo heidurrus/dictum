@@ -2,7 +2,10 @@
   // The tips after the first run (5.0 C8, prototype-v5 tutorial()): a spotlight cut out over one element of the shell
   // (#t-rec, #t-whisper, #t-list, #t-library, #t-ask) and a card next to it. Esc closes; it follows resizes.
   import { onb, TUTORIAL } from "../lib/onboarding.svelte.js";
-  import { t } from "../lib/state.svelte.js";
+  import { app, t } from "../lib/state.svelte.js";
+  import { DEFAULT_HOTKEYS, comboLabel } from "../lib/hotkeys.js";
+  // ⌥Space is global on macOS (Carbon, core/hotkeys.py); on Windows it is a key of the Dictum window only.
+  const whisperKey = $derived(comboLabel(app.settings?.hotkeys?.whisper || DEFAULT_HOTKEYS.whisper));
 
   const PAD = 8, TIP_W = 320;
   const id = $derived(TUTORIAL[onb.tutorial - 1]);
@@ -52,7 +55,7 @@
   {/if}
   <div class="tip" bind:this={tip} style:left={pos.left + "px"} style:top={pos.top + "px"} data-target={"t-" + id}>
     <h4 id="tut-title">{t("tut." + id)}</h4>
-    <p>{t(`tut.${id}_d`)}</p>
+    <p>{t(`tut.${id}_d${id === "whisper" && app.health?.platform === "win32" ? "_win" : ""}`, { key: whisperKey })}</p>
     <div class="row">
       <span class="n">{t("tut.n", { n: onb.tutorial, total: TUTORIAL.length })}</span>
       <div class="right">
