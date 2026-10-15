@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.0.2 (2026-10-15)
+
+- **Allowing system audio no longer hangs.** On the first-run Permissions step, Allow for system audio could spin forever when macOS was still showing its prompt or the permission was off. It now answers within a couple of seconds; if no sound came through, it stays "Not allowed" and explains what to do: macOS may be asking right now, or turn on Dictum in System Settings → Privacy & Security → Screen & System Audio Recording, then press Allow again.
+- **"Remind about recording consent" can be turned off.** The switch in Settings → Privacy now works and is remembered; with it off, Record starts straight away without the consent question.
+- **A calmer "Record a meeting" menu.** The arrow next to Record opens a short panel: the microphone, one line for system audio (with Allow if macOS has not allowed it yet), one line for the speech model with a link to Settings (or a single Download button if it is missing), who-said-what and a full-width Start. The model list, CPU/GPU and word timestamps are in Settings → Models.
+- **Archive a project from the project menu.** "Archive project" moved from Settings → Project to the project menu at the top, with a confirmation; archived projects come back from Archived in the same menu.
+
 ## 5.0.1 (2026-10-15)
 
 - **The window opens at once.** Starting Dictum used to show nothing for up to a minute while the speech models loaded (the Dock icon bounced, then sat there), which looked like the app had not opened. The window now appears immediately with a "Starting Dictum" page and switches to the app on the same address when it is ready; if the start fails, that page shows the error instead of a silent exit.
