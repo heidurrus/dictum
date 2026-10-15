@@ -1169,6 +1169,7 @@ def _settings_payload():
         "live_window_atoms": prefs["live_window_atoms"],
         "silence_stop_minutes": prefs["silence_stop_minutes"],
         "menubar": prefs["menubar"],
+        "consent_reminder": prefs["consent_reminder"],
         "embed_model": prefs["embed_model"],
         "recap_style": prefs["recap_style"],
         "notes_style": prefs["notes_style"],
@@ -1189,8 +1190,8 @@ def save_settings():
     data = request.get_json(silent=True) or {}
     prefs = {k: data[k] for k in ("llm_provider", "claude_model", "ollama_model", "local_model", "hotkeys",
                                  "live_transcription", "live_requirements", "live_questions", "live_window_atoms",
-                                 "silence_stop_minutes", "menubar", "embed_model", "recap_style", "notes_style",
-                                 "tuning") if k in data}
+                                 "silence_stop_minutes", "menubar", "consent_reminder", "embed_model", "recap_style",
+                                 "notes_style", "tuning") if k in data}
     try:
         if prefs:
             settings.save_settings(prefs)
@@ -1584,7 +1585,7 @@ def _system_tap_dry_run():
     with _recorder_lock:
         if _recorder is not None and (_recorder.status() or {}).get("recording"):
             raise OSError("a recording is running")
-    macos_audio.dry_run(1.0)
+    return macos_audio.dry_run(1.0)
 
 
 @app.route("/api/permissions")
@@ -1597,10 +1598,13 @@ def api_permissions_request(which):
     if which not in permissions.WHICH:
         return jsonify({"error": "unknown permission"}), 404
     lang = request.args.get("lang") if request.args.get("lang") in READY_NOTIFICATION else "ru"
-    permissions.request(which, _setup_state(), mic_access=lambda: microphone_access(),
-                        tap_dry_run=_system_tap_dry_run,
-                        send_notification=lambda: notify("Dictum", READY_NOTIFICATION[lang]))
-    return api_permissions()
+    hint = permissions.request(which, _setup_state(), mic_access=lambda: microphone_access(),
+                               tap_dry_run=_system_tap_dry_run,
+                               send_notification=lambda: notify("Dictum", READY_NOTIFICATION[lang]))
+    out = permissions.read(_setup_state())
+    if hint:
+        out["hint"] = hint     # for this permission only, e.g. "no_audio" when the tap stayed silent
+    return jsonify(out)
 
 
 @app.route("/api/permissions/open-settings/<which>", methods=["POST"])

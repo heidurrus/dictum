@@ -1,5 +1,5 @@
 // Settings as sections (spec 5.0 C9): open each section → "Требования на лету" off and on, round-tripping through
-// /settings → rebind ⌥Space to ⌥D and back (a conflict is refused) → the stats row counts a recap that ran → the
+// /settings → the consent reminder off and on → rebind ⌥Space to ⌥D and back (a conflict is refused) → the stats row counts a recap that ran → the
 // storage card shows the data folder. Runs once per interface language.
 // Run: WORKBENCH_DATA_DIR=$(mktemp -d) python frontend/e2e/fake_llm_server.py 5312 & node frontend/e2e/settings.mjs http://127.0.0.1:5312
 import { chromium } from "playwright-core";
@@ -72,6 +72,22 @@ for (const [lang, s] of Object.entries(L)) {
   await until(async () => (await settings()).live_requirements === true, "live_requirements on");
   step("Требования на лету round-trips off and on");
 
+  // Приватность → "Напоминать о согласии на запись" off survives a reload, then back on.
+  await page.goto(base + "/#/settings/privacy");
+  const consent = page.locator('.setcards[data-section="privacy"] input.consent-reminder');
+  await consent.waitFor();
+  await until(async () => await consent.isEnabled(), "consent switch enabled");
+  if (!await consent.isChecked()) throw new Error("the consent reminder should start on");
+  await consent.click();
+  await until(async () => (await settings()).consent_reminder === false, "consent_reminder off");
+  await page.reload();
+  await consent.waitFor();
+  await until(async () => await consent.isEnabled(), "consent switch enabled after reload");
+  if (await consent.isChecked()) throw new Error("the consent reminder did not stay off after a reload");
+  await consent.click();
+  await until(async () => (await settings()).consent_reminder === true, "consent_reminder on");
+  step("consent reminder round-trips off and on");
+
   // Горячие клавиши → ⌥Space to ⌥D (double-click the row, press the keys), a conflict is refused, then back.
   await nav.getByRole("button", { name: s.sections[6], exact: true }).click();
   const row = page.locator('.hk[data-action="whisper"]');
@@ -116,6 +132,26 @@ for (const [lang, s] of Object.entries(L)) {
   await page.locator(".storage-card .counts", { hasText: /\d/ }).waitFor();
   await page.getByText(s.storage, { exact: true }).first().waitFor();
   step("storage card shows " + storage.path);
+
+  // The project picker → "Архивировать" asks first, archives this project and switches to another; Restore brings it back.
+  await page.request.post(base + "/api/projects", { data: { name: `Запасной e2e ${lang}` } });   // archiving needs another
+  await page.reload();
+  await page.locator(".project-chip", { hasText: made.name }).click();
+  await page.locator(".proj-menu .archive-it:enabled").click();
+  const sheet = page.locator(".archive-sheet");
+  await sheet.locator("h2", { hasText: made.name }).waitFor();
+  await sheet.locator(".btn.danger-fill").click();
+  await sheet.waitFor({ state: "detached" });
+  await until(async () => {
+    const all = await json("/api/projects?archived=1");
+    return all.current_project_id !== made.id && all.projects.find(p => p.id === made.id)?.archived;
+  }, "project archived and another one current");
+  await page.locator(".project-chip").click();
+  await page.locator(".proj-menu .menu-item[aria-expanded]").click();             // Архив / Archived
+  await page.locator(".proj-menu .arch", { hasText: made.name }).getByRole("button").click();
+  await until(async () => !(await json("/api/projects")).projects.every(p => p.id !== made.id), "project restored");
+  await page.keyboard.press("Escape");
+  step("archive from the project picker, then restore");
 
   await ctx.close();
 }

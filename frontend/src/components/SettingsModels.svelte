@@ -277,7 +277,7 @@
     {/if}
     <p class="hint">{t("asr.note")}</p>
   {/if}
-  <div class="row col"><AsrOptions list={false} /></div>
+  <div class="row col"><AsrOptions /></div>
   <div class="row col">
     <label class="l" for="hf"><b>{t("set.hf_token")}</b>
       <small class:ok={s.hf_token_set} class:bad={!s.hf_token_set}>{s.hf_token_set ? t("set.hf_set") : t("set.hf_unset")}</small></label>

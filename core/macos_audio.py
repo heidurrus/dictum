@@ -125,6 +125,9 @@ class SystemAudioTap:
         with sd.InputStream(device=self.device_index, channels=2, samplerate=self.samplerate,
                             dtype="float32", blocksize=BLOCK) as stream:
             while not stop.is_set():
+                if stream.read_available < BLOCK:   # never block in read(): a tap that delivers nothing
+                    stop.wait(0.01)                 # (permission pending or off) must still notice stop
+                    continue
                 chunk, _ = stream.read(BLOCK)
                 yield resampler.process(chunk.mean(axis=1))
 
@@ -141,23 +144,47 @@ class SystemAudioTap:
             self._tap_id = None
 
 
-def dry_run(seconds=1.0, tap_factory=SystemAudioTap, clock=None):
+def dry_run(seconds=1.0, tap_factory=SystemAudioTap, grace=1.0):
     """Open the tap and read it for about a second, so macOS asks for "system audio recording" permission (5.0 C8).
-    The audio is dropped as it arrives: nothing is kept and nothing is written. Raises OSError when the tap fails."""
+    The audio is dropped as it arrives: nothing is kept and nothing is written. Returns how many chunks arrived.
+
+    The tap is read on a daemon thread, so this returns within ``seconds + grace`` even when the tap delivers
+    nothing (the macOS prompt is still pending, or the permission is off) and the read blocks. Raises OSError when
+    the tap cannot be opened."""
     import threading
-    import time
-    clock = clock or time.monotonic
     tap = tap_factory().open()
-    stop = threading.Event()
-    chunks = None
-    try:
-        until = clock() + seconds
-        chunks = tap(stop)
-        for _chunk in chunks:
-            if clock() >= until:
-                break
-    finally:
-        stop.set()
-        if chunks is not None:
-            chunks.close()             # closes the input stream before the device goes away
+    stop, finished, lock = threading.Event(), threading.Event(), threading.Lock()
+    count, gave_up = [0], [False]
+
+    def read():
+        chunks = None
+        try:
+            chunks = tap(stop)
+            for _chunk in chunks:
+                count[0] += 1
+                if stop.is_set():
+                    break
+        except Exception:   # noqa: BLE001 - a failed read only means no audio arrived
+            pass
+        finally:
+            if chunks is not None:
+                try:
+                    chunks.close()     # closes the input stream before the device goes away
+                except Exception:      # noqa: BLE001
+                    pass
+            with lock:
+                finished.set()
+                late = gave_up[0]
+            if late:                   # the caller returned without us: close the tap now
+                tap.close()
+
+    threading.Thread(target=read, name="system-audio-dry-run", daemon=True).start()
+    finished.wait(seconds)             # a stream that ends early ends the wait early
+    stop.set()
+    finished.wait(grace)
+    with lock:
+        done = finished.is_set()
+        gave_up[0] = not done
+    if done:
         tap.close()
+    return count[0]

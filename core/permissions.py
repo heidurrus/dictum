@@ -68,8 +68,12 @@ def read(state, platform=None, av=None, support=None, inputs=None):
     return out
 
 
+NO_AUDIO = "no_audio"            # hint: the tap opened but delivered nothing (prompt pending, or permission off)
+
+
 def request(which, state, mic_access, tap_dry_run, send_notification, platform=None, support=None):
-    """Show the system prompt for one permission (or do what makes macOS show it). Blocks until answered."""
+    """Show the system prompt for one permission (or do what makes macOS show it). Returns a hint for the UI
+    (``NO_AUDIO``) or None. The system-audio dry run returns how many chunks arrived and is bounded in time."""
     platform, support = platform or sys.platform, support or _support
     if which not in WHICH:
         raise ValueError(f"unknown permission {which!r}")
@@ -78,14 +82,19 @@ def request(which, state, mic_access, tap_dry_run, send_notification, platform=N
     elif platform == "darwin" and which == "system_audio":
         if support()[0]:
             try:
-                tap_dry_run()
-            except Exception:  # the tap could not be opened or read
+                chunks = tap_dry_run()
+            except Exception:  # the tap could not be opened
                 state.set(STATE_KEY.format(which), DENIED)
             else:
-                state.set(STATE_KEY.format(which), GRANTED)
+                if chunks:
+                    state.set(STATE_KEY.format(which), GRANTED)
+                else:          # opened, but silent: macOS may still be asking; let the user try again
+                    state.set(STATE_KEY.format(which), UNDETERMINED)
+                    return NO_AUDIO
     elif platform == "darwin" and which == "notifications":
         if send_notification():
             state.set(STATE_KEY.format(which), GRANTED)
+    return None
 
 
 def settings_url(which, platform=None):

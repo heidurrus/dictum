@@ -12,7 +12,7 @@
   import { LANGS } from "../lib/i18n.js";
   import { DEFAULT_HOTKEYS, comboLabel } from "../lib/hotkeys.js";
   import { cap, loadMics } from "../lib/capture.svelte.js";
-  import { app, t, go, setLang, setTheme, currentProject, loadProjects, switchProject, restoreProject, toast } from "../lib/state.svelte.js";
+  import { app, t, go, setLang, setTheme, currentProject, loadProjects, switchProject, toast } from "../lib/state.svelte.js";
 
   let s = $state(null);              // server settings payload
   let projectName = $state("");
@@ -42,11 +42,6 @@
     if (!p) return;
     try { await api(`/api/projects/${p.id}`, { method: "PATCH", body: changes }); await loadProjects(); }
     catch (err) { toast(err.message, { kind: "danger" }); projectName = p.name; }
-  }
-  async function archive() {
-    await updateProject({ archived: true });
-    await loadProjects();
-    if (app.projects[0]) await switchProject(app.projects[0].id);
   }
   const effectiveQuotes = $derived.by(() => {
     const p = currentProject();
@@ -158,19 +153,6 @@
             <label class="btn"><Icon name="upload" size={14} /> {t("project.import")}
               <input type="file" accept=".zip" class="visually-hidden" onchange={importProject} /></label>
           </div>
-          <div class="row">
-            <span class="l"><b>{t("set.archive")}</b><small>{t("set.archive_hint")}</small></span>
-            <button class="btn btn-danger" onclick={archive} disabled={app.projects.length < 2}>{t("set.archive")}</button>
-          </div>
-          {#if app.archivedProjects.length}
-            <div class="row col">
-              <span class="label">{t("project.archived")}</span>
-              {#each app.archivedProjects as p (p.id)}
-                <div class="archived-row"><span>{p.name}</span>
-                  <button class="btn btn-ghost btn-sm" onclick={() => restoreProject(p.id)}>{t("project.restore")}</button></div>
-              {/each}
-            </div>
-          {/if}
         </div>
 
       {:else if sec === "models" && s}
@@ -192,7 +174,9 @@
           {/if}
           <label class="row">
             <span class="l"><b>{t("set.pr.consent")}</b><small>{t("set.pr.consent_d")}</small></span>
-            <input type="checkbox" class="switch" checked disabled aria-label={t("set.pr.consent")} />
+            <input type="checkbox" class="switch consent-reminder" checked={s ? s.consent_reminder !== false : true}
+                   disabled={!s} aria-label={t("set.pr.consent")}
+                   onchange={e => save({ consent_reminder: e.currentTarget.checked })} />
           </label>
         </div>
         <div class="setcard card-m">
@@ -352,7 +336,6 @@
   .settings-page :global(.row .l small) { display: block; color: var(--text-3); font-size: 12px; line-height: 17px; max-width: 64ch; }
   .w-320 { width: 320px; max-width: 100%; }
   .w-80 { width: 80px; }
-  .archived-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   label.btn { position: relative; cursor: pointer; }
   .provider-row.current b { color: var(--primary); }

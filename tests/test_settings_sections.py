@@ -183,7 +183,7 @@ def test_app_sink_writes_against_the_current_project(app_module):
 def test_every_section_key_round_trips(client):
     body = {"silence_stop_minutes": 0, "live_transcription": False, "live_requirements": False, "live_questions": True,
             "recap_style": "actions", "embed_model": "qwen3-embedding-0.6b", "menubar": False, "notes_style": "concise",
-            "tuning": {"retrieve_k": 8}, "hotkeys": {"whisper": "alt+d"}}
+            "consent_reminder": False, "tuning": {"retrieve_k": 8}, "hotkeys": {"whisper": "alt+d"}}
     res = client.post("/settings", json=body)
     assert res.status_code == 200, res.get_json()
     got = client.get("/settings").get_json()
@@ -198,8 +198,16 @@ def test_every_section_key_round_trips(client):
     assert client.post("/settings", json={"notes_style": "verbose"}).status_code == 400
     client.post("/settings", json={"silence_stop_minutes": 10, "live_transcription": True, "live_requirements": True,
                                    "live_questions": False, "recap_style": "brief", "embed_model": "", "menubar": True,
-                                   "notes_style": "standard", "tuning": {"retrieve_k": 12},
+                                   "notes_style": "standard", "consent_reminder": True, "tuning": {"retrieve_k": 12},
                                    "hotkeys": {"whisper": "alt+space"}})
+
+
+def test_consent_reminder_defaults_on_and_round_trips(client):
+    assert client.get("/settings").get_json()["consent_reminder"] is True
+    assert client.post("/settings", json={"consent_reminder": False}).status_code == 200
+    assert client.get("/settings").get_json()["consent_reminder"] is False
+    client.post("/settings", json={"consent_reminder": "true"})
+    assert client.get("/settings").get_json()["consent_reminder"] is True
 
 
 def test_settings_hotkeys_conflict(data_dir_settings):

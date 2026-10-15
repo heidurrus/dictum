@@ -21,12 +21,17 @@
   const PERMS = [["microphone", "mic"], ["system_audio", "wave"], ["notifications", "bell"]];
   let perms = $state(null);
   let asking = $state("");
+  let hints = $state({});          // which → "no_audio" when the tap opened but stayed silent (prompt pending or off)
   async function loadPerms() {
     try { perms = await api("/api/permissions"); } catch (err) { toast(err.message, { kind: "danger" }); }
   }
   async function allow(which) {
     asking = which;
-    try { perms = await api(`/api/permissions/request/${which}`, { method: "POST" }); }
+    try {
+      const { hint, ...next } = await api(`/api/permissions/request/${which}`, { method: "POST" });
+      perms = next;
+      hints = { ...hints, [which]: hint || "" };
+    }
     catch (err) { toast(err.message, { kind: "danger" }); }
     finally { asking = ""; }
   }
@@ -201,7 +206,8 @@
             {@const st = perms?.[which]}
             <div class="perm" data-perm={which}>
               <span class="ic"><Icon name={icon} size={20} /></span>
-              <div class="l"><b>{t("perm." + which)}</b><small>{st === "denied" ? t("perm.denied_hint") : t(`perm.${which}_d`)}</small></div>
+              <div class="l"><b>{t("perm." + which)}</b><small>{st === "denied" ? t("perm.denied_hint") : t(`perm.${which}_d`)}</small>
+                {#if hints[which] === "no_audio" && st !== "granted"}<small class="hint" role="status">{t("perm.no_audio_hint")}</small>{/if}</div>
               {#if !perms}<span class="spinner"></span>
               {:else if st === "granted"}<span class="tag ok">{t("perm.granted")}</span>
               {:else if st === "unsupported"}<span class="tag">{unsupportedLabel}</span>
@@ -394,6 +400,7 @@
   .perm:first-child { border-top: 0; }
   .perm .ic, .done-card .ic { width: 44px; height: 44px; border-radius: 14px; background: var(--surface-2); display: grid; place-items: center; color: var(--text-2); flex: none; }
   .perm .l { flex: 1; min-width: 200px; } .perm .l b { display: block; } .perm .l small { color: var(--text-3); }
+  .perm .l small.hint { display: block; margin-top: 4px; color: var(--text-2); }
   .setcard { padding: 20px; margin-top: 14px; }
   .setcard:first-of-type { margin-top: 24px; }
   .setcard h3 { font-size: 16px; font-weight: 600; }
