@@ -27,8 +27,8 @@ depends on an unmerged one.
 | 12 | Menu-bar item and global hotkey (macOS, Carbon hot keys so the App Store sandbox allows it) | C7 | 4.9.11 | merged, hand check pending |
 | 13 | Onboarding, permissions API, discovery, tutorial, e2e gate | C8 | 4.9.12 | merged, hand check pending |
 | 14 | Settings sections, stats, storage move, hotkeys UI | C9 | 4.9.13 | merged |
-| 15 | Requirements, Documents, Backlog, Export, Skills restyled; old tokens deleted | C10 | 4.9.14 | in progress |
-| 16 | Release: Windows parity, README, changelog, screenshots, 5.0.0 | C11 | 5.0.0 | planned |
+| 15 | Requirements, Documents, Backlog, Export, Skills restyled; old tokens deleted | C10 | 4.9.14 | merged |
+| 16 | Release: Windows parity, README, changelog, screenshots, 5.0.0 | C11 | 5.0.0 | in progress |
 
 ## Log
 
@@ -47,3 +47,4 @@ depends on an unmerged one.
 - 2026-10-15 · 12 merged (95c8258). 659 tests, i18n 1454, 13 suites; Cocoa/Carbon path reviewed (callAfter from webview.start, every call wrapped), not launched here: user to check the glyph, ⌥Space from another app, menu language, red dot while recording, Выйти keeps the WAV. ⌘R stays window-only by design.
 - 2026-10-15 · 13 merged (ce4c63f). 682 tests, i18n 1580, onboarding.mjs ru/en (20 steps) + 13 suites; welcome screenshot OK. Hand check: real permission prompts, download progress, discovery on real folders, tutorial at narrow widths. Help menu now has Подсказки and Первый запуск заново.
 - 2026-10-15 · 14 merged (4dcacf1). 696 tests, i18n 1711, settings.mjs ru/en + 14 suites; model cards screenshot OK (machine line, RAM tags, index model). Data-dir move writes a pointer file in the default folder; refused while recording/downloading or with DICTUM_DATA_DIR set.
+- 2026-10-15 · 15 merged (fe9dcaa). 696 tests, i18n 1731, tokens check (old set deleted), 15 suites; 40 screenshots in docs/design/5.0. Deviations accepted: Документы cards double as the switcher (no list screen), 'Извлечь из новых встреч' is a per-meeting menu (no bulk endpoint).
