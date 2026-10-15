@@ -442,7 +442,7 @@ class Installer:
         if _any_model(model_id) is None:
             raise LocalModelError("unknown model")
         if engine_asset() is None:
-            raise LocalModelError("The built-in model isn't available for this computer. Use Claude or Ollama.")
+            raise LocalModelError("The built-in model isn't available for this computer. Use Claude.")
         with self._lock:
             if self.state.get("status") in ("downloading", "verifying"):
                 return dict(self.state)

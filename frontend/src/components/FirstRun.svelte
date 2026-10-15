@@ -26,14 +26,12 @@
   const aiReady = $derived.by(() => {
     if (!settings) return null;
     const localReady = local && local.models?.some(m => m.installed);
-    if (project?.local_only) return !!localReady || settings.llm_provider === "ollama";
-    if (settings.llm_provider === "claude") return settings.anthropic_key_set;
-    if (settings.llm_provider === "local") return !!localReady;
-    return true;
+    if (project?.local_only || settings.llm_provider === "local") return !!localReady;
+    return settings.anthropic_key_set;
   });
   const named = $derived(!!project && !DEFAULT_NAMES.includes(project.name));
   const aiName = $derived(!settings ? "" : settings.llm_provider === "claude" ? t("first.ai_claude")
-    : settings.llm_provider === "local" ? t("first.ai_local") : "Ollama");
+    : t("first.ai_local"));
 
   async function saveName() {
     const name = nameDraft.trim();

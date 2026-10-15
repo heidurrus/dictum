@@ -178,17 +178,17 @@ def test_the_live_route_reports_the_silence_countdown(client, autostop_app):
 
 def test_zero_minutes_disables_the_watch(client, autostop_app, monkeypatch):
     a = autostop_app
-    monkeypatch.setattr(a.settings, "load_settings", lambda: {"silence_stop_minutes": 0, "live_requirements": False})
+    monkeypatch.setattr(a.settings, "load_settings", lambda: {"silence_stop_minutes": 0})
     sid = client.post("/desktop-record/start", json={}).get_json()["source_id"]
     assert a._session["silence"] is None
     assert client.get(f"/api/sources/{sid}/live").get_json()["silence_stop"] == 0
 
 
 def test_settings_round_trip(client, app_module):
-    body = client.post("/settings", json={"live_requirements": False, "silence_stop_minutes": 0, "live_window_atoms": 120}).get_json()
-    assert body["live_requirements"] is False and body["silence_stop_minutes"] == 0 and body["live_window_atoms"] == 120
+    body = client.post("/settings", json={"silence_stop_minutes": 0}).get_json()
+    assert body["silence_stop_minutes"] == 0
     got = client.get("/settings").get_json()
-    assert (got["live_requirements"], got["silence_stop_minutes"], got["live_window_atoms"]) == (False, 0, 120)
+    assert got["silence_stop_minutes"] == 0
     assert client.post("/settings", json={"silence_stop_minutes": -1}).status_code == 400
-    assert client.post("/settings", json={"live_window_atoms": "soon"}).status_code == 400
-    client.post("/settings", json={"live_requirements": True, "silence_stop_minutes": 10, "live_window_atoms": 90})
+    assert client.post("/settings", json={"silence_stop_minutes": "soon"}).status_code == 400
+    client.post("/settings", json={"silence_stop_minutes": 10})

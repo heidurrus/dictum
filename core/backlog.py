@@ -108,7 +108,7 @@ def _priority(store, refs, reqs):
     return min(found, key=RANK.get) if found else None
 
 
-def build(store, project_id, prefs, api_key, ollama_url, progress=None, complete=complete_json, skillset=None, note=None):
+def build(store, project_id, prefs, api_key, progress=None, complete=complete_json, skillset=None, note=None):
     """Rebuild the backlog from the latest FRD version (pinned items are kept)."""
     report = progress or (lambda pct, msg: None)
     project = store.get_project(project_id)
@@ -134,7 +134,7 @@ def build(store, project_id, prefs, api_key, ollama_url, progress=None, complete
         user += "\n\nThe analyst's instruction for this run (follow it): " + note.strip()
     report(5, "Writing stories…")
     system = skills.compose(skillset, "decompose", DECOMPOSE_CONTRACT, language=_lang_name(lang))
-    reply = complete(system, user, DECOMPOSE_SCHEMA, prefs, api_key, ollama_url)
+    reply = complete(system, user, DECOMPOSE_SCHEMA, prefs, api_key)
     report(80, "Checking coverage…")
 
     tree, covered, story_by_fr = [], set(), {}
@@ -187,7 +187,7 @@ def build(store, project_id, prefs, api_key, ollama_url, progress=None, complete
             "model": model_name(prefs), "uncovered": missing}
 
 
-def invest(store, project_id, prefs, api_key, ollama_url, progress=None, complete=complete_json, skillset=None):
+def invest(store, project_id, prefs, api_key, progress=None, complete=complete_json, skillset=None):
     """Check every story against INVEST (FR-DEC-04); results are stored on each story."""
     report = progress or (lambda pct, msg: None)
     project = store.get_project(project_id)
@@ -205,8 +205,7 @@ def invest(store, project_id, prefs, api_key, ollama_url, progress=None, complet
         return f"{key}: {s['title']} — {s['body']}\n  Criteria: {ac}"
     report(10, "Checking stories…")
     system = skills.compose(skillset or skills.resolve(), "invest", INVEST_CONTRACT, language=_lang_name(lang))
-    reply = complete(system, "\n".join(describe(k, s) for k, s in labels.items()), INVEST_SCHEMA, prefs, api_key,
-                     ollama_url)
+    reply = complete(system, "\n".join(describe(k, s) for k, s in labels.items()), INVEST_SCHEMA, prefs, api_key)
     found = {}
     for f in reply.get("findings") or []:
         s = labels.get(str(f.get("id", "")).strip())

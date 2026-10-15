@@ -207,7 +207,7 @@ def fake_engine(tmp_path, monkeypatch):
     rt.stop()
 
 
-PREFS = {"llm_provider": "local", "claude_model": "claude-opus-5", "ollama_model": "x", "local_model": "tiny"}
+PREFS = {"llm_provider": "local", "claude_model": "claude-opus-5", "local_model": "tiny"}
 
 
 def test_structured_json_through_the_built_in_server(fake_engine):
@@ -220,7 +220,7 @@ def test_structured_json_through_the_built_in_server(fake_engine):
 
 def test_streamed_summary_through_the_built_in_server(fake_engine):
     pieces = []
-    text = summarize.summarize("[A] текст", PREFS, None, "", pieces.append)
+    text = summarize.summarize("[A] текст", PREFS, None, pieces.append)
     assert text == "## Итоги\n- карточка за 2 с" and len(pieces) == 3
 
 

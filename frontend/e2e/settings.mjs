@@ -1,5 +1,5 @@
-// Settings as sections (spec 5.0 C9): open each section → "Требования на лету" off and on, round-tripping through
-// /settings → the consent reminder off and on → rebind ⌥Space to ⌥D and back (a conflict is refused) → the stats row counts a recap that ran → the
+// Settings as sections (spec 5.0 C9): open each section → the consent reminder off and on, round-tripping through
+// /settings → rebind ⌥Space to ⌥D and back (a conflict is refused) → the stats row counts a recap that ran → the
 // storage card shows the data folder. Runs once per interface language.
 // Run: WORKBENCH_DATA_DIR=$(mktemp -d) python frontend/e2e/fake_llm_server.py 5312 & node frontend/e2e/settings.mjs http://127.0.0.1:5312
 import { chromium } from "playwright-core";
@@ -8,11 +8,11 @@ const base = process.argv[2] || "http://127.0.0.1:5098";
 const L = {
   ru: { locale: "ru-RU", title: "Настройки", meeting: "Созвон про заявки",
         sections: ["Проект", "Модели", "Приватность", "Хранилище", "Запись", "Jira", "Горячие клавиши", "Интерфейс", "Система"],
-        reqs: "Требования на лету", whisper: "Шепнуть", change: "Изменить", conflict: /уже назначено: Записать встречу/,
+        whisper: "Шепнуть", change: "Изменить", conflict: /уже назначено: Записать встречу/,
         week: "Неделя", month: "Месяц", storage: "Папка данных" },
   en: { locale: "en-US", title: "Settings", meeting: "Requests call",
         sections: ["Project", "Models", "Privacy", "Storage", "Recording", "Jira", "Shortcuts", "Interface", "System"],
-        reqs: "Requirements on the fly", whisper: "Whisper", change: "Change", conflict: /already used by: Record a meeting/,
+        whisper: "Whisper", change: "Change", conflict: /already used by: Record a meeting/,
         week: "Week", month: "Month", storage: "Data folder" },
 };
 const IDS = ["project", "models", "privacy", "storage", "record", "jira", "keys", "interface", "system"];
@@ -57,20 +57,6 @@ for (const [lang, s] of Object.entries(L)) {
     if (!page.url().endsWith("#/settings/" + id)) throw new Error("route: " + page.url());
   }
   step("every section opens at #/settings/<section>");
-
-  // Запись → "Требования на лету" off, then on; each change is in /settings and survives a reload.
-  await page.goto(base + "/#/settings/record");
-  const reqs = page.getByRole("checkbox", { name: s.reqs, exact: true });
-  await reqs.waitFor();
-  if (!await reqs.isChecked()) throw new Error("live requirements should start on");
-  await reqs.click();
-  await until(async () => (await settings()).live_requirements === false, "live_requirements off");
-  await page.reload();
-  await reqs.waitFor();
-  if (await reqs.isChecked()) throw new Error("the switch did not stay off after a reload");
-  await reqs.click();
-  await until(async () => (await settings()).live_requirements === true, "live_requirements on");
-  step("Требования на лету round-trips off and on");
 
   // Приватность → "Напоминать о согласии на запись" off survives a reload, then back on.
   await page.goto(base + "/#/settings/privacy");

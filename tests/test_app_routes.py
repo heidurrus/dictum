@@ -16,10 +16,8 @@ def mic_permission_granted(app_module, monkeypatch):
 
 
 def test_health_reports_environment(client, app_module, monkeypatch):
-    monkeypatch.setattr(app_module, "ollama_reachable", lambda timeout=0.5: False)
     body = client.get("/health").get_json()
-    assert set(body) >= {"ffmpeg", "gpu", "hf_token", "ollama", "platform", "system_audio_capture"}
-    assert body["ollama"] is False
+    assert set(body) >= {"ffmpeg", "gpu", "hf_token", "platform", "system_audio_capture"}
     assert body["gpu"] == {"cuda": False, "gpu_name": None, "mps": False}
 
 
@@ -233,7 +231,7 @@ def test_summarize_streams_partial_text_into_the_job(client, app_module, monkeyp
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-x")
     release = threading.Event()
 
-    def fake_summarize(text, prefs, api_key, url, on_delta, title=None, skillset=None, language_rule=""):
+    def fake_summarize(text, prefs, api_key, on_delta, title=None, skillset=None, language_rule=""):
         assert api_key == "sk-ant-x" and title == "call.vtt"
         on_delta("## Итоги\n")
         release.wait(2)

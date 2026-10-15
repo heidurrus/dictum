@@ -6,7 +6,7 @@ from core.llm import LLMError
 from core.store import Store, StoreError
 from tests.test_recorder import wait_for
 
-PREFS = {"llm_provider": "claude", "claude_model": "claude-opus-5", "ollama_model": "qwen3:8b", "local_model": ""}
+PREFS = {"llm_provider": "claude", "claude_model": "claude-opus-5", "local_model": ""}
 
 CALL = {"diarized": True, "segments": [
     {"speaker": "SPEAKER_00", "start": 0.0, "end": 4.0, "text": "Добрый день, начнём."},
@@ -20,7 +20,7 @@ def fake_llm(*replies):
     """complete_json stub: returns the replies in order and records every call."""
     calls, queue = [], list(replies)
 
-    def complete(system, user, schema, prefs, api_key, ollama_url):
+    def complete(system, user, schema, prefs, api_key):
         calls.append({"system": system, "user": user, "schema": schema, "prefs": prefs})
         reply = queue.pop(0)
         if isinstance(reply, Exception):
@@ -83,7 +83,7 @@ def test_extract_saves_verified_atoms_with_evidence(store):
     invented = {"type": "functional", "statement": "Экспорт в PDF", "evidence": [{"segment": 1, "quote": "экспорт в PDF"}]}
     llm = fake_llm({"atoms": [LATENCY, HISTORY, invented]}, {"duplicates": [], "conflicts": []})
     steps = []
-    r = extract_atoms(store, sid, PREFS, "key", "http://ollama", progress=lambda *a: steps.append(a), complete=llm)
+    r = extract_atoms(store, sid, PREFS, "key", progress=lambda *a: steps.append(a), complete=llm)
     assert r["extracted"] == 2 and r["dropped"] == 1 and r["model"] == "claude-opus-5"
     assert len(llm.calls) == 2 and "N2 [functional]" in llm.calls[1]["user"]
     atoms = store.list_atoms(store.current_project()["id"])
@@ -96,7 +96,7 @@ def test_extract_saves_verified_atoms_with_evidence(store):
 
 def test_duplicates_fold_into_existing_atoms_and_conflicts_are_flagged(store):
     first = make_source(store)
-    extract_atoms(store, first, PREFS, "k", "u", complete=fake_llm({"atoms": [LATENCY]}))
+    extract_atoms(store, first, PREFS, "k", complete=fake_llm({"atoms": [LATENCY]}))
     pid = store.current_project()["id"]
     existing = store.list_atoms(pid)[0]
     store.update_atom(existing["id"], status="accepted")
@@ -112,7 +112,7 @@ def test_duplicates_fold_into_existing_atoms_and_conflicts_are_flagged(store):
         {"duplicates": [{"new": "N1", "same_as": "E1"}, {"new": "E1", "same_as": "N2"}],   # 2nd: not new → ignored
          "conflicts": [{"a": "N2", "b": "E1", "description": "Разный срок хранения истории"},
                        {"a": "N9", "b": "E1", "description": "unknown id"}]})
-    r = extract_atoms(store, second, PREFS, "k", "u", complete=llm)
+    r = extract_atoms(store, second, PREFS, "k", complete=llm)
     assert (r["extracted"], r["merged"], r["conflicts"]) == (1, 1, 1)
     assert "E1 [nfr]" in llm.calls[1]["user"] and "N2 [functional]" in llm.calls[1]["user"]
 
@@ -125,11 +125,11 @@ def test_duplicates_fold_into_existing_atoms_and_conflicts_are_flagged(store):
 
 def test_reextract_replaces_pending_but_keeps_reviewed(store):
     sid = make_source(store)
-    extract_atoms(store, sid, PREFS, "k", "u", complete=fake_llm({"atoms": [LATENCY, HISTORY]}, {"duplicates": [], "conflicts": []}))
+    extract_atoms(store, sid, PREFS, "k", complete=fake_llm({"atoms": [LATENCY, HISTORY]}, {"duplicates": [], "conflicts": []}))
     pid = store.current_project()["id"]
     kept = store.list_atoms(pid)[0]
     store.update_atom(kept["id"], status="accepted")
-    r = extract_atoms(store, sid, PREFS, "k", "u",
+    r = extract_atoms(store, sid, PREFS, "k",
                       complete=fake_llm({"atoms": [HISTORY]}, {"duplicates": [], "conflicts": []}))
     assert r["replaced"] == 1
     assert sorted(a["status"] for a in store.list_atoms(pid)) == ["accepted", "pending"]
@@ -141,7 +141,7 @@ def test_action_items_and_other_are_set_aside(store):
         LATENCY,
         {"type": "action_item", "statement": "Иван пришлёт письмо", "evidence": [{"segment": 0, "quote": "начнём"}]},
         {"type": "other", "statement": "Приветствие", "evidence": []}]})
-    r = extract_atoms(store, sid, PREFS, "k", "u", complete=llm)
+    r = extract_atoms(store, sid, PREFS, "k", complete=llm)
     assert (r["extracted"], r["skipped_actions"], r["skipped_other"], r["dropped"]) == (1, 1, 1, 0)
     assert [a["statement"] for a in store.list_atoms(store.current_project()["id"])] == [LATENCY["statement"]]
     schema_types = llm.calls[0]["schema"]["properties"]["atoms"]["items"]["properties"]["type"]["enum"]
@@ -152,27 +152,27 @@ def test_local_only_project_uses_the_local_model(store):
     p = store.create_project("Банк", local_only=True)
     sid = make_source(store, project=p["id"])
     llm = fake_llm({"atoms": []})
-    r = extract_atoms(store, sid, PREFS, "k", "u", complete=llm)
+    r = extract_atoms(store, sid, PREFS, "k", complete=llm)
     assert llm.calls[0]["prefs"]["llm_provider"] == "local" and r["provider"] == "local"
 
 
 def test_failed_dedup_keeps_the_atoms(store):
     sid = make_source(store)
-    r = extract_atoms(store, sid, PREFS, "k", "u", complete=fake_llm({"atoms": [LATENCY, HISTORY]}, LLMError("down")))
+    r = extract_atoms(store, sid, PREFS, "k", complete=fake_llm({"atoms": [LATENCY, HISTORY]}, LLMError("down")))
     assert r["extracted"] == 2
 
 
 def test_source_without_text_is_an_error(store):
     src = store.create_source(store.current_project()["id"], "recording", "empty", status="recorded")
     with pytest.raises(LLMError):
-        extract_atoms(store, src["id"], PREFS, "k", "u", complete=fake_llm())
+        extract_atoms(store, src["id"], PREFS, "k", complete=fake_llm())
 
 
 def test_long_sources_are_read_in_parts(store, monkeypatch):
     monkeypatch.setattr(atoms_mod, "CHUNK_CHARS", 90)
     sid = make_source(store)
     llm = fake_llm({"atoms": []}, {"atoms": []}, {"atoms": []})
-    extract_atoms(store, sid, PREFS, "k", "u", complete=llm)
+    extract_atoms(store, sid, PREFS, "k", complete=llm)
     assert len(llm.calls) == 3
 
 
@@ -407,7 +407,7 @@ def test_deleted_accepted_atom_leaves_the_document(store):
     from core import frd
     from tests.test_frd import full_reply, llm as frd_llm, seed as frd_seed
     pid, ids, _ = frd_seed(store)
-    frd.build(store, pid, PREFS, "k", "", complete=frd_llm(full_reply()))
+    frd.build(store, pid, PREFS, "k", complete=frd_llm(full_reply()))
     store.delete_atoms(pid, [ids[2]])
     doc = store.document(pid)
     assert frd.staleness(store, pid, store.version(doc["id"]))["removed"] == 1
@@ -427,7 +427,7 @@ def test_reclassify_suggests_new_types_and_applies_them(client, app_module, tmp_
     monkeypatch.setattr(app_module, "library", lib)
     pid, a, b = _two_atoms(lib)
     fake = fake_llm({"items": [{"id": "A1", "type": "business"}, {"id": "A2", "type": "nfr"}, {"id": "A9", "type": "risk"}]})
-    changes = atoms_mod.reclassify(lib, pid, PREFS, "k", "u", complete=fake)
+    changes = atoms_mod.reclassify(lib, pid, PREFS, "k", complete=fake)
     assert [(c["id"], c["to"]) for c in changes] == [(a, "business")], "unchanged and unknown IDs are ignored"
     assert "[nfr]" not in fake.calls[0]["user"], "the old type would anchor the model"
     assert "business" in str(fake.calls[0]["schema"])

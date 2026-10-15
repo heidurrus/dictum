@@ -2,12 +2,10 @@
 
 Claude goes through the official anthropic SDK (streaming, server-side refusal
 fallback on Claude Opus 5, prompt caching, typed errors → clear messages);
-local models through Ollama's HTTP API. Spec FR-SET-02, D-02.
+local models through the built-in llama-server (core/local_llm.py). Spec FR-SET-02, D-02.
 """
 import json
 import re
-import urllib.error
-import urllib.request
 from contextlib import contextmanager
 
 import anthropic
@@ -61,7 +59,7 @@ def claude_errors(model):
 def model_name(prefs):
     if prefs["llm_provider"] == "local":
         return local_label(prefs)
-    return prefs["ollama_model"] if prefs["llm_provider"] == "ollama" else prefs["claude_model"]
+    return prefs["claude_model"]
 
 
 def local_label(prefs):
@@ -95,7 +93,7 @@ def language_rule(project):
 
 
 def for_project(prefs, project):
-    """A "Local only" project never uses the cloud: the built-in model, or Ollama if that's the choice."""
+    """A "Local only" project never uses the cloud: it uses the built-in model."""
     if project and project["local_only"] and prefs["llm_provider"] == "claude":
         return {**prefs, "llm_provider": "local"}
     return prefs
@@ -132,31 +130,6 @@ def _claude_json(system, user, schema, model, api_key, client=None, max_tokens=C
         raise LLMError("Claude returned malformed JSON.")
 
 
-def _ollama_json(system, user, schema, model, url, opener=urllib.request.urlopen):
-    body = json.dumps({
-        "model": model, "stream": False, "think": False, "format": schema,
-        "options": {"temperature": 0},
-        "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-    }).encode()
-    req = urllib.request.Request(url.rstrip("/") + "/api/chat", data=body, headers={"Content-Type": "application/json"})
-    try:
-        with opener(req, timeout=900) as resp:
-            reply = json.loads(resp.read())
-    except urllib.error.HTTPError as e:
-        detail = e.read().decode(errors="replace")
-        if e.code == 404 or "not found" in detail.lower():
-            raise LLMError(f"The local model {model} isn't installed. In a terminal run: ollama pull {model}")
-        raise LLMError(f"Ollama error ({e.code}): {detail[:200]}")
-    except (urllib.error.URLError, ConnectionError, TimeoutError):
-        raise LLMError("Ollama isn't running. Start the Ollama app, or choose Claude in Settings.")
-    usage.record("llm_local", reply.get("prompt_eval_count"), reply.get("eval_count"))
-    content = re.sub(r"<think>.*?</think>", "", (reply.get("message") or {}).get("content", ""), flags=re.S)
-    try:
-        return json.loads(content)
-    except ValueError:
-        raise LLMError("The local model returned malformed JSON; try again or use a larger model.")
-
-
 def _local_json(system, user, schema, model_id, opener=None):
     body = {"messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             "temperature": 0, "stream": False,
@@ -179,11 +152,8 @@ def _local_json(system, user, schema, model_id, opener=None):
         raise LLMError("The local model returned malformed JSON; try again.")
 
 
-def complete_json(system, user, schema, prefs, api_key, ollama_url, claude_client=None, opener=None):
+def complete_json(system, user, schema, prefs, api_key, claude_client=None, opener=None):
     """One structured call with the provider chosen in Settings; returns the parsed JSON."""
     if prefs["llm_provider"] == "local":
         return _local_json(system, user, schema, local_model_id(prefs), opener=opener)
-    if prefs["llm_provider"] == "ollama":
-        kwargs = {"opener": opener} if opener else {}
-        return _ollama_json(system, user, schema, prefs["ollama_model"], ollama_url, **kwargs)
     return _claude_json(system, user, schema, prefs["claude_model"], api_key, client=claude_client)
