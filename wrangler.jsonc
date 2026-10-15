@@ -3,7 +3,7 @@
 // deploy command is `npx wrangler deploy`. The `name` must match the Worker in the dashboard.
 {
   "$schema": "https://developers.cloudflare.com/workers/wrangler/config-schema.json",
-  "name": "getdictum",
+  "name": "dictum",
   "compatibility_date": "2025-10-01",
   "assets": {
     "directory": "./site",
