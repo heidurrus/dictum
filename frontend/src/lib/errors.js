@@ -11,7 +11,6 @@ const KNOWN = [
   [/rate limit/i, "err.rate_limit", false],
   [/overloaded/i, "err.overloaded", false],
   [/Could not reach Anthropic/i, "err.offline", false],
-  [/Ollama isn't running/i, "err.ollama_down", true],
 ];
 
 export function explain(err) {

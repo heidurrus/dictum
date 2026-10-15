@@ -16,7 +16,6 @@
   let showKey = $state(false);
   let hfDraft = $state("");
   let showHf = $state(false);
-  let ollama = $state(null);
   let asrTimer = null, llmTimer = null;
   const busy = d => ["downloading", "verifying"].includes(d?.status);
 
@@ -35,8 +34,6 @@
   }
   $effect(() => { loadAsr(); loadLlm(); return () => { clearTimeout(asrTimer); clearTimeout(llmTimer); }; });
   $effect(() => { period; loadStats(); });
-  $effect(() => { if (s.llm_provider === "ollama") checkOllama(); });
-  async function checkOllama() { ollama = (await api("/ollama/status").catch(() => ({ reachable: false }))).reachable; }
 
   // A finished or failed download is reported once.
   let asrLast = null, llmLast = null;
@@ -116,20 +113,11 @@
   <h3>{t("set.provider")}</h3><p class="d">{t("set.provider_hint." + s.llm_provider)}</p>
   <div class="row">
     <div class="seg provider" role="group" aria-label={t("set.provider")}>
-      {#each ["claude", "local", "ollama"] as p (p)}
+      {#each ["claude", "local"] as p (p)}
         <button aria-pressed={s.llm_provider === p} onclick={() => save({ llm_provider: p })}>{t("set.provider." + p)}</button>
       {/each}
     </div>
   </div>
-  {#if s.llm_provider === "ollama"}
-    <div class="row">
-      <label class="l" for="omodel"><b>{t("set.ollama_model")}</b>
-        {#if ollama !== null}<small class:ok={ollama} class:bad={!ollama}>{ollama ? t("set.ollama_running") : t("set.ollama_stopped")}</small>{/if}
-        <small>{t("set.ollama_note")}</small></label>
-      <input class="input code w-220" id="omodel" value={s.ollama_model} placeholder="qwen3:8b"
-             onchange={e => save({ ollama_model: e.currentTarget.value.trim() || "qwen3:8b" })} />
-    </div>
-  {/if}
   {#if machineLine}<p class="machine t2">{machineLine}</p>{/if}
 </div>
 

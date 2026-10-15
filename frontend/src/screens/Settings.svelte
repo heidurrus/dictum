@@ -97,7 +97,6 @@
     [t("env.gpu"), app.health.gpu.gpu_name || (app.health.gpu.mps ? "Apple Silicon (MPS)" : t("env.cpu_only")),
       app.health.gpu.cuda || app.health.gpu.mps],
     [t("env.hf"), app.health.hf_token ? t("env.set") : t("env.missing"), app.health.hf_token],
-    [t("env.ollama"), app.health.ollama ? t("env.running") : t("env.stopped"), app.health.ollama],
     [t("env.sysaudio"), app.health.system_audio_capture ? t("env.supported") : t("env.unsupported"), app.health.system_audio_capture],
   ] : []);
 
@@ -166,7 +165,7 @@
             <input type="checkbox" class="switch local-only" checked={currentProject().local_only}
                    onchange={e => updateProject({ local_only: e.currentTarget.checked })} aria-label={t("project.local_only")} />
           </label>
-          {#if currentProject().local_only && !localReady && s && s.llm_provider !== "ollama"}
+          {#if currentProject().local_only && !localReady && s}
             <div class="row col">
               <p class="banner warn"><span>{t("llm.local_only_needs")}</span></p>
               <LocalModel only="recommended" selected={s.local_model} onSelect={id => save({ local_model: id })} onReady={checkLocal} />
@@ -181,7 +180,7 @@
         </div>
         <div class="setcard card-m">
           <h3>{t("set.pr.leaves")}</h3><p class="d">{t("set.pr.leaves_d")}</p>
-          {#each ["asr", "local", "index", "ollama", "claude", "jira"] as p (p)}
+          {#each ["asr", "local", "index", "claude", "jira"] as p (p)}
             <div class="row provider-row" class:current={s && (p === s.llm_provider)}>
               <span class="l"><b>{t("set.pr.p." + p)}</b><small>{t("set.pr.s." + p)}</small></span>
               {#if p === "claude" && currentProject().local_only}<span class="tag ok">{t("set.pr.off_here")}</span>
@@ -207,11 +206,6 @@
             <span class="l"><b>{t("set.rec.live")}</b><small>{t("set.rec.live_d")}</small></span>
             <input type="checkbox" class="switch" checked={s.live_transcription} aria-label={t("set.rec.live")}
                    onchange={e => save({ live_transcription: e.currentTarget.checked })} />
-          </label>
-          <label class="row">
-            <span class="l"><b>{t("set.rec.reqs")}</b><small>{t("set.rec.reqs_d")}</small></span>
-            <input type="checkbox" class="switch live-reqs" checked={s.live_requirements} aria-label={t("set.rec.reqs")}
-                   onchange={e => save({ live_requirements: e.currentTarget.checked })} />
           </label>
           <label class="row">
             <span class="l"><b>{t("set.rec.questions")}</b><small>{t("set.rec.questions_d")}</small></span>
