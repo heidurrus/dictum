@@ -72,3 +72,4 @@ Steps 1–4 are low-risk polish that fixes every AA failure. Steps 5–6 change 
 | `prototype-v5-screens/` | Screenshots of every page at 1440, light and dark, plus a phone width |
 | [`../research/foresight-teardown.md`](../research/foresight-teardown.md) | The teardown the brief is based on |
 | [`../specs/dictum-5.0-spec.md`](../specs/dictum-5.0-spec.md) | Implementation spec for 5.0: chunks C0–C11, API, schema v9, acceptance criteria |
+| [`5.0/`](5.0/) | **5.0 as shipped** (5.0.0, 2026-10-15): screenshots of the restyled Требования, Документы, Бэклог, Выгрузка and Скиллы in ru and en, light and dark, at 1440 and 390, written by `frontend/e2e/restyle_shots.mjs`; how each increment was built and checked is in [`../specs/dictum-5.0-plan.md`](../specs/dictum-5.0-plan.md) |
