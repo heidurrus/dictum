@@ -392,7 +392,7 @@
         <div class="track mic"><b><i></i>Microphone</b><div class="wave" id="wave-mic"></div></div>
         <div class="track sys"><b><i></i>System audio</b><div class="wave" id="wave-sys"></div></div>
         <div class="livebox"><b>Transcript · live</b><span class="sp">Anna · </span><span id="live-line" class="cur"></span></div>
-        <div class="apps"><span>Teams</span><span>Zoom</span><span>Google Meet</span><span>Discord</span><span>Safari</span><span>Chrome</span><span>Anything with sound</span></div>
+        <div class="apps"><span>Teams</span><span>Zoom</span><span>Meet</span><span>Discord</span><span>Safari</span><span>Chrome</span><span>Anything with sound</span></div>
       </div>
     </div>
   </section>
@@ -401,7 +401,7 @@
   <section class="band" id="private">
     <div class="wrap two">
       <div class="mac rv d1" aria-hidden="true">
-        <div class="row"><b>Speech recognition</b><small>GigaAM v3, on this Mac</small><span class="st">local</span></div>
+        <div class="row"><b>Speech recognition</b><small>Built-in speech model, on this Mac</small><span class="st">local</span></div>
         <div class="row"><b>Recaps and requirements</b><small>Gemma 4 12B, on this Mac</small><span class="st">local</span></div>
         <div class="row"><b>Library index</b><small>Qwen3 Embedding, on this Mac</small><span class="st">local</span></div>
         <div class="row"><b>Cloud</b><small>Claude with your own key</small><span class="st no">off for this project</span></div>
@@ -410,7 +410,7 @@
       <div class="rv">
         <p class="eyebrow">Private</p>
         <h2>Transcribed on your Mac. Nothing leaves.</h2>
-        <p class="lead">Speech recognition runs on your machine with GigaAM, the best model there is for Russian, plus a multilingual one. Recaps, requirements and answers come from a local model, Gemma 4 or Qwen 3, that Dictum downloads and runs for you. Mark a project local-only and the cloud is simply not an option for it.</p>
+        <p class="lead">Speech recognition runs on your machine with the built-in speech model, the best there is for Russian, plus a multilingual one. Recaps, requirements and answers come from a local model, Gemma 4 or Qwen 3, that Dictum downloads and runs for you. Mark a project local-only and the cloud is simply not an option for it.</p>
         <div class="facts">
           <div class="fact"><b>Works offline</b><span>On a plane, at a client site, behind a corporate firewall.</span></div>
           <div class="fact"><b>Your key, if you want it</b><span>Claude for the heavy lifting, billed to you, never on by default.</span></div>
@@ -543,7 +543,7 @@
       <div class="sheet">
         <div class="cell rv"><div class="fig">14.2<small>macOS</small></div><b>Apple silicon</b><p>M1 to M4. 16 GB runs everything locally; 32 GB unlocks the larger Qwen models.</p><div class="chips"><span>Core Audio taps</span><span>Metal</span></div></div>
         <div class="cell rv d1"><div class="fig">10<small>Windows</small></div><b>64-bit, 10 or 11</b><p>A GPU speeds transcription up. It is not required.</p><div class="chips"><span>CUDA</span><span>CPU</span></div></div>
-        <div class="cell rv d2"><div class="fig" data-count="0.4" data-suffix=" GB">0.4<small>GB</small></div><b>Speech, on disk</b><p>GigaAM v3 for Russian. The multilingual model is 2.2 GB. Speaker separation with pyannote.</p><div class="chips"><span>GigaAM v3</span><span>multilingual</span><span>pyannote</span></div></div>
+        <div class="cell rv d2"><div class="fig" data-count="0.4" data-suffix=" GB">0.4<small>GB</small></div><b>Speech, on disk</b><p>The built-in speech model for Russian. The multilingual model is 2.2 GB. Speaker separation with pyannote.</p><div class="chips"><span>built-in speech</span><span>multilingual</span><span>pyannote</span></div></div>
         <div class="cell rv"><div class="fig" data-count="5">5<small>local LLMs</small></div><b>Language models</b><p>Gemma 4 12B, Qwen 3.5 4B and 9B, Qwen 3.6 35B, Qwen 3.8 27B. Claude in the cloud with your own key.</p><div class="chips"><span>Gemma 4</span><span>Qwen 3.5</span><span>Qwen 3.6</span><span>Qwen 3.8</span><span>Claude</span></div></div>
         <div class="cell rv d1"><div class="fig" data-count="0">0<small>accounts</small></div><b>No sign-up, no telemetry</b><p>No seat, no server, no usage sent anywhere. Jira and Confluence connect over a browser sign-in when you ask.</p><div class="chips"><span>Jira</span><span>Confluence</span><span>Word</span><span>Markdown</span><span>ZIP</span></div></div>
         <div class="cell rv d2"><div class="fig" data-count="1">1<small>folder</small></div><b>Everything in one place</b><p>Recordings, transcripts, models and settings in one folder you can move, back up or delete. Project files travel between machines.</p><div class="chips"><span>~/Library/Application Support/Dictum</span></div></div>
@@ -706,7 +706,7 @@
     ["Outlook", "Send 4 follow-up emails", "#0078D4"], ["Teams", "Ask who said the thing about PBX", "#6264A7"],
     ["Notion", "Log the decisions", "#121216"], ["Miro", "Redraw the call flow", "#FFD02F"],
     ["Your memory", "Remember what the client actually wanted", "#C62828"], ["Figma", "Comment on 12 frames", "#A259FF"],
-    ["Slack", "Reply to 'any notes from the call?'", "#4A154B"], ["Google Docs", "Paste it all again", "#4285F4"],
+    ["Slack", "Reply to 'any notes from the call?'", "#4A154B"], ["Docs", "Paste it all again", "#4285F4"],
     ["Calendar", "Book the follow-up you forgot", "#0B57D0"], ["Sticky notes", "The one that fell off the monitor", "#F9AB00"],
     ["PowerPoint", "Three slides for the steering committee", "#B7472A"], ["Trello", "Move the cards you never moved", "#0079BF"]
   ];
