@@ -1,0 +1,13 @@
+// getdictum.app: a Cloudflare Worker that only serves the static site in site/.
+// Workers Builds picks this file up when the build root is the repository root and the
+// deploy command is `npx wrangler deploy`. The `name` must match the Worker in the dashboard.
+{
+  "$schema": "https://developers.cloudflare.com/workers/wrangler/config-schema.json",
+  "name": "getdictum",
+  "compatibility_date": "2025-10-01",
+  "assets": {
+    "directory": "./site",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  }
+}
