@@ -1,5 +1,16 @@
 # Dictum 5.0: implementation specification
 
+> **Status.** 5.0.0 shipped on 2026-10-15, built in sixteen increments (see `dictum-5.0-plan.md` for the log); this
+> spec is kept as written. Accepted deviations: the Windows data folder stays in `%LOCALAPPDATA%\Dictum` (C0). Stop
+> transcribes the meeting only when the client sends the recognition options, which it always does (C4.1). Auto-stop
+> treats anything under -50 dBFS as silence (C4.3). The live question card shipped with Спросить in increment 10
+> rather than with C4.2. ⌘R stays a window-level key, so other apps keep their own ⌘R; only ⌥Space and a non-⌘ record
+> key are global (C7). Keyword search uses FTS5 prefixes without a Russian stemmer, and a folder import takes a typed
+> path (C5). The Документы cards double as the document switcher, with no separate list screen (C10).
+> «Извлечь из новых встреч» runs per meeting from a menu, with no bulk endpoint (C10). On Windows there is no global
+> hot key or menu-bar item, and live transcription on CPU falls back to post-stop transcription through the
+> backpressure rule (C11).
+
 For the agent (or human) building release 5.0 of the app known until now as Requirements Workbench.
 Everything in the clickable prototype `docs/design/prototype-v5.html` is in scope. The prototype is
 the visual and behavioural source of truth; this document says what is behind it, in which order to

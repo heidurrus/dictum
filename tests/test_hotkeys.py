@@ -229,12 +229,15 @@ def test_poll_schedules_menu_update(ctl, monkeypatch):
 
 def test_status_route(client, ctl):
     body = client.get("/api/hotkeys/status").get_json()
-    assert body == {"available": True, "whisper": "ok", "record": "window"}
+    assert body == {"available": True, "supported": hotkeys.available(), "platform": sys.platform,
+                    "whisper": "ok", "record": "window"}
 
 
 def test_status_route_without_controller(client, monkeypatch):
     monkeypatch.setattr(hotkeys, "_controller", None)
-    assert client.get("/api/hotkeys/status").get_json() == {"available": False, "whisper": "off", "record": "off"}
+    body = client.get("/api/hotkeys/status").get_json()
+    assert {k: body[k] for k in ("available", "whisper", "record")} == {"available": False, "whisper": "off", "record": "off"}
+    assert body["platform"] == sys.platform
 
 
 def test_ui_lang_route(client, monkeypatch):
@@ -269,7 +272,9 @@ def test_no_op_off_macos(monkeypatch, platform):
     assert hotkeys.start(FakeWindow(), run_now) is None
     hotkeys.desktop_start(FakeWindow())                  # returns without touching AppKit or Carbon
     assert hotkeys._controller is None
-    assert hotkeys.status()["available"] is False
+    st = hotkeys.status()
+    assert st["available"] is False and st["supported"] is False and st["platform"] == platform
+    assert st["whisper"] == st["record"] == "off"            # the UI shows the window-only hint for both
 
 
 def test_built_menu_json_has_both_languages():

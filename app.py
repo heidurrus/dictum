@@ -1224,9 +1224,10 @@ def api_stats():
 
 @app.route("/api/storage")
 def api_storage():
-    """Settings → Хранилище: the data folder, what it holds and its size on disk."""
+    """Settings → Хранилище: the data folder, what it holds and its size on disk. Paths are built with os.path, so
+    they carry the platform's separator (backslashes on Windows); the UI shows them as they are."""
     path = paths_mod.app_data_dir()
-    return jsonify({"path": path, "counts": library.storage_counts(), "bytes": paths_mod.tree_bytes(path),
+    return jsonify({"path": path, "logs": os.path.join(path, "logs", "jobs.log"), "counts": library.storage_counts(), "bytes": paths_mod.tree_bytes(path),
                     "default": os.path.realpath(path) == os.path.realpath(paths_mod.default_data_dir()),
                     "movable": not paths_mod._override(), "moved_to": _data_move.get("moved_to")})
 

@@ -10,6 +10,7 @@
   import { api } from "../lib/api.js";
   import { saveUrl } from "../lib/save.js";
   import { LANGS } from "../lib/i18n.js";
+  import { DEFAULT_HOTKEYS, comboLabel } from "../lib/hotkeys.js";
   import { cap, loadMics } from "../lib/capture.svelte.js";
   import { app, t, go, setLang, setTheme, currentProject, loadProjects, switchProject, restoreProject, toast } from "../lib/state.svelte.js";
 
@@ -93,7 +94,8 @@
 
   // ── Система ──
   let dataDir = $state("");
-  $effect(() => { if (sec === "system" && !dataDir) api("/api/storage").then(r => (dataDir = r.path)).catch(() => {}); });
+  let logsPath = $state("");        // built by the server with os.path: backslashes on Windows
+  $effect(() => { if (sec === "system" && !dataDir) api("/api/storage").then(r => { dataDir = r.path; logsPath = r.logs || ""; }).catch(() => {}); });
   const desktop = () => !!window.pywebview?.api;
   const env = $derived(app.health ? [
     [t("env.ffmpeg"), app.health.ffmpeg ? t("env.found") : t("env.missing"), app.health.ffmpeg],
@@ -292,7 +294,7 @@
             </div>
           </div>
           <div class="row">
-            <span class="l"><b>{t("set.theme")}</b><small>{t("set.theme_hint")}</small></span>
+            <span class="l"><b>{t("set.theme")}</b><small>{t("set.theme_hint", { key: comboLabel(app.settings?.hotkeys?.theme || DEFAULT_HOTKEYS.theme) })}</small></span>
             <div class="seg" role="group" aria-label={t("set.theme")}>
               {#each ["auto", "light", "dark"] as th (th)}
                 <button aria-pressed={app.theme === th} onclick={() => setTheme(th)}>{t("theme.s." + th)}</button>
@@ -312,8 +314,8 @@
             <button class="btn sm ghost" onclick={() => go("/settings/storage")}>{t("set.cat.storage")}</button>
           </div>
           <div class="row">
-            <span class="l"><b>{t("set.sys.logs")}</b><small class="mono">{dataDir ? dataDir + "/logs/jobs.log" : ""}</small></span>
-            {#if desktop() && dataDir}<button class="btn sm" onclick={() => window.pywebview.api.reveal(dataDir + "/logs/jobs.log")}><Icon name="doc" size={14} /> {t("set.sys.logs_show")}</button>{/if}
+            <span class="l"><b>{t("set.sys.logs")}</b><small class="mono">{logsPath}</small></span>
+            {#if desktop() && logsPath}<button class="btn sm" onclick={() => window.pywebview.api.reveal(logsPath)}><Icon name="doc" size={14} /> {t("set.sys.logs_show")}</button>{/if}
           </div>
         </div>
         <div class="setcard card-m">

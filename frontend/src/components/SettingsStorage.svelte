@@ -61,7 +61,7 @@
       <div class="row col move">
         <label class="l" for="newdir"><b>{t("set.sto.new")}</b><small>{t("set.sto.new_d")}</small></label>
         <div class="input-row">
-          <input class="input code" id="newdir" bind:value={target} placeholder={t("set.sto.placeholder")} disabled={!!moving}
+          <input class="input code" id="newdir" bind:value={target} placeholder={t(app.health?.platform === "win32" ? "set.sto.placeholder_win" : "set.sto.placeholder")} disabled={!!moving}
                  onkeydown={e => e.key === "Enter" && target.trim() && move()} />
           <button class="btn primary" onclick={move} disabled={!target.trim() || !!moving}>{t("set.sto.move")}</button>
           <button class="btn ghost" onclick={() => { choosing = false; error = ""; }} disabled={!!moving}>{t("at.cancel")}</button>

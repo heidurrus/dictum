@@ -34,7 +34,7 @@ AppSupportURL={#AppURL}
 DefaultDirName={localappdata}\Programs\{#AppName}
 DefaultGroupName={#AppName}
 OutputDir=Output
-OutputBaseFilename=Dictum-{#AppVersion}-Setup
+OutputBaseFilename=Dictum-{#AppVersion}-windows-x64
 Compression=lzma2/ultra64
 SolidCompression=yes
 ; No admin rights needed: per-user install
@@ -45,7 +45,11 @@ UsePreviousGroup=no
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
-UninstallDisplayIcon={app}\python\pythonw.exe
+; The icon made from docs/design/icon/dictum-1024.png (packaging/windows/Dictum.ico, 16 to 256 px). The
+; launcher is the bundled pythonw.exe, which carries Python's own icon, so every shortcut points at the .ico
+; that packaging/build.py stages next to python\ and app\.
+SetupIconFile=..\packaging\windows\Dictum.ico
+UninstallDisplayIcon={app}\Dictum.ico
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -54,6 +58,7 @@ Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
 [Files]
 Source: "{#StageDir}\python\*"; DestDir: "{app}\python"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#StageDir}\app\*";    DestDir: "{app}\app";    Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#StageDir}\Dictum.ico"; DestDir: "{app}";       Flags: ignoreversion
 
 [InstallDelete]
 ; Files from the 1.0 layout (Python-on-PATH + .bat launchers)
@@ -71,10 +76,10 @@ Type: filesandordirs; Name: "{userprograms}\Requirements Workbench"
 Type: files; Name: "{userdesktop}\Requirements Workbench.lnk"
 
 [Icons]
-Name: "{group}\{#AppName}"; Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\app\boot.py"""; WorkingDir: "{app}\app"; IconFilename: "{app}\python\pythonw.exe"
-Name: "{group}\{#AppName} (Browser Mode)"; Filename: "{app}\python\python.exe"; Parameters: """{app}\app\boot.py"" --browser"; WorkingDir: "{app}\app"
+Name: "{group}\{#AppName}"; Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\app\boot.py"""; WorkingDir: "{app}\app"; IconFilename: "{app}\Dictum.ico"
+Name: "{group}\{#AppName} (Browser Mode)"; Filename: "{app}\python\python.exe"; Parameters: """{app}\app\boot.py"" --browser"; WorkingDir: "{app}\app"; IconFilename: "{app}\Dictum.ico"
 Name: "{group}\Uninstall {#AppName}"; Filename: "{uninstallexe}"
-Name: "{userdesktop}\{#AppName}"; Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\app\boot.py"""; WorkingDir: "{app}\app"; Tasks: desktopicon
+Name: "{userdesktop}\{#AppName}"; Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\app\boot.py"""; WorkingDir: "{app}\app"; IconFilename: "{app}\Dictum.ico"; Tasks: desktopicon
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
@@ -85,6 +90,7 @@ Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\app\boot.py"""; Worki
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\python"
 Type: filesandordirs; Name: "{app}\app"
+Type: files; Name: "{app}\Dictum.ico"
 
 [Code]
 { The desktop window uses Microsoft Edge WebView2. Windows 11 ships it; some
