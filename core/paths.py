@@ -284,3 +284,24 @@ def make_job_log():
     except OSError:
         log.addHandler(logging.NullHandler())
     return log
+
+
+def install_app_log():
+    """Warnings and errors of every module go to <app data>/logs/dictum.log (5.0.5). The packaged app has no
+    terminal, so without this a failed microphone or a broken device list left no trace anywhere."""
+    import logging
+    import logging.handlers
+    root = logging.getLogger()
+    if any(getattr(h, "_dictum_app_log", False) for h in root.handlers):
+        return
+    try:
+        folder = os.path.join(app_data_dir(), "logs")
+        os.makedirs(folder, exist_ok=True)
+        handler = logging.handlers.RotatingFileHandler(os.path.join(folder, "dictum.log"), maxBytes=2_000_000,
+                                                       backupCount=2, encoding="utf-8")
+        handler.setLevel(logging.WARNING)
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+        handler._dictum_app_log = True
+        root.addHandler(handler)
+    except OSError:
+        pass

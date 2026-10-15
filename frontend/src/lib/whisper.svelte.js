@@ -3,7 +3,7 @@
 // idle → listening (words from /api/whispers/live) → processing (final speech pass and parse) → result (nothing saved
 // until "Сохранить").
 import { api } from "./api.js";
-import { cap } from "./capture.svelte.js";
+import { cap, micName } from "./capture.svelte.js";
 import { app, t, toast } from "./state.svelte.js";
 
 export const wh = $state({
@@ -20,7 +20,7 @@ let poll = null;
 
 function payload() {
   const o = app.options;
-  return { mic_device: cap.mic === "" || cap.mic == null ? null : Number(cap.mic), model: o.model, device: o.device };
+  return { mic_device: cap.mic === "" || cap.mic == null ? null : Number(cap.mic), mic_name: micName(), model: o.model, device: o.device };
 }
 
 export async function startWhisper() {
