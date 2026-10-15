@@ -180,7 +180,7 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
 .kbd { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 var(--s-2);
   border-radius: var(--r-xs); background: var(--surface-3); color: var(--text-2);
   font: var(--w-medium) var(--size-caption)/1 var(--font); letter-spacing: .01em; }
-.btn.primary .kbd, .btn-primary .kbd { background: rgba(255,255,255,.18); color: #fff; }
+.btn.primary .kbd, .btn-primary .kbd { background: color-mix(in srgb, var(--on-primary) 18%, transparent); color: var(--on-primary); }
 .row-actions { opacity: 0; transition: opacity var(--d-fast); display: inline-flex; gap: 2px; }
 :hover > .row-actions, :focus-within > .row-actions { opacity: 1; }
 @media (hover: none) { .row-actions { opacity: 1; } }
