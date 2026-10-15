@@ -259,7 +259,7 @@ if os.getenv("FAKE_RECORDER"):
     app_module._start_live = lambda source, folder, opts, recorder: FakeLive(source["id"])
     app_module._start_live_questions = functools.partial(app_module._start_live_questions, window=1.0,
                                                          generate=fake_ask_generate(None, None))
-    app_module.app.view_functions["audio_devices"] = lambda: app_module.jsonify([{"index": 0, "name": "Fake microphone"}])
+    app_module.app.view_functions["api_audio_devices"] = lambda: app_module.jsonify([{"index": 0, "name": "Fake microphone"}])
 
 # Шепнуть (5.0 C7, e2e/whisper.mjs): with FAKE_RECORDER=1 the whisper capture records the fake microphone through the
 # real recorder into <data>/whispers/<id>/mic.wav, the live words are scripted (one word every 150 ms) and the capture
