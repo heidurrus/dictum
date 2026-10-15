@@ -1,4 +1,4 @@
-"""Summarise a transcript with Claude (Anthropic API) or a local model (Ollama).
+"""Summarise a transcript with Claude (Anthropic API) or the built-in local model.
 
 First AI stage of the app (spec increment 2 foundations: FR-SET-02 model per
 stage, FR-SET-03 keys, D-02 transcript text may go to the cloud, local option).
@@ -7,8 +7,6 @@ what was said (spec G2).
 """
 import json
 import re
-import urllib.error
-import urllib.request
 
 import anthropic
 
@@ -50,8 +48,6 @@ def summarize_with_claude(transcript, model, api_key, on_delta, title=None, clie
     return text
 
 
-# ── Ollama (local) ───────────────────────────────────────────────────────────
-
 class _ThinkFilter:
     """Drops <think>…</think> sections that some local reasoning models stream inline."""
 
@@ -77,45 +73,6 @@ class _ThinkFilter:
             self.pending = self.pending[idx + len(tag):]
             self.inside = not self.inside
         return "".join(out)
-
-
-def summarize_with_ollama(transcript, model, on_delta, url, title=None, opener=urllib.request.urlopen, system=None, user=None):
-    body = json.dumps({
-        "model": model,
-        "stream": True,
-        "think": False,
-        "messages": [{"role": "system", "content": system or default_prompt()},
-                     {"role": "user", "content": user or _user_content(transcript, title)}],
-    }).encode()
-    req = urllib.request.Request(url.rstrip("/") + "/api/chat", data=body,
-                                 headers={"Content-Type": "application/json"})
-    parts, think, counted = [], _ThinkFilter(), False
-    try:
-        with opener(req, timeout=600) as resp:
-            for line in resp:
-                if not line.strip():
-                    continue
-                event = json.loads(line)
-                if event.get("error"):
-                    raise SummaryError(f"Local model error: {event['error']}")
-                piece = think.feed(event.get("message", {}).get("content", ""))
-                if piece:
-                    parts.append(piece)
-                    on_delta(piece)
-                if event.get("done"):
-                    usage.record("llm_local", event.get("prompt_eval_count"), event.get("eval_count"))
-                    counted = True
-                    break
-    except urllib.error.HTTPError as e:
-        detail = e.read().decode(errors="replace")
-        if e.code == 404 or "not found" in detail.lower():
-            raise SummaryError(f"The local model {model} isn't installed. In a terminal run: ollama pull {model}")
-        raise SummaryError(f"Ollama error ({e.code}): {detail[:200]}")
-    except (urllib.error.URLError, ConnectionError, TimeoutError):
-        raise SummaryError("Ollama isn't running. Start the Ollama app, or choose Claude in Settings.")
-    if not counted:
-        usage.record("llm_local")
-    return re.sub(r"^\s+", "", "".join(parts))
 
 
 # ── built-in local model ─────────────────────────────────────────────────────
@@ -154,7 +111,7 @@ def summarize_with_local(transcript, model_id, on_delta, title=None, opener=None
 
 # ── entry point ──────────────────────────────────────────────────────────────
 
-def summarize(transcript, settings, api_key, ollama_url, on_delta, title=None, skillset=None, language_rule=""):
+def summarize(transcript, settings, api_key, on_delta, title=None, skillset=None, language_rule=""):
     """Summarise with the provider chosen in Settings and the summary skill in effect (global or project)."""
     if not transcript or not transcript.strip():
         raise SummaryError("There is no transcript text to summarise.")
@@ -163,15 +120,11 @@ def summarize(transcript, settings, api_key, ollama_url, on_delta, title=None, s
         system += "\n\n" + language_rule
     if settings["llm_provider"] == "local":
         return summarize_with_local(transcript, local_model_id(settings), on_delta, title, system=system)
-    if settings["llm_provider"] == "ollama":
-        return summarize_with_ollama(transcript, settings["ollama_model"], on_delta, ollama_url, title, system=system)
     return summarize_with_claude(transcript, settings["claude_model"], api_key, on_delta, title, system=system)
 
 
-def generate(system, user, settings, api_key, ollama_url, on_delta):
+def generate(system, user, settings, api_key, on_delta):
     """One streamed completion with a ready system prompt and user message (recaps, core/notes.py)."""
     if settings["llm_provider"] == "local":
         return summarize_with_local(None, local_model_id(settings), on_delta, system=system, user=user)
-    if settings["llm_provider"] == "ollama":
-        return summarize_with_ollama(None, settings["ollama_model"], on_delta, ollama_url, system=system, user=user)
     return summarize_with_claude(None, settings["claude_model"], api_key, on_delta, system=system, user=user)

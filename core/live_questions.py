@@ -7,7 +7,7 @@ ask.SHORT_MIN_SCORE the model writes a two-sentence answer with one citation (th
 `{id, text, answer, citation}` is shown on the meeting page until it is dismissed, a newer question replaces it, or
 CARD_SECONDS pass.
 
-Like core/live_atoms, this never touches audio and never blocks the transcriber: its own thread, a store snapshot of
+Like the live transcriber, this never touches audio and never blocks the transcriber: its own thread, a store snapshot of
 the transcript, a tick skipped while the previous pass still runs, and errors logged instead of raised.
 """
 import logging

@@ -27,8 +27,8 @@ def store(tmp_path):
 
 def with_backlog(store):
     pid, *_ = seed(store)
-    frd.build(store, pid, PREFS, "k", "", complete=llm(full_reply()))
-    backlog.build(store, pid, PREFS, "k", "", complete=llm(decomposition()))
+    frd.build(store, pid, PREFS, "k", complete=llm(full_reply()))
+    backlog.build(store, pid, PREFS, "k", complete=llm(decomposition()))
     return pid
 
 
@@ -403,7 +403,7 @@ def test_rebuilt_backlog_updates_the_same_issues_instead_of_duplicating(store):
     store.set_backlog_included(pid, [sub["id"]], True)
     reply = decomposition()
     reply["epics"][0]["stories"][0]["story"] = "Как старший оператор, я хочу видеть карточку сразу"
-    r = backlog.build(store, pid, PREFS, "k", "", complete=llm(reply))
+    r = backlog.build(store, pid, PREFS, "k", complete=llm(reply))
     assert r["matched"] >= 4 and r["orphans"] == []
     items = store.backlog(pid)
     assert {i["jira_key"] for i in items if i.get("jira_key")} == keys, "Jira links survive the rebuild"
@@ -423,7 +423,7 @@ def test_requirement_removed_on_rebuild_leaves_an_orphan_to_handle(store):
     reply = decomposition()
     reply["epics"][0]["title"] = "Совсем другой эпик"
     reply["epics"][0]["stories"] = [reply["epics"][0]["stories"][1]]          # FR-1 story gone (FR-77 is fake)
-    r = backlog.build(store, pid, PREFS, "k", "", complete=llm(reply))
+    r = backlog.build(store, pid, PREFS, "k", complete=llm(reply))
     orphan_keys = {o["key"] for o in r["orphans"]}
     assert orphan_keys and orphan_keys == {o["key"] for o in store.jira_orphans(pid)}
     plan = jira.plan(store, pid, fake)

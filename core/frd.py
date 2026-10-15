@@ -408,7 +408,7 @@ def req_blocks(content):
 NOTE = "\n\nThe analyst's instruction for this run (follow it unless it breaks the format): "
 
 
-def build(store, project_id, prefs, api_key, ollama_url, mode="changed", progress=None, complete=complete_json,
+def build(store, project_id, prefs, api_key, mode="changed", progress=None, complete=complete_json,
           skillset=None, save=True, note=None, document_id=None):
     """Build a new version of a project document. mode "changed": rewrite only new/changed atoms; "full":
     rewrite everything. The document's type (BRD, SRS, Vision & Scope, …) is its own document skill.
@@ -437,7 +437,7 @@ def build(store, project_id, prefs, api_key, ollama_url, mode="changed", progres
     conflicts = _open_conflicts(store, project_id)
     lang = output_language(project) or language_of([a["statement"] for a in atoms])
     ctx = {"store": store, "project": project, "atoms": atoms, "rids": rids, "by_rid": by_rid, "conflicts": conflicts,
-           "lang": lang, "prefs": prefs, "api_key": api_key, "ollama_url": ollama_url, "report": report,
+           "lang": lang, "prefs": prefs, "api_key": api_key, "report": report,
            "complete": complete, "skillset": skillset, "quality": Quality(skillset.get("quality")),
            "spec": section_spec(doc_skill, lang), "formats": section_formats(doc_skill, lang), "note": (note or "").strip(),
            "summaries": _summaries(store, project_id) if doc_skill.meta.get("use_summaries") else "",
@@ -543,7 +543,7 @@ def _build_full(ctx):
     custom = [(k, t) for k, t, _i in ctx["spec"] if k not in skills.FRD_KINDS and k not in ctx["formats"]]
     reply = ctx["complete"](_system(ctx, contract), user,
                             full_schema(q.rule_ids, [k for k, _t in custom], list(ctx["formats"])),
-                            ctx["prefs"], ctx["api_key"], ctx["ollama_url"])
+                            ctx["prefs"], ctx["api_key"])
     ctx["report"](85, "Checking quality…")
     texts = {str(i.get("id", "")).strip(): i["text"] for i in reply.get("items") or []
              if str(i.get("id", "")).strip() in by_rid and str(i.get("text", "")).strip()}
@@ -640,7 +640,7 @@ def _build_changed(ctx, previous):
         if ctx.get("note"):
             user += NOTE + ctx["note"]
         reply = ctx["complete"](_system(ctx, contract), user, changed_schema(q.rule_ids), ctx["prefs"],
-                                ctx["api_key"], ctx["ollama_url"])
+                                ctx["api_key"])
     ctx["report"](85, "Checking quality…")
     written = {str(i.get("id", "")).strip(): i for i in reply.get("items") or [] if str(i.get("id", "")).strip() in by_rid}
     model_issues = _model_issues(reply)
@@ -737,7 +737,7 @@ def diff(old, new):
     return changes
 
 
-def suggest_fix(store, project_id, atom_id, rule, message, prefs, api_key, ollama_url, complete=complete_json,
+def suggest_fix(store, project_id, atom_id, rule, message, prefs, api_key, complete=complete_json,
                 skillset=None):
     """A rewrite of the atom that fixes a quality finding; the BA accepts, edits or dismisses it (FR-DOC-06 AC2)."""
     atom = store.get_atom(atom_id)
@@ -746,7 +746,7 @@ def suggest_fix(store, project_id, atom_id, rule, message, prefs, api_key, ollam
     lang = _lang_name(output_language(project) or language_of([atom["statement"]]))
     system = skills.compose(skillset or skills.resolve(), "fix", FIX_CONTRACT, language=lang)
     user = f"Requirement ({atom['type']}): {atom['statement']}\n\nProblem ({rule}): {message}"
-    reply = complete(system, user, FIX_SCHEMA, prefs, api_key, ollama_url)
+    reply = complete(system, user, FIX_SCHEMA, prefs, api_key)
     statement = (reply.get("statement") or "").strip()
     if not statement:
         raise LLMError("The model returned an empty suggestion; try again.")

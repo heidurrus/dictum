@@ -9,7 +9,7 @@ from core.desktop_api import DesktopApi
 from core.store import Store
 from tests.test_recorder import wait_for
 
-PREFS = {"llm_provider": "claude", "claude_model": "claude-opus-5", "ollama_model": "x", "local_model": ""}
+PREFS = {"llm_provider": "claude", "claude_model": "claude-opus-5", "local_model": ""}
 
 
 @pytest.fixture()
@@ -51,7 +51,7 @@ def full_reply(groups=None, drop=()):
 def llm(*replies):
     calls, queue = [], list(replies)
 
-    def complete(system, user, schema, prefs, api_key, url):
+    def complete(system, user, schema, prefs, api_key):
         calls.append({"system": system, "user": user, "schema": schema})
         return queue.pop(0)
     complete.calls = calls
@@ -67,7 +67,7 @@ def blocks(store, pid, number=None):
 
 def test_full_build_structure_ids_sources_and_quality(store):
     pid, ids, sid = seed(store)
-    r = frd.build(store, pid, PREFS, "k", "", complete=llm(full_reply()))
+    r = frd.build(store, pid, PREFS, "k", complete=llm(full_reply()))
     assert (r["version"], r["atoms"], r["mode"]) == (1, 4, "full")
     by_id, v = blocks(store, pid)
     assert {k: n for k, (n, _b) in by_id.items()} == {"FR-1": "3.1", "FR-2": "3.2", "NFR-1": "4", "Q-1": "6"}
@@ -80,7 +80,7 @@ def test_full_build_structure_ids_sources_and_quality(store):
 
 def test_the_model_cannot_drop_or_invent_requirements(store):
     pid, *_ = seed(store)
-    frd.build(store, pid, PREFS, "k", "", complete=llm(full_reply(groups=[{"title": "A", "ids": ["FR-1", "FR-77"]}], drop=("FR-2",))))
+    frd.build(store, pid, PREFS, "k", complete=llm(full_reply(groups=[{"title": "A", "ids": ["FR-1", "FR-77"]}], drop=("FR-2",))))
     by_id, v = blocks(store, pid)
     assert by_id["FR-2"][1]["text"] == "Маскировать номер карты"          # fell back to the atom's own words
     functional = v["content"]["sections"][2]
@@ -89,7 +89,7 @@ def test_the_model_cannot_drop_or_invent_requirements(store):
 
 def test_ids_are_stable_and_never_reused(store):
     pid, ids, _ = seed(store)
-    frd.build(store, pid, PREFS, "k", "", complete=llm(full_reply()))
+    frd.build(store, pid, PREFS, "k", complete=llm(full_reply()))
     store.update_atom(ids[0], status="rejected")
     extra = store.add_atoms(pid, [{"type": "functional", "statement": "Новое требование",
                                    "evidence": [{"source_id": store.list_sources(pid)[0]["id"], "quote": "карточка"}]}])[0]
@@ -100,11 +100,11 @@ def test_ids_are_stable_and_never_reused(store):
 
 def test_rebuild_rewrites_only_what_changed(store):
     pid, ids, _ = seed(store)
-    frd.build(store, pid, PREFS, "k", "", complete=llm(full_reply()))
+    frd.build(store, pid, PREFS, "k", complete=llm(full_reply()))
     store.update_atom(ids[1], statement="Карточка открывается не дольше 2 секунд")
     changed = llm({"items": [{"id": "NFR-1", "text": "Карточка клиента должна открываться не дольше 2 секунд.", "group": ""}],
                    "issues": []})
-    r = frd.build(store, pid, PREFS, "k", "", mode="changed", complete=changed)
+    r = frd.build(store, pid, PREFS, "k", mode="changed", complete=changed)
     assert r["mode"] == "changed" and r["version"] == 2
     to_write = changed.calls[0]["user"].split("To write:")[1]
     assert "NFR-1 [nfr]" in to_write and not re.search(r"(?<![A-Z])FR-\d", to_write)
@@ -116,11 +116,11 @@ def test_rebuild_rewrites_only_what_changed(store):
 
 def test_rebuild_places_a_new_requirement_in_a_group(store):
     pid, ids, _ = seed(store)
-    frd.build(store, pid, PREFS, "k", "", complete=llm(full_reply()))
+    frd.build(store, pid, PREFS, "k", complete=llm(full_reply()))
     new_atom = store.add_atoms(pid, [{"type": "functional", "statement": "Показывать последние заказы",
                                       "evidence": [{"source_id": store.list_sources(pid)[0]["id"], "quote": "карточка"}]}])[0]
     store.update_atom(new_atom, status="accepted")
-    frd.build(store, pid, PREFS, "k", "", complete=llm(
+    frd.build(store, pid, PREFS, "k", complete=llm(
         {"items": [{"id": "FR-3", "text": "Система должна показывать последние заказы.", "group": "Карточка"}], "issues": []}))
     by_id, _ = blocks(store, pid)
     assert by_id["FR-3"][0] == "3.1"
@@ -128,17 +128,17 @@ def test_rebuild_places_a_new_requirement_in_a_group(store):
 
 def test_rebuild_with_nothing_changed_is_refused(store):
     pid, *_ = seed(store)
-    frd.build(store, pid, PREFS, "k", "", complete=llm(full_reply()))
+    frd.build(store, pid, PREFS, "k", complete=llm(full_reply()))
     with pytest.raises(frd.BuildError, match="up to date"):
-        frd.build(store, pid, PREFS, "k", "", complete=llm())
+        frd.build(store, pid, PREFS, "k", complete=llm())
 
 
 def test_removed_atom_leaves_the_document_without_an_llm_call(store):
     pid, ids, _ = seed(store)
-    frd.build(store, pid, PREFS, "k", "", complete=llm(full_reply()))
+    frd.build(store, pid, PREFS, "k", complete=llm(full_reply()))
     store.update_atom(ids[2], status="rejected")
     no_calls = llm()
-    frd.build(store, pid, PREFS, "k", "", complete=no_calls)
+    frd.build(store, pid, PREFS, "k", complete=no_calls)
     by_id, v = blocks(store, pid)
     assert "FR-2" not in by_id and no_calls.calls == []
     assert [s["title"] for s in v["content"]["sections"][2]["subsections"]] == ["Карточка"]
@@ -147,18 +147,18 @@ def test_removed_atom_leaves_the_document_without_an_llm_call(store):
 def test_no_accepted_atoms_refuses_to_build(store):
     pid, *_ = seed(store, accept=False)
     with pytest.raises(frd.BuildError, match="Review the atoms"):
-        frd.build(store, pid, PREFS, "k", "", complete=llm())
+        frd.build(store, pid, PREFS, "k", complete=llm())
 
 
 def test_staleness_per_section_and_diff(store):
     pid, ids, _ = seed(store)
-    frd.build(store, pid, PREFS, "k", "", complete=llm(full_reply()))
+    frd.build(store, pid, PREFS, "k", complete=llm(full_reply()))
     doc = store.document(pid)
     assert frd.staleness(store, pid, store.version(doc["id"]))["stale"] is False
     store.update_atom(ids[2], statement="Маскировать номер карты, кроме 4 последних цифр")
     st = frd.staleness(store, pid, store.version(doc["id"]))
     assert st["stale"] and st["changed"] == 1 and st["sections"] == {"3.2": 1}
-    frd.build(store, pid, PREFS, "k", "", complete=llm({"items": [{"id": "FR-2", "text": "Система должна маскировать номер карты, кроме последних 4 цифр.", "group": "Безопасность"}], "issues": []}))
+    frd.build(store, pid, PREFS, "k", complete=llm({"items": [{"id": "FR-2", "text": "Система должна маскировать номер карты, кроме последних 4 цифр.", "group": "Безопасность"}], "issues": []}))
     changes = frd.diff(store.version(doc["id"], 1), store.version(doc["id"], 2))
     assert [(c["id"], c["change"]) for c in changes] == [("FR-2", "changed")]
 
@@ -166,7 +166,7 @@ def test_staleness_per_section_and_diff(store):
 def test_conflicting_atoms_are_marked(store):
     pid, ids, _ = seed(store)
     store.add_conflict(pid, ids[0], ids[2], "Противоречие")
-    r = frd.build(store, pid, PREFS, "k", "", complete=llm(full_reply()))
+    r = frd.build(store, pid, PREFS, "k", complete=llm(full_reply()))
     by_id, _ = blocks(store, pid)
     assert r["conflicts"] == 2 and by_id["FR-1"][1]["conflict"] == "Противоречие"
 
@@ -186,7 +186,7 @@ def test_rule_checks(text, kind, rules):
 def test_fix_suggestion(store):
     pid, ids, _ = seed(store)
     fake = llm({"statement": "Карточка открывается не дольше [уточнить: N секунд]"})
-    r = frd.suggest_fix(store, pid, ids[1], "not_measurable", "Нет времени.", PREFS, "k", "", complete=fake)
+    r = frd.suggest_fix(store, pid, ids[1], "not_measurable", "Нет времени.", PREFS, "k", complete=fake)
     assert "[уточнить" in r["statement"] and "Карточка открывается быстро" in fake.calls[0]["user"]
 
 
@@ -195,7 +195,7 @@ def test_fix_suggestion(store):
 @pytest.mark.parametrize("template", ["neutral", "gost"])
 def test_docx_has_sections_footnotes_and_free_text(store, template):
     pid, *_ = seed(store)
-    frd.build(store, pid, PREFS, "k", "", complete=llm(full_reply()))
+    frd.build(store, pid, PREFS, "k", complete=llm(full_reply()))
     doc = store.document(pid)
     store.add_free_block(doc["id"], "purpose", "Согласовано с заказчиком.")
     data = docx_export.render(doc, store.version(doc["id"]), store.free_blocks(doc["id"]),
@@ -312,11 +312,11 @@ def test_desktop_save_file_and_text(tmp_path):
 
 def test_project_language_switches_the_document_and_forces_a_full_rebuild(store):
     pid, ids, _ = seed(store)
-    frd.build(store, pid, PREFS, "k", "", complete=llm(full_reply()))          # Russian sources → Russian doc
+    frd.build(store, pid, PREFS, "k", complete=llm(full_reply()))          # Russian sources → Russian doc
     assert store.version(store.document(pid)["id"])["content"]["language"] == "ru"
     store.update_project(pid, language="en")
     fake = llm(full_reply())
-    r = frd.build(store, pid, PREFS, "k", "", mode="changed", complete=fake)
+    r = frd.build(store, pid, PREFS, "k", mode="changed", complete=fake)
     v = store.version(store.document(pid)["id"])
     assert r["mode"] == "full", "a language switch rewrites everything"
     assert v["content"]["language"] == "en" and v["content"]["sections"][0]["title"] == "Purpose"
@@ -331,14 +331,14 @@ def test_language_rule_reaches_extraction_and_jira(store):
     store.update_project(pid, language="en")
     assert "in English" in language_rule(store.get_project(pid))
     fake = llm({"atoms": []})
-    atoms.extract_candidates(store, sid, PREFS, "k", "", complete=fake)
+    atoms.extract_candidates(store, sid, PREFS, "k", complete=fake)
     assert "Write everything you produce" in fake.calls[0]["system"] and "Quotes and evidence stay" in fake.calls[0]["system"]
     for i in ids:
         store.update_atom(i, status="accepted")
-    frd.build(store, pid, PREFS, "k", "", complete=llm(full_reply()))
+    frd.build(store, pid, PREFS, "k", complete=llm(full_reply()))
     from core import backlog as bl
     from tests.test_backlog import decomposition
-    bl.build(store, pid, PREFS, "k", "", complete=llm(decomposition()))
+    bl.build(store, pid, PREFS, "k", complete=llm(decomposition()))
     j = FakeJira(localized=False)
     types = jira.suggest_types(jira.projects(j, "c")[0]["issue_types"])
     store.set_jira_target(pid, j.cloud_id, j.site, j.project_key, "S", types)
@@ -359,7 +359,7 @@ def test_atoms_rejected_as_out_of_scope_are_listed_in_that_section(store):
     pid, a1, a2, *_ = seed(store)
     extra = store.add_ba_atom(pid, "functional", "Мобильное приложение для клиентов")
     store.update_atom(extra["id"], status="rejected", reject_reason="out_of_scope")
-    r = frd.build(store, pid, PREFS, "k", "", complete=llm(full_reply()))
+    r = frd.build(store, pid, PREFS, "k", complete=llm(full_reply()))
     content = store.version(r["document_id"])["content"]
     sec = next(x for x in content["sections"] if x["key"] == "out_of_scope")
     assert any("Мобильное приложение для клиентов" in b.get("items", []) for b in sec["blocks"])
@@ -378,7 +378,7 @@ def test_risk_register_document_has_a_table_with_ids_and_a_heat_map(store):
         [rid[r1["id"]], "Сроки не согласованы", "конфликт требований", "высокая", "высокое", "снизить: созвон", "BA", "FR-1"],
         ["RSK-99", "выдуманный", "", "низкая", "низкое", "", "", ""]]}]
     fake = llm(reply)
-    r = frd.build(store, pid, PREFS, "k", "", mode="full", complete=fake, document_id=doc["id"])
+    r = frd.build(store, pid, PREFS, "k", mode="full", complete=fake, document_id=doc["id"])
     assert "RSK-" in fake.calls[0]["user"] and "Related atoms (context only" in fake.calls[0]["user"]
     content = store.version(doc["id"], r["version"])["content"]
     sec = next(s for s in content["sections"] if s["key"] == "risks")
@@ -402,13 +402,13 @@ def test_each_document_takes_only_its_own_atom_types(store):
     srs = store.document(pid)                                  # the project's first document (SRS)
     brd = store.create_document(pid, "write-brd", "BRD")
     fake = llm(full_reply())
-    frd.build(store, pid, PREFS, "k", "", complete=fake, document_id=brd["id"])
+    frd.build(store, pid, PREFS, "k", complete=fake, document_id=brd["id"])
     content = store.version(brd["id"])["content"]
     placed = {b["id"] for _n, _k, b in frd.req_blocks(content)}
     assert any(x.startswith("BR-") for x in placed) and not any(x.startswith("FR-") for x in placed)
     assert "BR-1 [business]" in fake.calls[0]["user"].split("Related atoms")[0]
     assert "FR-1 [functional]" in fake.calls[0]["user"].split("Related atoms")[1], "FRs are context in a BRD"
-    frd.build(store, pid, PREFS, "k", "", complete=llm(full_reply()), document_id=srs["id"])
+    frd.build(store, pid, PREFS, "k", complete=llm(full_reply()), document_id=srs["id"])
     srs_ids = {b["id"] for _n, _k, b in frd.req_blocks(store.version(srs["id"])["content"])}
     assert "BR-1" not in srs_ids and "FR-1" in srs_ids
     store.update_atom(br["id"], statement="Сократить время обслуживания звонка на 30%")
@@ -425,7 +425,7 @@ def test_each_document_keeps_its_own_type_and_versions(store):
     brd = store.create_document(pid, "write-brd", "BRD — проект")
     reply = full_reply()
     reply["extra"] = [{"key": "business_context", "text": "Операторы теряют время."}]
-    frd.build(store, pid, PREFS, "k", "", complete=llm(reply), document_id=brd["id"])
+    frd.build(store, pid, PREFS, "k", complete=llm(reply), document_id=brd["id"])
     assert store.version(srs["id"]) is None and store.version(brd["id"])["number"] == 1
     content = store.version(brd["id"])["content"]
     assert content["skills"]["frd"] == "write-brd"

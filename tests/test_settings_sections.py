@@ -88,11 +88,6 @@ def test_stats_counters(store, local_server, monkeypatch):
     client = types.SimpleNamespace(beta=types.SimpleNamespace(messages=types.SimpleNamespace(stream=lambda **p: Stream())))
     assert llm._claude_json("s", "u", {}, "claude-sonnet-5", "sk", client=client) == {"a": 1}
     summarize.summarize_with_claude("t", "claude-sonnet-5", "sk", lambda _p: None, client=client)
-    # Ollama: its own counters; a stream that never says done still counts the call, with no tokens.
-    llm._ollama_json("s", "u", {}, "qwen3:8b", "http://o",
-                     opener=lambda req, timeout: _Resp({"message": {"content": "{}"}, "prompt_eval_count": 11, "eval_count": 2}))
-    summarize.summarize_with_ollama("t", "qwen3:8b", lambda _p: None, "http://o",
-                                    opener=lambda req, timeout: _Resp(lines=[json.dumps({"message": {"content": "a"}}).encode()]))
     # Embeddings: one row per batch, texts in tokens_in.
     monkeypatch.setattr(index, "model_id", lambda: "qwen3-embedding-0.6b")
     monkeypatch.setattr(local_llm.embed_runtime, "acquire", lambda mid: ("http://e", "k"))
@@ -120,8 +115,6 @@ def test_stats_counters(store, local_server, monkeypatch):
         {"kind": "llm_local", "tokens_in": 7, "tokens_out": 3, "seconds": None, "project_id": "p1"},
         {"kind": "llm_cloud", "tokens_in": 1050, "tokens_out": 20, "seconds": None, "project_id": "p1"},
         {"kind": "llm_cloud", "tokens_in": 1050, "tokens_out": 20, "seconds": None, "project_id": "p1"},
-        {"kind": "llm_local", "tokens_in": 11, "tokens_out": 2, "seconds": None, "project_id": "p1"},
-        {"kind": "llm_local", "tokens_in": None, "tokens_out": None, "seconds": None, "project_id": "p1"},
         {"kind": "embed", "tokens_in": 2, "tokens_out": None, "seconds": None, "project_id": "p1"},
         {"kind": "embed", "tokens_in": 1, "tokens_out": None, "seconds": None, "project_id": "p1"},
         {"kind": "asr", "tokens_in": None, "tokens_out": None, "seconds": 1.5, "project_id": "p1"},
@@ -181,7 +174,7 @@ def test_app_sink_writes_against_the_current_project(app_module):
 # ── settings keys ────────────────────────────────────────────────────────────
 
 def test_every_section_key_round_trips(client):
-    body = {"silence_stop_minutes": 0, "live_transcription": False, "live_requirements": False, "live_questions": True,
+    body = {"silence_stop_minutes": 0, "live_transcription": False, "live_questions": True,
             "recap_style": "actions", "embed_model": "qwen3-embedding-0.6b", "menubar": False, "notes_style": "concise",
             "consent_reminder": False, "tuning": {"retrieve_k": 8}, "hotkeys": {"whisper": "alt+d"}}
     res = client.post("/settings", json=body)
@@ -196,7 +189,7 @@ def test_every_section_key_round_trips(client):
             assert got[k] == v, k
     assert client.post("/settings", json={"recap_style": "poem"}).status_code == 400
     assert client.post("/settings", json={"notes_style": "verbose"}).status_code == 400
-    client.post("/settings", json={"silence_stop_minutes": 10, "live_transcription": True, "live_requirements": True,
+    client.post("/settings", json={"silence_stop_minutes": 10, "live_transcription": True,
                                    "live_questions": False, "recap_style": "brief", "embed_model": "", "menubar": True,
                                    "notes_style": "standard", "consent_reminder": True, "tuning": {"retrieve_k": 12},
                                    "hotkeys": {"whisper": "alt+space"}})

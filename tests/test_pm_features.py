@@ -29,7 +29,7 @@ def lib(app_module, monkeypatch, tmp_path):
 
 def built(store):
     pid, ids, sid = seed(store)
-    frd.build(store, pid, PREFS, "k", "", complete=llm(full_reply()))
+    frd.build(store, pid, PREFS, "k", complete=llm(full_reply()))
     return pid, ids, sid
 
 
@@ -37,7 +37,7 @@ def built(store):
 
 def test_traceability_matrix_is_a_real_xlsx_with_quotes_and_stories(store):
     pid, ids, sid = built(store)
-    backlog.build(store, pid, PREFS, "k", "", complete=llm(decomposition()))
+    backlog.build(store, pid, PREFS, "k", complete=llm(decomposition()))
     rows, version = exports.traceability_rows(store, pid)
     assert rows[0][0] == "ID" and version["number"] == 1
     fr1 = next(r for r in rows if r[0] == "FR-1")
@@ -103,7 +103,7 @@ def test_approved_version_is_the_baseline_for_change_requests(client, lib):
     reply = full_reply()
     reply["items"] = [dict(i, text="Система должна маскировать номер карты, кроме последних 4 цифр.")
                       if i["id"] == "FR-2" else i for i in reply["items"]]
-    frd.build(lib, pid, PREFS, "k", "", mode="full", complete=llm(reply))
+    frd.build(lib, pid, PREFS, "k", mode="full", complete=llm(reply))
     ch = client.get(f"/api/documents/{doc['id']}/changes").get_json()
     assert ch["baseline"] == 1 and ch["to"] == 2 and [c["id"] for c in ch["changes"]] == ["FR-2"]
 

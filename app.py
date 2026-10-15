@@ -9,7 +9,6 @@ import subprocess
 import sys
 import threading
 import time
-import urllib.request
 import warnings
 
 # Suppress pyannote's torchcodec warning — we pass waveform dicts so it's never used
@@ -25,7 +24,7 @@ from torch.utils.data import DataLoader
 from flask import Flask, request, jsonify, send_file, send_from_directory
 
 from core.ffmpeg import ensure_ffmpeg_on_path
-from core import live as live_mod, live_atoms as live_atoms_mod, macos_audio, settings
+from core import live as live_mod, macos_audio, settings
 from core.summarize import SummaryError, summarize
 from core import notes as meeting_notes, summarize as summarize_mod
 from core import ask as ask_mod, live_questions as live_questions_mod, whisper as whisper_mod
@@ -57,7 +56,6 @@ hf_token = os.getenv("HF_TOKEN")
 if hf_token:
     os.environ["HF_TOKEN"] = hf_token
 
-OLLAMA_URL = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
 
 app = Flask(__name__, static_folder="static")
 install_local_only_guard(app)
@@ -102,10 +100,10 @@ index_queue = SerialQueue()          # one index pass at a time (5.0 C5)
 _recorder = None
 _recorder_lock = threading.Lock()
 _active_tap = None  # macOS system-audio tap while recording
-# The meeting being recorded and the helpers around it: live transcript (5.0 C4.1), live requirements (C4.2) and
+# The meeting being recorded and the helpers around it: live transcript (5.0 C4.1), the question card and
 # the silence watch (C4.3); the start request's transcription options and UI language (auto-stop uses them), and
 # why the last recording stopped when it was not the Stop button.
-_session = {"source_id": None, "live": None, "atoms": None, "questions": None, "silence": None, "opts": None, "lang": "ru",
+_session = {"source_id": None, "live": None, "questions": None, "silence": None, "opts": None, "lang": "ru",
             "stopped": None}
 IS_DESKTOP = False
 
@@ -275,7 +273,6 @@ def run_job(job_id, upload_path, audio_path, model_name, diarize, word_timestamp
                 library.fail_source(source_id, error)
             else:
                 library.save_transcript(source_id, result, asr_model=model_name)
-                _reconcile_live_atoms(source_id)
                 _index_after(source_id)
                 result = {**result, "source_id": source_id, "extract_job": _after_transcription(source_id)}
         except Exception as e:  # never lose the job result because saving failed
@@ -558,25 +555,6 @@ def _start_live(source, folder, opts, recorder):
                                     labels={"mic": BA_LABEL, "sys": OTHER_LABEL}).start()
 
 
-def _start_live_atoms(source, window=None, min_segments=None, complete=None):
-    """Requirements on the fly for this recording (5.0 C4.2), or None when the setting is off or the project's AI
-    is not set up. It reads the transcript through the store and never touches the audio; see core/live_atoms.py."""
-    prefs_all = settings.load_settings()
-    if not prefs_all.get("live_requirements", True):
-        return None
-    project = library.get_project(source["project_id"])
-    prefs, api_key, problem = _ai_prefs(project)
-    if problem:
-        return None
-    skillset = _skillset(project["id"])
-    return live_atoms_mod.LiveAtoms(
-        source["id"], project["id"], library,
-        live_atoms_mod.extractor(library, source["id"], prefs, api_key, OLLAMA_URL, skillset, complete),
-        dedup=live_atoms_mod.deduper(library, project["id"], prefs, api_key, OLLAMA_URL, skillset, complete),
-        model=model_name(prefs), window=window or int(prefs_all.get("live_window_atoms", live_atoms_mod.WINDOW)),
-        min_segments=min_segments or live_atoms_mod.MIN_SEGMENTS).start()
-
-
 def _start_live_questions(source, window=None, generate=None):
     """The question card for this recording (5.0 C4.3), or None when the setting `live_questions` is off or the
     project's AI is not set up. It reads the transcript and the index through the store, never the audio; see
@@ -599,15 +577,6 @@ def _start_silence_watch(source, folder, recorder):
     if minutes <= 0:
         return None
     return live_mod.SilenceWatch(folder, minutes, lambda m: _auto_stop(source["id"], m), pauses=recorder.pauses).start()
-
-
-def _reconcile_live_atoms(source_id):
-    """After the final transcript: the live atoms' quotes are found again in it (core/live_atoms.reconcile)."""
-    try:
-        return live_atoms_mod.reconcile(library, source_id)
-    except Exception:                    # a convenience: it must never fail the transcription
-        job_log.exception("Re-checking live requirements failed for %s", source_id)
-        return None
 
 
 AUTO_STOP_TEXT = {"ru": "Запись остановлена: тишина {n} {unit}", "en": "Recording stopped after {n} minutes of silence"}
@@ -685,19 +654,15 @@ def desktop_record_start():
         _recorder = DualChannelRecorder(recordings_dir(), {"mic": mic, "sys": sys_source})
         recording_id = _recorder.start(folder=folder)
         lang = data.get("lang") if data.get("lang") in AUTO_STOP_TEXT else "ru"
-        _session.update(source_id=source["id"], live=None, atoms=None, questions=None, silence=None, opts=opts, lang=lang,
+        _session.update(source_id=source["id"], live=None, questions=None, silence=None, opts=opts, lang=lang,
                         stopped=None)
         try:
             _session["live"] = _start_live(source, folder, opts, _recorder)
         except Exception:               # live mode is a convenience: the recording runs without it
             job_log.exception("Live transcript could not start")
         try:
-            _session["atoms"] = _start_live_atoms(source)
-        except Exception:               # so are live requirements
-            job_log.exception("Live requirements could not start")
-        try:
             _session["questions"] = _start_live_questions(source)
-        except Exception:               # and the question card
+        except Exception:               # so is the question card
             job_log.exception("Live questions could not start")
         try:
             _session["silence"] = _start_silence_watch(source, folder, _recorder)
@@ -752,11 +717,11 @@ def _finish_recording(opts, title=None, expect_source=None):
         result = _recorder.stop()
         _close_active_tap()
         source_id = _session["source_id"]
-        helpers = [_session.get(k) for k in ("live", "atoms", "questions", "silence")]
-        _session.update(source_id=None, live=None, atoms=None, questions=None, silence=None)
+        helpers = [_session.get(k) for k in ("live", "questions", "silence")]
+        _session.update(source_id=None, live=None, questions=None, silence=None)
     for helper in helpers:
         if helper is not None:
-            helper.stop()                   # no provisional line or live atom is added after this
+            helper.stop()                   # no provisional line is added after this
 
     if result.get("sys") and "sys" not in result["errors"] and wav_peak(result["sys"]) == 0:
         result["errors"]["sys"] = SYS_SILENT
@@ -869,7 +834,7 @@ def _whisper_final_text(path, opts):
 def _whisper_complete(prefs, api_key):
     """The model call of the parse; the e2e fake server replaces this."""
     from core.llm import complete_json
-    return lambda system, user, schema: complete_json(system, user, schema, prefs, api_key, OLLAMA_URL)
+    return lambda system, user, schema: complete_json(system, user, schema, prefs, api_key)
 
 
 def _whisper_context():
@@ -1102,14 +1067,6 @@ def start_background():
     return _reminders
 
 
-def ollama_reachable(timeout=0.5):
-    try:
-        with urllib.request.urlopen(OLLAMA_URL.rstrip("/") + "/api/tags", timeout=timeout):
-            return True
-    except Exception:
-        return False
-
-
 def app_version():
     try:
         with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "VERSION"), encoding="utf-8") as f:
@@ -1125,7 +1082,6 @@ def health():
         "ffmpeg": FFMPEG_AVAILABLE,
         "gpu": {"cuda": CUDA_AVAILABLE, "gpu_name": GPU_NAME, "mps": MPS_AVAILABLE},
         "hf_token": bool(hf_token),
-        "ollama": ollama_reachable(),
         "platform": sys.platform,
         "system_audio_capture": system_audio_support()[0],
         "version": app_version(),
@@ -1160,13 +1116,10 @@ def _settings_payload():
         "anthropic_key_set": bool(settings.secret("ANTHROPIC_API_KEY")),
         "llm_provider": prefs["llm_provider"],
         "claude_model": prefs["claude_model"],
-        "ollama_model": prefs["ollama_model"],
         "local_model": prefs["local_model"],
         "hotkeys": prefs["hotkeys"],
         "live_transcription": prefs["live_transcription"],
-        "live_requirements": prefs["live_requirements"],
         "live_questions": prefs["live_questions"],
-        "live_window_atoms": prefs["live_window_atoms"],
         "silence_stop_minutes": prefs["silence_stop_minutes"],
         "menubar": prefs["menubar"],
         "consent_reminder": prefs["consent_reminder"],
@@ -1185,11 +1138,11 @@ def get_settings():
 
 @app.route("/settings", methods=["POST"])
 def save_settings():
-    """Update only the fields present: hf_token, anthropic_api_key, llm_provider, claude_model, ollama_model."""
+    """Update only the fields present: hf_token, anthropic_api_key, llm_provider, claude_model and the rest."""
     global hf_token, _diarization_pipeline
     data = request.get_json(silent=True) or {}
-    prefs = {k: data[k] for k in ("llm_provider", "claude_model", "ollama_model", "local_model", "hotkeys",
-                                 "live_transcription", "live_requirements", "live_questions", "live_window_atoms",
+    prefs = {k: data[k] for k in ("llm_provider", "claude_model", "local_model", "hotkeys",
+                                 "live_transcription", "live_questions",
                                  "silence_stop_minutes", "menubar", "consent_reminder", "embed_model", "recap_style",
                                  "notes_style", "tuning") if k in data}
     try:
@@ -1315,15 +1268,10 @@ def api_local_llm_delete(model_id):
     return jsonify(local_llm.status())
 
 
-@app.route("/ollama/status")
-def ollama_status():
-    return jsonify({"reachable": ollama_reachable()})
-
-
 def _run_summary(job_id, text, title, prefs, api_key, source_id=None, project_id=None):
     try:
         project = library.get_project(project_id) if project_id else None
-        result = summarize(text, prefs, api_key, OLLAMA_URL, on_delta=lambda piece: jobs.append_partial(job_id, piece),
+        result = summarize(text, prefs, api_key, on_delta=lambda piece: jobs.append_partial(job_id, piece),
                            title=title, skillset=_skillset(project_id), language_rule=language_rule(project))
     except SummaryError as e:
         jobs.fail(job_id, e)
@@ -1934,7 +1882,7 @@ def api_ai_check():
         from core.llm import complete_json
         complete_json("Reply with ok=true.", "ping", {"type": "object", "properties": {"ok": {"type": "boolean"}},
                                                       "required": ["ok"], "additionalProperties": False},
-                      prefs, api_key, OLLAMA_URL)
+                      prefs, api_key)
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 200
     return jsonify({"ok": True, "provider": prefs["llm_provider"], "model": model_name(prefs)})
@@ -1964,17 +1912,15 @@ def api_source(source_id):
 
 @app.route("/api/sources/<source_id>/live")
 def api_source_live(source_id):
-    """The transcript as it grows while the meeting is recorded (5.0 C4.1): the lines after `after`; the
-    meeting's requirements, newest first, `new` when created after `atoms_after` (C4.2); the silence counter
-    and, once the recording stopped by itself, why (C4.3)."""
+    """The transcript as it grows while the meeting is recorded (5.0 C4.1): the lines after `after`; the silence
+    counter, the question card and, once the recording stopped by itself, why (C4.3)."""
     try:
         library.get_source(source_id)
         after = int(request.args.get("after", -1))
-        atoms_after = float(request.args.get("atoms_after") or 0)
     except StoreError as e:
         return jsonify({"error": str(e)}), 404
     except ValueError:
-        return jsonify({"error": "after and atoms_after must be numbers"}), 400
+        return jsonify({"error": "after must be a number"}), 400
     segments, _ = library.transcript(source_id)
     with _recorder_lock:
         st = _recorder.status() if _recorder is not None else None
@@ -1984,13 +1930,10 @@ def api_source_live(source_id):
         questions = _session.get("questions") if mine else None
         stopped = _session.get("stopped")
     paused = bool(mine and st["paused"])
-    atoms = [{**{k: a[k] for k in ("id", "type", "statement", "status", "quote", "segment_idx", "start", "speaker",
-                                   "live", "stale_evidence", "created_at")}, "new": a["created_at"] > atoms_after}
-             for a in library.source_atoms(source_id)]
     stopped = stopped if stopped and stopped["source_id"] == source_id and not mine else None
     return jsonify({"segments": [s for s in segments if s["idx"] > after], "recording": mine, "paused": paused,
                     "elapsed": st["elapsed"] if mine else 0, "live": live,
-                    "listening": mine and not paused and live != "off", "atoms": atoms,
+                    "listening": mine and not paused and live != "off",
                     "silence": int(watch.silent) if watch else 0, "silence_stop": watch.limit if watch else 0,
                     "question": questions.current() if questions else None,
                     "stopped": stopped and {"reason": stopped["reason"], "minutes": stopped["minutes"],
@@ -2025,7 +1968,7 @@ def api_append_note(source_id):
 
 def _recap_generate(prefs, api_key):
     """The model call of a recap; the e2e fake server replaces this."""
-    return lambda system, user, on_delta: summarize_mod.generate(system, user, prefs, api_key, OLLAMA_URL, on_delta)
+    return lambda system, user, on_delta: summarize_mod.generate(system, user, prefs, api_key, on_delta)
 
 
 def _run_recap(job_id, source_id, style, incremental, prefs, api_key, project):
@@ -2071,7 +2014,7 @@ def api_recap(source_id):
 # ── Спросить (5.0 C6) ────────────────────────────────────────────────────────
 def _ask_generate(prefs, api_key):
     """The model call of an answer (and of the question card); the e2e fake server replaces this."""
-    return lambda system, user, on_delta: summarize_mod.generate(system, user, prefs, api_key, OLLAMA_URL, on_delta)
+    return lambda system, user, on_delta: summarize_mod.generate(system, user, prefs, api_key, on_delta)
 
 
 ASK_PROGRESS = {"search": (10, "Searching the project…"), "generate": (40, "Writing the answer…")}
@@ -2586,7 +2529,7 @@ def _run_extraction(job_id, source_id, prefs, api_key, note=None):
         jobs.set_progress(job_id, int(100 * done / max(total, 1)), message)
     try:
         project_id = library.get_source(source_id)["project_id"]
-        result = extract_atoms(library, source_id, prefs, api_key, OLLAMA_URL, progress=progress,
+        result = extract_atoms(library, source_id, prefs, api_key, progress=progress,
                                skillset=_skillset(project_id), note=note)
     except SummaryError as e:
         jobs.fail(job_id, e)
@@ -2716,7 +2659,7 @@ def api_reclassify_atoms(project_id):
     def run():
         from core import atoms as atoms_mod
         try:
-            changes = atoms_mod.reclassify(library, project_id, prefs, api_key, OLLAMA_URL, skillset=_skillset(project_id),
+            changes = atoms_mod.reclassify(library, project_id, prefs, api_key, skillset=_skillset(project_id),
                                            progress=lambda d, t, m: jobs.set_progress(job_id, int(100 * d / max(t, 1)), m))
             if changes:
                 library.bulk_update_atoms(project_id, [{"id": c["id"], "type": c["to"]} for c in changes])
@@ -2878,7 +2821,7 @@ def api_document(project_id):
 
 def _run_build(job_id, project_id, prefs, api_key, mode, note=None, document_id=None):
     try:
-        result = frd.build(library, project_id, prefs, api_key, OLLAMA_URL, mode=mode, note=note, document_id=document_id,
+        result = frd.build(library, project_id, prefs, api_key, mode=mode, note=note, document_id=document_id,
                            progress=lambda pct, msg: jobs.set_progress(job_id, pct, msg), skillset=_skillset(project_id))
     except (frd.BuildError, SummaryError) as e:
         jobs.fail(job_id, e)
@@ -3078,7 +3021,7 @@ def api_restore_free_block(block_id):
 
 def _run_fix(job_id, project_id, atom_id, rule, message, prefs, api_key):
     try:
-        jobs.finish(job_id, frd.suggest_fix(library, project_id, atom_id, rule, message, prefs, api_key, OLLAMA_URL,
+        jobs.finish(job_id, frd.suggest_fix(library, project_id, atom_id, rule, message, prefs, api_key,
                                             skillset=_skillset(project_id)))
     except (SummaryError, StoreError) as e:
         jobs.fail(job_id, e)
@@ -3138,7 +3081,7 @@ def api_backlog(project_id):
 
 def _run_backlog(job_id, fn, project_id, prefs, api_key):
     try:
-        result = fn(library, project_id, prefs, api_key, OLLAMA_URL,
+        result = fn(library, project_id, prefs, api_key,
                     progress=lambda pct, msg: jobs.set_progress(job_id, pct, msg), skillset=_skillset(project_id))
     except (backlog.BacklogError, SummaryError, StoreError) as e:
         jobs.fail(job_id, e)
@@ -3594,13 +3537,13 @@ def _run_try(job_id, stage, skill, project_id, source_id, prefs, api_key):
         report = lambda pct, msg: jobs.set_progress(job_id, pct, msg)  # noqa: E731
         if stage in ("summary", "global"):
             source = library.get_source(source_id)
-            text = summarize(library.transcript_text(source_id), prefs, api_key, OLLAMA_URL,
+            text = summarize(library.transcript_text(source_id), prefs, api_key,
                              on_delta=lambda piece: jobs.append_partial(job_id, piece), title=source["title"],
                              skillset=skillset, language_rule=language_rule(library.get_project(project_id)))
             jobs.finish(job_id, {"kind": "markdown", "text": text})
         elif stage == "extract":
             found, dropped, _, skipped = atoms_mod.extract_candidates(
-                library, source_id, prefs, api_key, OLLAMA_URL, skillset,
+                library, source_id, prefs, api_key, skillset,
                 progress=lambda d, t, m: report(int(100 * d / max(t, 1)), m))
             # PM-33: show the effect, not just the output: what this draft adds or loses vs. the atoms now in place.
             norm = atoms_mod.normalize
@@ -3614,7 +3557,7 @@ def _run_try(job_id, stage, skill, project_id, source_id, prefs, api_key):
             jobs.finish(job_id, {"kind": "atoms", "atoms": found, "dropped": dropped, "skipped": skipped,
                                  "compare": compare})
         elif stage in ("frd", "quality"):
-            out = frd.build(library, project_id, prefs, api_key, OLLAMA_URL, mode="full", progress=report,
+            out = frd.build(library, project_id, prefs, api_key, mode="full", progress=report,
                             skillset=skillset, save=False)
             jobs.finish(job_id, {"kind": "document", "content": out["content"]})
         else:

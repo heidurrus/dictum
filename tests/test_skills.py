@@ -153,7 +153,7 @@ def test_frd_skill_controls_sections_and_extra_ai_sections(store):
     skills.save(s.name, settings={"sections": sections}, instructions="Пиши коротко. Язык: {language}.")
     reply = dict(full_reply(), extra=[{"key": "Глоссарий", "text": "Карточка — экран клиента."}])   # title as key
     fake = llm(reply)
-    frd.build(store, pid, PREFS, "k", "", complete=fake, skillset=skills.resolve({"frd": s.name}))
+    frd.build(store, pid, PREFS, "k", complete=fake, skillset=skills.resolve({"frd": s.name}))
     system = fake.calls[0]["system"]
     assert system.startswith("Пиши коротко. Язык: Russian.") and "glossary (“Глоссарий”)" in system
     assert fake.calls[0]["schema"]["properties"]["extra"]["items"]["properties"]["key"]["enum"] == ["glossary"]
@@ -170,7 +170,7 @@ def test_quality_skill_custom_rules_and_vague_words(store):
                                   "rules": [{"id": "role", "title": "Нет роли", "description": "Требование не называет роль."}]})
     reply = dict(full_reply(), issues=[{"id": "FR-1", "rule": "role", "message": "Кто открывает карточку?"}])
     fake = llm(reply)
-    frd.build(store, pid, PREFS, "k", "", complete=fake, skillset=skills.resolve({"quality": q.name}))
+    frd.build(store, pid, PREFS, "k", complete=fake, skillset=skills.resolve({"quality": q.name}))
     assert "role" in fake.calls[0]["schema"]["properties"]["issues"]["items"]["properties"]["rule"]["enum"]
     v = store.version(store.document(pid)["id"])
     by = {b["id"]: b for _n, _k, b in frd.req_blocks(v["content"])}
@@ -186,7 +186,7 @@ def test_extract_uses_the_chosen_skill(store):
     s = skills.create("extract-requirements")
     skills.save(s.name, instructions="EXTRACT ONLY SECURITY THINGS")
     fake = llm({"atoms": []}, {"duplicates": [], "conflicts": []})
-    atoms.extract_atoms(store, sid, PREFS, "k", "", complete=fake, skillset=skills.resolve({"extract": s.name}))
+    atoms.extract_atoms(store, sid, PREFS, "k", complete=fake, skillset=skills.resolve({"extract": s.name}))
     assert fake.calls[0]["system"].startswith("EXTRACT ONLY SECURITY THINGS") and "[S…]" in fake.calls[0]["system"]
 
 
@@ -194,7 +194,7 @@ def test_extract_uses_the_chosen_skill(store):
 
 def _built(store):
     pid, *_ = seed(store)
-    frd.build(store, pid, PREFS, "k", "", complete=llm(full_reply()))
+    frd.build(store, pid, PREFS, "k", complete=llm(full_reply()))
     doc = store.document(pid)
     return doc, store.version(doc["id"])
 
@@ -312,7 +312,7 @@ def test_api_export_import_and_template(client, lib):
 
 def test_api_export_uses_the_chosen_export_skill(client, lib):
     pid, *_ = seed(lib)
-    frd.build(lib, pid, PREFS, "k", "", complete=llm(full_reply()))
+    frd.build(lib, pid, PREFS, "k", complete=llm(full_reply()))
     doc = lib.document(pid)
     import docx
     t = docx.Document()

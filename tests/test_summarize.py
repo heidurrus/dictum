@@ -1,17 +1,15 @@
-import io
 import json
 import os
 import stat
 import sys
 import types
-import urllib.error
 
 import anthropic
 import httpx2
 import pytest
 
 from core import settings, summarize
-from core.summarize import SummaryError, _ThinkFilter, summarize_with_claude, summarize_with_ollama
+from core.summarize import SummaryError, _ThinkFilter, summarize_with_claude
 
 
 # ── settings ─────────────────────────────────────────────────────────────────
@@ -44,11 +42,27 @@ def test_unknown_secret_rejected(data_dir):
 
 def test_preferences_defaults_validation_and_persistence(data_dir):
     assert settings.load_settings()["claude_model"] == "claude-opus-5"
-    settings.save_settings({"llm_provider": "ollama", "ollama_model": "llama3.2"})
-    assert settings.load_settings()["llm_provider"] == "ollama"
-    for bad in ({"llm_provider": "gpt"}, {"claude_model": "claude-2"}, {"ollama_model": " "}, {"nope": 1}):
+    settings.save_settings({"llm_provider": "local"})
+    assert settings.load_settings()["llm_provider"] == "local"
+    for bad in ({"llm_provider": "gpt"}, {"claude_model": "claude-2"}, {"local_model": "nope"}, {"nope": 1}):
         with pytest.raises(ValueError):
             settings.save_settings(bad)
+
+
+def test_settings_from_before_5_0_3_load_without_the_removed_provider(data_dir):
+    # 5.0.3 removed the Ollama provider and requirements on the fly: a settings.json written before loads with no
+    # error, the provider as the built-in model, and the stale keys are dropped by the next save.
+    with open(settings.settings_file(), "w", encoding="utf-8") as f:
+        json.dump({"llm_provider": "ollama", "ollama_model": "qwen3:8b", "live_requirements": True,
+                   "live_window_atoms": 90, "claude_model": "claude-sonnet-5"}, f)
+    loaded = settings.load_settings()
+    assert loaded["llm_provider"] == "local" and loaded["claude_model"] == "claude-sonnet-5"
+    assert not {"ollama_model", "live_requirements", "live_window_atoms"} & set(loaded)
+    settings.save_settings({"silence_stop_minutes": 5})
+    with open(settings.settings_file(), encoding="utf-8") as f:
+        stored = json.load(f)
+    assert stored["llm_provider"] == "local" and stored["silence_stop_minutes"] == 5
+    assert not {"ollama_model", "live_requirements", "live_window_atoms"} & set(stored)
 
 
 def test_legacy_env_next_to_code_is_still_read(data_dir, monkeypatch, tmp_path):
@@ -143,39 +157,6 @@ def test_api_errors_become_clear_messages(error, expected):
         summarize_with_claude("x", "claude-opus-5", "sk", lambda t: None, client=FakeClient(error=error()))
 
 
-# ── Ollama ───────────────────────────────────────────────────────────────────
-
-def ndjson(*events):
-    return io.BytesIO(b"".join(json.dumps(e, ensure_ascii=False).encode() + b"\n" for e in events))
-
-
-def test_ollama_streams_and_drops_inline_thinking():
-    sent = {}
-
-    def opener(req, timeout):
-        sent.update(url=req.full_url, body=json.loads(req.data))
-        return ndjson({"message": {"content": "<thi"}}, {"message": {"content": "nk>plan</think>## Итоги"}},
-                      {"message": {"content": "\nГотово"}}, {"done": True})
-    deltas = []
-    out = summarize_with_ollama("text", "qwen3:8b", deltas.append, "http://127.0.0.1:11434", opener=opener)
-    assert out == "## Итоги\nГотово" and "plan" not in "".join(deltas)
-    assert sent["url"].endswith("/api/chat") and sent["body"]["model"] == "qwen3:8b" and sent["body"]["stream"]
-
-
-def test_ollama_not_running():
-    def opener(req, timeout):
-        raise urllib.error.URLError("refused")
-    with pytest.raises(SummaryError, match="isn't running"):
-        summarize_with_ollama("t", "qwen3:8b", lambda t: None, "http://x", opener=opener)
-
-
-def test_ollama_model_missing():
-    def opener(req, timeout):
-        raise urllib.error.HTTPError(req.full_url, 404, "nf", {}, io.BytesIO(b'{"error":"model not found"}'))
-    with pytest.raises(SummaryError, match="ollama pull qwen3:8b"):
-        summarize_with_ollama("t", "qwen3:8b", lambda t: None, "http://x", opener=opener)
-
-
 def test_think_filter_across_chunk_boundaries():
     f = _ThinkFilter()
     out = "".join(f.feed(c) for c in ["A<", "think", ">x</th", "ink>B", "<t", "C"])
@@ -184,4 +165,4 @@ def test_think_filter_across_chunk_boundaries():
 
 def test_empty_transcript():
     with pytest.raises(SummaryError):
-        summarize.summarize("  ", settings.DEFAULTS, "sk", "http://x", lambda t: None)
+        summarize.summarize("  ", settings.DEFAULTS, "sk", lambda t: None)

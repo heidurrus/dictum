@@ -20,14 +20,11 @@ LEGACY_ENV_FILE = os.path.join(ROOT, ".env")
 
 SECRET_KEYS = {"HF_TOKEN", "ANTHROPIC_API_KEY"}
 DEFAULTS = {
-    "llm_provider": "claude",          # "claude" | "local" (built-in) | "ollama"
+    "llm_provider": "claude",          # "claude" | "local" (built-in)
     "claude_model": "claude-opus-5",
-    "ollama_model": "qwen3:8b",
     "local_model": "",                 # built-in model id; empty = the downloaded one
     "live_transcription": True,        # transcript on the meeting page while recording (5.0 C4.1)
-    "live_requirements": True,         # requirements extracted while recording (5.0 C4.2)
     "live_questions": False,           # the question card: answers from the materials to questions heard (5.0 C4.3)
-    "live_window_atoms": 90,           # seconds between two live extraction passes
     "silence_stop_minutes": 10,        # stop the recording after this much silence; 0 = never (5.0 C4.3)
     "menubar": True,                   # the macOS menu-bar item (5.0 C7, core/hotkeys.py)
     "consent_reminder": True,          # ask for the participants' consent once per session before recording
@@ -47,7 +44,7 @@ CLAUDE_MODELS = [
     ("claude-sonnet-5", "Claude Sonnet 5 (faster, cheaper)"),
     ("claude-haiku-4-5", "Claude Haiku 4.5 (fastest, cheapest)"),
 ]
-PROVIDERS = {"claude", "local", "ollama"}
+PROVIDERS = {"claude", "local"}
 RECAP_STYLES = ("brief", "bullets", "actions")
 NOTES_STYLES = ("standard", "concise")
 # Taken by macOS for every app: never offered as a binding (spec 5.0 C9).
@@ -122,7 +119,12 @@ def load_settings():
     try:
         with open(settings_file(), encoding="utf-8") as f:
             stored = json.load(f)
+        # Keys no longer in DEFAULTS (settings removed in earlier versions) are ignored, so the next save drops them.
         data.update({k: v for k, v in stored.items() if k in DEFAULTS and k not in ("hotkeys", "tuning")})
+        if data["llm_provider"] not in PROVIDERS:
+            # A provider no longer offered (5.0.3 removed one that ran on the user's machine) loads as the built-in
+            # local model, so nothing starts going to the cloud without the user choosing it.
+            data["llm_provider"] = "local"
         if isinstance(stored.get("hotkeys"), dict):
             data["hotkeys"].update({k: v for k, v in stored["hotkeys"].items() if k in DEFAULTS["hotkeys"]})
         if isinstance(stored.get("tuning"), dict):
@@ -193,17 +195,16 @@ def save_settings(updates):
                 raise ValueError("tuning values must be numbers")
             data[key] = {**data[key], **value}
             continue
-        if key in ("live_transcription", "live_requirements", "live_questions", "menubar", "consent_reminder"):
+        if key in ("live_transcription", "live_questions", "menubar", "consent_reminder"):
             data[key] = value is True or str(value).strip().lower() in ("true", "1", "yes", "on")
             continue
-        if key in ("live_window_atoms", "silence_stop_minutes"):
+        if key == "silence_stop_minutes":
             try:
                 number = int(value)
             except (TypeError, ValueError):
                 raise ValueError(f"{key} must be a whole number") from None
-            low, high = (30, 3600) if key == "live_window_atoms" else (0, 240)
-            if not low <= number <= high:
-                raise ValueError(f"{key} must be between {low} and {high}")
+            if not 0 <= number <= 240:
+                raise ValueError(f"{key} must be between 0 and 240")
             data[key] = number
             continue
         value = str(value).strip()
@@ -223,8 +224,6 @@ def save_settings(updates):
             from core.local_llm import EMBED_MODELS_BY_ID
             if value not in EMBED_MODELS_BY_ID:
                 raise ValueError(f"unknown index model {value}")
-        if key == "ollama_model" and not value:
-            raise ValueError("ollama_model must not be empty")
         data[key] = value
     tmp = settings_file() + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:

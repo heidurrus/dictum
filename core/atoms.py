@@ -135,14 +135,12 @@ def _source_header(source):
     return f"Source: {kind} titled “{source['title']}”."
 
 
-def extract_candidates(store, source_id, prefs, api_key, ollama_url, skillset=None, progress=None,
-                       complete=complete_json, note=None, segments=None, context=None):
+def extract_candidates(store, source_id, prefs, api_key, skillset=None, progress=None,
+                       complete=complete_json, note=None):
     """Atoms found in one source, verified against the text, without saving anything
-    (used by extraction and by "try this skill"). While recording (5.0 C4.2) `segments` are only the lines
-    since the last pass and `context` the lines just before them: shown to the model, never cited."""
+    (used by extraction and by "try this skill")."""
     source = store.get_source(source_id)
-    if segments is None:
-        segments, _ = store.transcript(source_id)
+    segments, _ = store.transcript(source_id)
     if not segments:
         raise LLMError("This source has no text yet.")
     skillset = skillset or skills.resolve()
@@ -154,14 +152,10 @@ def extract_candidates(store, source_id, prefs, api_key, ollama_url, skillset=No
     candidates, dropped, skipped = [], 0, []
     for i, chunk in enumerate(chunks):
         report(i, steps, f"Reading part {i + 1} of {len(chunks)}…" if len(chunks) > 1 else "Reading the source…")
-        user = _source_header(source) + "\n\n"
-        if context:
-            user += ("Earlier in the meeting, for context only (take nothing from these lines):\n"
-                     + "\n".join("  " + segment_line(s) for s in context) + "\n\nNew lines:\n")
-        user += "\n".join(segment_line(s) for s in chunk)
+        user = _source_header(source) + "\n\n" + "\n".join(segment_line(s) for s in chunk)
         if (note or "").strip():
             user += "\n\nThe analyst's instruction for this run (follow it unless it breaks the format): " + note.strip()
-        reply = complete(system, user, EXTRACT_SCHEMA, prefs, api_key, ollama_url)
+        reply = complete(system, user, EXTRACT_SCHEMA, prefs, api_key)
         for atom in reply.get("atoms") or []:
             statement = (atom.get("statement") or "").strip()
             if atom.get("type") in ("action_item", "other") and statement:
@@ -184,7 +178,7 @@ def extract_candidates(store, source_id, prefs, api_key, ollama_url, skillset=No
     return candidates, dropped, steps, skipped
 
 
-def extract_atoms(store, source_id, prefs, api_key, ollama_url, progress=None, complete=complete_json, skillset=None,
+def extract_atoms(store, source_id, prefs, api_key, progress=None, complete=complete_json, skillset=None,
                   note=None):
     """Extract atoms from one source into the store; returns counts for the UI.
 
@@ -196,7 +190,7 @@ def extract_atoms(store, source_id, prefs, api_key, ollama_url, progress=None, c
     model = model_name(prefs)
     skillset = skillset or skills.resolve()
     report = progress or (lambda done, total, message: None)
-    candidates, dropped, steps, skipped = extract_candidates(store, source_id, prefs, api_key, ollama_url, skillset=skillset,
+    candidates, dropped, steps, skipped = extract_candidates(store, source_id, prefs, api_key, skillset=skillset,
                                                     progress=progress, complete=complete, note=note)
     report(steps - 1, steps, "Checking for duplicates and conflicts…")
     cleared = store.delete_pending_atoms_for_source(source_id)
@@ -205,14 +199,14 @@ def extract_atoms(store, source_id, prefs, api_key, ollama_url, progress=None, c
                                                   ("owner", "due", "quote", "segment_idx", "start")}}
                                                  for x in skipped if x["type"] == "action_item"])
     new_ids = store.add_atoms(project["id"], candidates, model=model) if candidates else []
-    merged, conflicts = _dedup(store, project["id"], new_ids, prefs, api_key, ollama_url, complete, skillset)
+    merged, conflicts = _dedup(store, project["id"], new_ids, prefs, api_key, complete, skillset)
     report(steps, steps, "Done")
     return {"extracted": len(new_ids) - merged, "merged": merged, "conflicts": conflicts,
             "dropped": dropped, "skipped_actions": sum(1 for x in skipped if x["type"] == "action_item"),
             "skipped_other": sum(1 for x in skipped if x["type"] == "other"), "replaced": cleared, "provider": prefs["llm_provider"], "model": model}
 
 
-def _dedup(store, project_id, new_ids, prefs, api_key, ollama_url, complete, skillset=None):
+def _dedup(store, project_id, new_ids, prefs, api_key, complete, skillset=None):
     if not new_ids:
         return 0, 0
     new_set = set(new_ids)
@@ -226,7 +220,7 @@ def _dedup(store, project_id, new_ids, prefs, api_key, ollama_url, complete, ski
     lines = [f"{key} [{a['type']}] {a['statement']}" for key, a in labelled]
     try:
         system = skills.compose(skillset or skills.resolve(), "dedup", DEDUP_CONTRACT)
-        reply = complete(system, "\n".join(lines), DEDUP_SCHEMA, prefs, api_key, ollama_url)
+        reply = complete(system, "\n".join(lines), DEDUP_SCHEMA, prefs, api_key)
     except LLMError:
         return 0, 0          # the atoms are saved; a failed comparison just means no suggestions
 
@@ -272,7 +266,7 @@ RECLASSIFY_SCHEMA = {
 }
 
 
-def reclassify(store, project_id, prefs, api_key, ollama_url, progress=None, complete=complete_json, skillset=None,
+def reclassify(store, project_id, prefs, api_key, progress=None, complete=complete_json, skillset=None,
                chunk=60):
     """Suggest a better type for each accepted or pending atom; returns [{id, from, to}] without saving."""
     project = store.get_project(project_id)
@@ -291,7 +285,7 @@ def reclassify(store, project_id, prefs, api_key, ollama_url, progress=None, com
         user = "\n".join(f"{k} {a['statement']}" +
                          (f"  (quote: «{a['evidence'][0]['quote']}»)" if a["evidence"] else "")
                          for k, a in keys.items())
-        reply = complete(system, user, RECLASSIFY_SCHEMA, prefs, api_key, ollama_url)
+        reply = complete(system, user, RECLASSIFY_SCHEMA, prefs, api_key)
         for item in reply.get("items") or []:
             a = keys.get(str(item.get("id", "")).strip())
             new = item.get("type")

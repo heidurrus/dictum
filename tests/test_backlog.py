@@ -18,7 +18,7 @@ def store(tmp_path):
 
 def built(store):
     pid, ids, sid = seed(store)
-    frd.build(store, pid, PREFS, "k", "", complete=llm(full_reply()))
+    frd.build(store, pid, PREFS, "k", complete=llm(full_reply()))
     return pid
 
 
@@ -44,7 +44,7 @@ def by_kind(items, kind):
 def test_build_tree_links_defaults_and_coverage(store):
     pid = built(store)
     fake = llm(decomposition())
-    r = backlog.build(store, pid, PREFS, "k", "", complete=fake)
+    r = backlog.build(store, pid, PREFS, "k", complete=fake)
     items = store.backlog(pid)
     epics, stories, subtasks, nfrs = (by_kind(items, k) for k in ("epic", "story", "subtask", "nfr"))
     assert (len(epics), r["frd_version"]) == (2, 1)                       # + "Прочее" for the uncovered FR-2
@@ -63,11 +63,11 @@ def test_build_tree_links_defaults_and_coverage(store):
 
 def test_rebuild_keeps_pinned_items(store):
     pid = built(store)
-    backlog.build(store, pid, PREFS, "k", "", complete=llm(decomposition()))
+    backlog.build(store, pid, PREFS, "k", complete=llm(decomposition()))
     story = by_kind(store.backlog(pid), "story")[0]
     store.update_backlog_item(story["id"], body="Отредактировано аналитиком")
     mine = store.add_backlog_item(pid, {"kind": "story", "title": "Своя история"})
-    backlog.build(store, pid, PREFS, "k", "", complete=llm(decomposition()))
+    backlog.build(store, pid, PREFS, "k", complete=llm(decomposition()))
     titles = [i["title"] for i in store.backlog(pid)]
     assert "Своя история" in titles
     assert any(i["body"] == "Отредактировано аналитиком" for i in store.backlog(pid))
@@ -78,7 +78,7 @@ def test_rebuild_keeps_pinned_items(store):
 def test_build_needs_a_document(store):
     pid, *_ = seed(store)
     with pytest.raises(backlog.BacklogError, match="marked for decomposition"):
-        backlog.build(store, pid, PREFS, "k", "", complete=llm())
+        backlog.build(store, pid, PREFS, "k", complete=llm())
 
 
 def test_decompose_skill_is_used(store):
@@ -86,7 +86,7 @@ def test_decompose_skill_is_used(store):
     s = skills.create("split-into-stories")
     skills.save(s.name, instructions="ИСТОРИИ ТОЛЬКО ДЛЯ СТАРШЕГО СМЕНЫ. {language}")
     fake = llm(decomposition())
-    backlog.build(store, pid, PREFS, "k", "", complete=fake, skillset=skills.resolve({"decompose": s.name}))
+    backlog.build(store, pid, PREFS, "k", complete=fake, skillset=skills.resolve({"decompose": s.name}))
     assert fake.calls[0]["system"].startswith("ИСТОРИИ ТОЛЬКО ДЛЯ СТАРШЕГО СМЕНЫ. Russian")
 
 
@@ -94,7 +94,7 @@ def test_decompose_skill_is_used(store):
 
 def test_include_cascades_down_and_up(store):
     pid = built(store)
-    backlog.build(store, pid, PREFS, "k", "", complete=llm(decomposition()))
+    backlog.build(store, pid, PREFS, "k", complete=llm(decomposition()))
     items = store.backlog(pid)
     epic, story, sub = by_kind(items, "epic")[0], by_kind(items, "story")[0], by_kind(items, "subtask")[0]
     store.set_backlog_included(pid, [epic["id"]], False)
@@ -106,7 +106,7 @@ def test_include_cascades_down_and_up(store):
 
 def test_edit_pins_and_validates_criteria(store):
     pid = built(store)
-    backlog.build(store, pid, PREFS, "k", "", complete=llm(decomposition()))
+    backlog.build(store, pid, PREFS, "k", complete=llm(decomposition()))
     story = by_kind(store.backlog(pid), "story")[0]
     out = store.update_backlog_item(story["id"], acceptance=[{"given": "a", "when": "b", "then": "c"}, {"given": " "}])
     assert out["acceptance"] == [{"given": "a", "when": "b", "then": "c"}] and out["pinned"]
@@ -118,7 +118,7 @@ def test_edit_pins_and_validates_criteria(store):
 
 def test_delete_subtree_and_restore(store):
     pid = built(store)
-    backlog.build(store, pid, PREFS, "k", "", complete=llm(decomposition()))
+    backlog.build(store, pid, PREFS, "k", complete=llm(decomposition()))
     story = by_kind(store.backlog(pid), "story")[0]
     gone = store.delete_backlog_item(story["id"])
     assert len(gone) == 3 and story["id"] not in {i["id"] for i in store.backlog(pid)}
@@ -128,7 +128,7 @@ def test_delete_subtree_and_restore(store):
 
 def test_move_nfr_into_story_criteria(store):
     pid = built(store)
-    backlog.build(store, pid, PREFS, "k", "", complete=llm(decomposition()))
+    backlog.build(store, pid, PREFS, "k", complete=llm(decomposition()))
     items = store.backlog(pid)
     nfr, story = by_kind(items, "nfr")[0], by_kind(items, "story")[0]
     out = backlog.move_nfr_into(store, nfr["id"], story["id"])
@@ -139,10 +139,10 @@ def test_move_nfr_into_story_criteria(store):
 
 def test_invest_findings_are_stored_per_story(store):
     pid = built(store)
-    backlog.build(store, pid, PREFS, "k", "", complete=llm(decomposition()))
+    backlog.build(store, pid, PREFS, "k", complete=llm(decomposition()))
     fake = llm({"findings": [{"id": "S1", "letter": "S", "reason": "Слишком большая", "fix": "Разделить на две"},
                              {"id": "S9", "letter": "I", "reason": "нет такой", "fix": ""}]})
-    r = backlog.invest(store, pid, PREFS, "k", "", complete=fake)
+    r = backlog.invest(store, pid, PREFS, "k", complete=fake)
     stories = by_kind(store.backlog(pid), "story")
     assert r == {"checked": 2, "with_findings": 1, "model": "claude-opus-5"}
     assert stories[0]["invest"] == [{"letter": "S", "reason": "Слишком большая", "fix": "Разделить на две"}]
@@ -151,9 +151,9 @@ def test_invest_findings_are_stored_per_story(store):
 
 def test_stale_when_the_document_changes(store):
     pid = built(store)
-    backlog.build(store, pid, PREFS, "k", "", complete=llm(decomposition()))
+    backlog.build(store, pid, PREFS, "k", complete=llm(decomposition()))
     assert backlog.stale(store, pid) == {"built_from": 1, "latest": 1, "stale": False}
-    frd.build(store, pid, PREFS, "k", "", mode="full", complete=llm(full_reply()))
+    frd.build(store, pid, PREFS, "k", mode="full", complete=llm(full_reply()))
     assert backlog.stale(store, pid)["stale"] is True
 
 

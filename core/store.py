@@ -235,7 +235,7 @@ class Store:
                             ("summaries", ("style TEXT NOT NULL DEFAULT 'brief'", "through_idx INTEGER")),
                             # v9 part 2 (5.0 C4.1): lines from the live pass while recording, replaced on stop.
                             ("segments", ("provisional INTEGER NOT NULL DEFAULT 0",)),
-                            # v9 part 3 (5.0 C4.2): atoms found while recording, and evidence the final pass lost.
+                            # v9 part 3 (5.0 C4.2, removed in 5.0.3): no longer written or read, kept so old databases open.
                             ("atoms", ("live INTEGER NOT NULL DEFAULT 0", "stale_evidence INTEGER NOT NULL DEFAULT 0")),
                             # v9 part 5 (5.0 C5 index): a deleted label that still holds removal tombstones is kept
                             # hidden, so recreating it by name never puts back what the BA took off.
@@ -472,7 +472,7 @@ class Store:
                                    WHERE e.source_id = s.id AND a.status != 'merged' AND a.deleted_at IS NULL) AS atom_count,
                                   (SELECT COUNT(DISTINCT e.atom_id) FROM evidence e JOIN atoms a ON a.id = e.atom_id
                                    WHERE e.source_id = s.id AND a.status NOT IN ('merged', 'rejected')
-                                   AND a.deleted_at IS NULL) AS live_atoms
+                                   AND a.deleted_at IS NULL) AS open_atoms
                                 FROM sources s WHERE {where}
                                 ORDER BY {order}""", args).fetchall()
             if sort == "az":      # SQLite's NOCASE folds ASCII only; Cyrillic titles sort here
@@ -493,7 +493,7 @@ class Store:
             s = self._row(r, SOURCE_FIELDS)
             s["has_summary"] = r["summary_count"] > 0
             s["atom_count"] = r["atom_count"]
-            s["atoms"] = r["live_atoms"]
+            s["atoms"] = r["open_atoms"]
             names = renamed.get(s["id"], {})
             order_labels = labels.get(s["id"], [])
             # Renamed speakers first (in the order they speak), then the others by their label.
@@ -1439,7 +1439,7 @@ class Store:
         return dict(r)
 
     def add_atoms(self, project_id, atoms, model=None):
-        """atoms: [{type, statement, evidence: [{source_id, segment_idx, start, speaker, quote}], live?}]"""
+        """atoms: [{type, statement, evidence: [{source_id, segment_idx, start, speaker, quote}]}]"""
         self.get_project(project_id)
         created = []
         with self._write() as c:
@@ -1452,9 +1452,8 @@ class Store:
                 now, by = self._stamp()
                 aid = str(uuid.uuid4())
                 c.execute("INSERT INTO atoms (id, project_id, type, statement, original_statement, status, model, "
-                          "created_at, created_by, updated_at, updated_by, live) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                          (aid, project_id, a["type"], statement, statement, "pending", model, now, by, now, by,
-                           1 if a.get("live") else 0))
+                          "created_at, created_by, updated_at, updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                          (aid, project_id, a["type"], statement, statement, "pending", model, now, by, now, by))
                 for ev in a["evidence"]:
                     c.execute("INSERT INTO evidence VALUES (?,?,?,?,?,?,?,?)",
                               (str(uuid.uuid4()), aid, ev["source_id"], ev.get("segment_idx"), ev.get("start"),
@@ -1614,12 +1613,6 @@ class Store:
             now, by = self._stamp()
             c.execute("UPDATE atoms SET status = 'merged', merged_into = ?, updated_at = ?, updated_by = ? WHERE id = ?",
                       (into_id, now, by, duplicate_id))
-            # A live atom whose quote the final transcript lost (5.0 C4.2) has verified evidence again once the
-            # final pass's copy of it is folded in: a quote on a line of the same source.
-            c.execute("""UPDATE atoms SET stale_evidence = 0 WHERE id = ? AND stale_evidence = 1 AND EXISTS (
-                           SELECT 1 FROM evidence e WHERE e.atom_id = atoms.id AND e.segment_idx IS NOT NULL
-                           AND e.source_id IN (SELECT source_id FROM evidence WHERE atom_id = atoms.id
-                                               AND segment_idx IS NULL))""", (into_id,))
             self._audit(c, "atom", duplicate_id, "merge", {"status": dup["status"]},
                         {"merged_into": into_id, "reason": audit_reason})
 
@@ -1659,55 +1652,12 @@ class Store:
                              AND atom_b IN (SELECT id FROM atoms WHERE deleted_at IS NULL)""", (aid, aid))
         return done
 
-    # ── atoms found while recording (5.0 C4.2) ───────────────────────────────
-    def source_atoms(self, source_id):
-        """The atoms a source supports, newest first, flattened for the live block: its first quote from this
-        source, the live and stale_evidence flags. Merged and deleted atoms are left out."""
-        with self._conn() as c:
-            rows = c.execute("""SELECT a.id, a.type, a.statement, a.status, a.live, a.stale_evidence, a.created_at,
-                                       (SELECT e.quote FROM evidence e WHERE e.atom_id = a.id AND e.source_id = ?
-                                        ORDER BY e.created_at, e.start LIMIT 1) AS quote,
-                                       (SELECT e.segment_idx FROM evidence e WHERE e.atom_id = a.id AND e.source_id = ?
-                                        ORDER BY e.created_at, e.start LIMIT 1) AS segment_idx,
-                                       (SELECT e.start FROM evidence e WHERE e.atom_id = a.id AND e.source_id = ?
-                                        ORDER BY e.created_at, e.start LIMIT 1) AS start,
-                                       (SELECT e.speaker FROM evidence e WHERE e.atom_id = a.id AND e.source_id = ?
-                                        ORDER BY e.created_at, e.start LIMIT 1) AS speaker
-                                FROM atoms a WHERE a.deleted_at IS NULL AND a.status != 'merged'
-                                AND a.id IN (SELECT atom_id FROM evidence WHERE source_id = ?)
-                                ORDER BY a.created_at DESC, a.rowid DESC""", (source_id,) * 5).fetchall()
-        return [{**dict(r), "live": bool(r["live"]), "stale_evidence": bool(r["stale_evidence"])} for r in rows]
-
-    def live_atoms_for_source(self, source_id):
-        """Live atoms of a source still in play, each with its evidence rows from that source."""
-        with self._conn() as c:
-            atoms = [dict(r) for r in c.execute(
-                """SELECT id, status, stale_evidence FROM atoms WHERE live = 1 AND deleted_at IS NULL AND status != 'merged'
-                   AND id IN (SELECT atom_id FROM evidence WHERE source_id = ?) ORDER BY created_at, rowid""", (source_id,))]
-            for a in atoms:
-                a["evidence"] = [dict(r) for r in c.execute(
-                    "SELECT id, segment_idx, start, speaker, quote FROM evidence WHERE atom_id = ? AND source_id = ?",
-                    (a["id"], source_id))]
-        return atoms
-
-    def set_live_evidence(self, atom_id, moved, stale):
-        """After the final transcript: point evidence rows at the lines their quotes are now on
-        (moved = [{id, segment_idx, start, speaker}]) and flag the atom when a quote was not found."""
-        with self._write() as c:
-            for ev in moved:
-                c.execute("UPDATE evidence SET segment_idx = ?, start = ?, speaker = ? WHERE id = ? AND atom_id = ?",
-                          (ev["segment_idx"], ev.get("start"), ev.get("speaker"), ev["id"], atom_id))
-            c.execute("UPDATE atoms SET stale_evidence = ? WHERE id = ?", (1 if stale else 0, atom_id))
-            if stale:
-                self._audit(c, "atom", atom_id, "stale_evidence")
-
     def delete_pending_atoms_for_source(self, source_id):
         """Before re-extraction: drop atoms still pending that only this source supports
-        (reviewed atoms are kept, so no review work is lost; spec FR-TR-04 AC2). Atoms found while recording are
-        the user's and are kept too (5.0 C4.2)."""
+        (reviewed atoms are kept, so no review work is lost; spec FR-TR-04 AC2)."""
         with self._write() as c:
             ids = [r["id"] for r in c.execute(
-                """SELECT a.id FROM atoms a WHERE a.status = 'pending' AND a.live = 0
+                """SELECT a.id FROM atoms a WHERE a.status = 'pending'
                    AND EXISTS (SELECT 1 FROM evidence e WHERE e.atom_id = a.id AND e.source_id = ?)
                    AND NOT EXISTS (SELECT 1 FROM evidence e WHERE e.atom_id = a.id AND e.source_id != ?)""",
                 (source_id, source_id))]
