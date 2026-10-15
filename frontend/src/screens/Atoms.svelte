@@ -8,6 +8,7 @@
   import OpenItems from "../components/OpenItems.svelte";
   import AtomInspector from "../components/AtomInspector.svelte";
   import { api, pollJob } from "../lib/api.js";
+  import { extractAtoms } from "../lib/atoms.js";
   import { explain } from "../lib/errors.js";
   import { fmtTime, speakerDisplay } from "../lib/format.js";
   import { app, t, go, toast, loadSources, writePref } from "../lib/state.svelte.js";
@@ -371,7 +372,8 @@
   const evSource = ev => (ev ? ev.source_title : "");
   const evSpeaker = ev => (ev?.speaker ? speakerDisplay(ev.speaker, ev.speaker_name, t) : "");
 
-  const STATUSES = ["pending", "accepted", "rejected", "conflicts", "all"];
+  // The scope row (prototype-v5): На проверку / Принятые / Все, rejected only while there are some; conflicts are a chip.
+  const SEGS = ["pending", "accepted", "rejected", "all"];
   // business → BRD, functional/nfr → SRS, risk → risk register, current → As-Is, questions everywhere
   const ALL_TYPES = ["business", "functional", "nfr", "risk", "current", "question"];
   const typeClass = { functional: "fr", nfr: "nfr", question: "q", business: "br", risk: "rsk", current: "as" };
@@ -400,60 +402,75 @@
   // One banner at most: the first thing that applies.
   const shownSuggestion = $derived(shownSuggestions[0] || null);
   const showReclassify = $derived(atoms.length >= 5 && !hasNewTypes && !reclassifyHidden);
-  const sub = $derived(stats && stats.total ? t("at.sub", stats) + (stats.open_conflicts ? " · " + t("nav.st.conflicts", { n: stats.open_conflicts }) : "") : t("at.sub_empty"));
+  const sub = $derived(stats && stats.total ? t("at.head", stats) + (stats.open_conflicts ? " · " + t("nav.st.conflicts", { n: stats.open_conflicts }) : "") : t("at.sub_empty"));
+  // "Извлечь из новых встреч": the meetings without requirements first, each starts the usual per-source extraction.
+  const extractItems = $derived([...readySources].sort((a, b) => (a.atom_count ? 1 : 0) - (b.atom_count ? 1 : 0)).map(s => ({
+    value: s.id, label: s.title, icon: s.atom_count ? "refresh" : "bolt", disabled: !!app.extracting[s.id],
+    hint: app.extracting[s.id] ? "…" : s.atom_count ? String(s.atom_count) : t("at.extract_new_tag") })));
+  // "Проверить n": the queue of pending requirements, focused on the first.
+  function reviewNext() {
+    if (statusFilter !== "pending") setStatus("pending");
+    requestAnimationFrame(() => {
+      const a = visible.find(x => x.status === "pending");
+      if (a) { select(a.id); document.getElementById(`atom-${a.id}`)?.focus({ preventScroll: true }); }
+    });
+  }
 </script>
 
 <svelte:window onkeydown={onKey} />
 
-<Page title={t("at.title")} {sub} inspector={tab === "atoms" ? "atoms" : ""}>
+<Page title={t("at.title")} {sub} headClass="m" card={false} inspector={tab === "atoms" ? "atoms" : ""}>
   {#snippet actions()}
-    <div class="seg tb-opt2" role="tablist">
+    <div class="seg-m tb-opt2" role="tablist">
       <button role="tab" aria-selected={tab === "atoms"} onclick={() => (tab = "atoms")}>{t("at.tab.atoms")}
         {#if stats}<span class="n">{stats.total}</span>{/if}</button>
       <button role="tab" aria-selected={tab === "open"} onclick={() => (tab = "open")}>{t("at.tab.open")}
         {#if openQuestions}<span class="n">{openQuestions}</span>{/if}</button>
     </div>
-    <button class="btn" onclick={() => { tab = "atoms"; adding = { type: "functional", statement: "", note: "" }; }}>
-      <Icon name="plus" size={14} /> {t("at.add")}</button>
-    {#if stats && stats.accepted}
+    <button class="btn icon" title={t("at.add")} aria-label={t("at.add")}
+            onclick={() => { tab = "atoms"; adding = { type: "functional", statement: "", note: "" }; }}><Icon name="plus" size={16} /></button>
+    <PopMenu cls="btn xbtn" icon="bolt" chevron="" text={t("at.extract_new")} ariaLabel={t("at.extract_new")} align="right"
+             disabled={!readySources.length} items={extractItems} onpick={v => extractAtoms(v)} />
+    {#if stats?.pending}
+      <button class="btn primary" onclick={reviewNext}>{t("at.review_n", { n: stats.pending })} <Icon name="arrow" size={16} /></button>
+    {:else if stats && stats.accepted}
       <button class="btn primary" onclick={() => go("/document")}>
-        {app.status?.document?.version ? t("at.to_doc_update") : t("doc.build_cta")} <Icon name="arrow" size={14} /></button>
+        {app.status?.document?.version ? t("at.to_doc_update") : t("doc.build_cta")} <Icon name="arrow" size={16} /></button>
     {/if}
   {/snippet}
 
   {#if tab === "open"}
     <div class="page scroll"><div class="open-wrap"><OpenItems {atoms} {conflicts} onChange={load} /></div></div>
   {:else}
-  <Panes screen="atoms">
+  <div class="at-screen">
     {#if atoms.length}
-      <div class="scope">
-        <label class="check-all" title="⌘A">
-          <input type="checkbox" checked={allChecked} indeterminate={checkedVisible.length > 0 && !allChecked} disabled={!visible.length}
-                 onchange={toggleAll} aria-label={t("at.select_all", { n: visible.length })} />
-        </label>
-        <div class="seg" role="group" aria-label={t("at.f.status")}>
-          {#each STATUSES as f (f)}
-            {#if f !== "conflicts" || inConflict || statusFilter === "conflicts"}
+      <div class="scope scope-row">
+        <div class="seg-m" role="group" aria-label={t("at.f.status")}>
+          {#each SEGS as f (f)}
+            {#if f !== "rejected" || statusCount(f) || statusFilter === "rejected"}
               <button class="pill" aria-pressed={statusFilter === f} onclick={() => setStatus(f)}>
-                {t("at.s." + f)}<span class="n" class:danger={f === "conflicts" && statusCount(f)}>{statusCount(f)}</span>
+                {t("at.s." + f)} <span class="n">· {statusCount(f)}</span>
               </button>
             {/if}
           {/each}
         </div>
-        <PopMenu label={t("insp.type")} value={typeFilter} ariaLabel={t("insp.type")}
-                 items={[{ value: "all", label: t("at.s.all") }, { sep: true },
-                         ...ALL_TYPES.map(ty => ({ value: ty, label: t("at.full." + ty), hint: String(typeCount(ty)) }))]}
-                 onpick={v => (typeFilter = v)} />
+        <div class="types" role="group" aria-label={t("insp.type")}>
+          {#each ALL_TYPES as ty (ty)}
+            <button class="chip-m sm" aria-pressed={typeFilter === ty} title={t("at.full." + ty)}
+                    onclick={() => (typeFilter = typeFilter === ty ? "all" : ty)}>{PREFIX[ty]}{#if typeFilter === ty} <span class="n">· {typeCount(ty)}</span>{/if}</button>
+          {/each}
+        </div>
+        {#if inConflict || statusFilter === "conflicts"}
+          <button class="chip-m sm danger" aria-pressed={statusFilter === "conflicts"}
+                  onclick={() => setStatus(statusFilter === "conflicts" ? "pending" : "conflicts")}>{t("at.in_conflict", { n: statusCount("conflicts") })}</button>
+        {/if}
         {#if sourcesWithAtoms.length > 1 || sourceFilter}
-          <PopMenu label={t("at.source")} value={sourceFilter || ""} ariaLabel={t("at.source")}
+          <PopMenu cls="popbtn src-pop" label={t("at.source")} value={sourceFilter || ""} ariaLabel={t("at.source")}
                    items={[{ value: "", label: t("at.all_sources") }, { sep: true },
                            ...sourcesWithAtoms.map(s => ({ value: s.id, label: s.title, hint: String(s.atom_count) })),
                            ...(sourceFilter && !sourcesWithAtoms.some(s => s.id === sourceFilter) ? [{ value: sourceFilter, label: sourceFilterTitle }] : [])]}
                    onpick={v => go(v ? `/atoms/source/${v}` : "/atoms")} />
         {/if}
-        <span class="opt"><PopMenu label={t("at.group")} value={groupBy} ariaLabel={t("at.group")}
-                 items={[{ value: "none", label: t("at.group.no") }, { value: "source", label: t("at.group.source") }, { value: "speaker", label: t("at.group.speaker") }]}
-                 onpick={v => (groupBy = v)} /></span>
         <span class="grow"></span>
         <label class="search">
           <Icon name="search" size={14} />
@@ -462,11 +479,15 @@
           <span class="kbd">/</span>
         </label>
         <PopMenu cls="btn ghost icon" chevron="" icon="more" ariaLabel={t("at.more")} title={t("at.more")} align="right"
-                 items={[{ value: "rc", label: t("at.rc.button"), icon: "bolt", disabled: !!reclassifying }]}
-                 onpick={v => v === "rc" && reclassify()} />
+                 items={[{ heading: t("at.group") },
+                         ...["none", "source", "speaker"].map(g => ({ value: "g:" + g, label: t(g === "none" ? "at.group.no" : "at.group." + g), icon: groupBy === g ? "check" : "" })),
+                         { sep: true }, { value: "rc", label: t("at.rc.button"), icon: "bolt", disabled: !!reclassifying }]}
+                 onpick={v => (v === "rc" ? reclassify() : (groupBy = v.slice(2)))} />
       </div>
     {/if}
 
+    <div class="pane-cards">
+  <Panes screen="atoms">
     <div class="notices">
       {#if error}<div class="banner danger"><Icon name="warn" /><span class="grow">{error}</span>
         <button class="btn sm" onclick={load}>{t("ov.retry")}</button></div>
@@ -506,7 +527,7 @@
 
     {#if adding}
       <section class="add-card">
-        <div class="seg" role="group" aria-label={t("insp.type")}>
+        <div class="seg-m" role="group" aria-label={t("insp.type")}>
           {#each ALL_TYPES as ty (ty)}
             <button aria-pressed={adding.type === ty} onclick={() => (adding.type = ty)} title={t("at.full." + ty)}>{PREFIX[ty]}</button>
           {/each}
@@ -548,9 +569,13 @@
         {/if}
       {:else}
         <div class="rows" class:selecting={checkedVisible.length > 0}>
-          <div class="rows-head cap">
-            <span></span><span>{t("insp.type")}</span><span>{t("at.col.req")}</span>
-            <span class="col-x">{t("at.source")}</span><span class="col-x">{t("insp.speaker")}</span><span class="col-x">{t("at.priority")}</span>
+          <div class="rows-head">
+            <label class="check-all" title="⌘A">
+              <input type="checkbox" checked={allChecked} indeterminate={checkedVisible.length > 0 && !allChecked} disabled={!visible.length}
+                     onchange={toggleAll} aria-label={t("at.select_all", { n: visible.length })} />
+            </label>
+            <span>{t("at.col.id")}</span><span>{t("at.col.statement")}</span>
+            <span class="col-src">{t("at.source")}</span><span class="col-x">{t("insp.speaker")}</span><span class="col-x">{t("at.priority")}</span>
             <span class="col-status">{t("at.col.status")}</span>
           </div>
           {#each groups as g (g.key)}
@@ -563,14 +588,14 @@
                    onclick={() => pick(atom.id)} ondblclick={() => startEdit(atom)}>
                 <input type="checkbox" class="row-check" checked={checked.has(atom.id)} aria-label={atom.statement}
                        onclick={e => { e.stopPropagation(); toggleCheck(atom, e.shiftKey); }} />
-                <span class="type {typeClass[atom.type]}" title={t("at.full." + atom.type)}>{codeOf[atom.id]}</span>
+                <span><span class="type idb {typeClass[atom.type]}" title={t("at.full." + atom.type)}>{codeOf[atom.id]}</span></span>
                 <div class="body">
                   <p class="row-title">{atom.statement}</p>
                   {#each atom.evidence.slice(0, 2) as e (e.id)}
                     <p class="quote">{e.quote}</p>
                   {/each}
                   <p class="row-meta">
-                    {#if ev}<span class="m-src">{evSource(ev)}</span>{#if ev.start != null}<span class="num">{fmtTime(ev.start)}</span>{/if}{/if}
+                    {#if ev}<span class="m-src">{#if ev.source_kind === "material"}<span class="mat" title={t("at.material")}><Icon name="file" size={10} /></span>{/if}{evSource(ev)}</span>{#if ev.start != null}<span class="num">{fmtTime(ev.start)}</span>{/if}{/if}
                     {#if atom.origin === "ba"}<span>{t("at.ba_origin")}</span>{/if}
                     {#if atom.statement !== atom.original_statement}<span>{t("at.edited")}</span>{/if}
                     {#if atom.type === "question" && atom.q_state}<span class:ok={atom.q_state === "answered"}>{t("oi.st." + atom.q_state)}</span>{/if}
@@ -579,13 +604,19 @@
                     {/each}
                   </p>
                 </div>
-                <span class="col-x trunc">{evSource(ev)}</span>
+                <span class="col-src">
+                  {#if ev}
+                    <span class="src-cell">{#if ev.source_kind === "material"}<span class="mat" title={t("at.material")}><Icon name="file" size={10} /></span>{/if}<span class="trunc">{evSource(ev)}</span></span>
+                    {#if atom.evidence.length > 1}<span class="t3 more-src">+{atom.evidence.length - 1}</span>{/if}
+                  {/if}
+                </span>
                 <span class="col-x trunc">{evSpeaker(ev)}</span>
                 <span class="col-x">{atom.priority ? t("at.prio." + atom.priority) : ""}</span>
                 <span class="col-status">
-                  {#if atom.status === "accepted"}<span class="status ok"><Icon name="check" size={12} /> {t("at.st.accepted")}</span>
-                  {:else if atom.status === "rejected"}<span class="status"><Icon name="close" size={12} /> {t("at.st.rejected")}</span>
-                  {:else}<span class="status accent"><Icon name="clock" size={12} /> {t("at.st.pending")}</span>{/if}
+                  {#if atom.conflicts.length && atom.status !== "rejected"}<span class="tag-m danger">{t("at.tag.conflict")}</span>
+                  {:else if atom.status === "accepted"}<span class="tag-m ok">{t("at.tag.accepted")}</span>
+                  {:else if atom.status === "rejected"}<span class="tag-m">{t("at.tag.rejected")}</span>
+                  {:else}<span class="tag-m warn">{t("at.tag.pending")}</span>{/if}
                 </span>
               </div>
             {/each}
@@ -635,79 +666,104 @@
                      title={focusedEv?.source_title || ""} head={focused ? t("ctx.where", { code: codeOf[focused.id] }) : t("ctx.title")} />
     {/snippet}
   </Panes>
+    </div>
+  </div>
   {/if}
 </Page>
 
 <style>
+  /* prototype-v5 pageRequirements(): the scope row on the background, the table in a card */
   .page { height: 100%; }
-  .open-wrap { max-width: 1100px; margin: 0 auto; padding: var(--s-7) var(--gutter) var(--s-11); }
-  .check-all { display: inline-grid; place-items: center; width: 20px; flex: none; }
-  .scope :global(.pop) { flex: none; }
-  .search .kbd { background: none; }
-  .search { width: clamp(160px, 22cqw, 320px); flex: 0 1 auto; }
-  .notices:not(:empty) { padding: var(--s-4) var(--gutter) 0; }
+  .open-wrap { max-width: 1100px; margin: 0 auto; padding: 0 4px var(--s-11); }
+  .at-screen { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+  .at-screen > .pane-cards { flex: 1; min-height: 0; }
+  .scope-row { display: flex; align-items: center; gap: 8px; padding: 0 4px 14px; flex-wrap: wrap; min-height: 0; border: 0; flex: none; }
+  .types { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+  .scope-row :global(.pop) { flex: none; }
+  .scope-row :global(.popbtn) { height: 32px; border-radius: 16px; background: var(--surface-2); padding: 0 10px 0 14px; }
+  .scope-row :global(.popbtn:hover) { background: var(--surface-3); }
+  .scope-row :global(.btn.icon) { width: 36px; height: 36px; border-radius: 18px; }
+  .search { width: clamp(150px, 18cqw, 280px); flex: 0 1 auto; height: 36px; border-radius: 18px; background: var(--surface); box-shadow: var(--shadow-1); padding: 0 12px; }
+  .search .kbd { background: var(--surface-2); }
+  .notices:not(:empty) { padding: var(--s-5) 14px 0; }
+  .notices .banner { flex-wrap: wrap; }
   .rule-text { white-space: pre-wrap; font: var(--size-mono)/var(--lh-mono) var(--mono); margin: var(--s-3) 0 0; color: var(--text); }
-  .add-card { margin: var(--s-5) var(--gutter) 0; padding: var(--s-5); border-radius: var(--r-l); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--outline-2);
+  .add-card { margin: var(--s-5) 14px 0; padding: var(--s-5); border-radius: var(--r-m); background: var(--surface-2);
     display: grid; gap: var(--s-4); grid-template-columns: minmax(0, 1fr); justify-items: start; flex: none; }
   .add-card textarea, .add-card input, .add-card .actions { width: 100%; }
+  .add-card .input { background: var(--surface); }
   .add-card textarea { font: var(--w-medium) var(--size-item)/var(--lh-item) var(--font); }
 
   .rows-wrap { display: flex; flex-direction: column; }
   .rows { container-type: inline-size; container-name: list; padding-bottom: 96px; }
-  .rows-head, .atom { display: grid; align-items: start; column-gap: var(--s-5); padding: 0 var(--gutter);
-    grid-template-columns: 20px 60px minmax(0, 1fr) 112px; }
-  .rows-head { position: sticky; top: 0; z-index: 2; align-items: center; height: 28px; background: var(--surface); border-bottom: 1px solid var(--outline-2); }
-  .col-x { display: none; font-size: var(--size-foot); line-height: var(--lh-item); color: var(--text-2); }
-  .rows-head .col-x { color: var(--text-3); font-size: var(--size-caption); }
-  .col-status { justify-self: end; }
-  .atom { padding-top: 10px; padding-bottom: 10px; position: relative; cursor: default; scroll-margin: 40px 0 96px;
-    transition: background var(--d-fast) var(--ease-out); }
-  .atom::after { content: ""; position: absolute; left: calc(var(--gutter) + 32px); right: 0; bottom: 0; height: 1px; background: var(--outline-2); }
+  .rows-head, .atom { display: grid; align-items: start; column-gap: 14px; padding: 0 14px;
+    grid-template-columns: 18px 72px minmax(0, 1fr) 120px; }
+  .rows-head { position: sticky; top: 0; z-index: 2; align-items: center; min-height: 38px; background: var(--surface); border-bottom: 1px solid var(--outline-2);
+    font-size: 12px; font-weight: 600; color: var(--text-3); white-space: nowrap; }
+  .check-all { display: inline-grid; place-items: center; width: 18px; }
+  .col-x, .col-src { display: none; font-size: 13px; line-height: var(--lh-item); color: var(--text-2); min-width: 0; }
+  .rows-head .col-x, .rows-head .col-src { color: var(--text-3); font-size: 12px; }
+  .col-status { justify-self: start; }
+  .atom { padding-top: 12px; padding-bottom: 12px; position: relative; cursor: default; scroll-margin: 40px 0 96px;
+    border-bottom: 1px solid var(--outline-2); transition: background var(--d-fast) var(--ease-out); }
   .atom:hover { background: var(--surface-2); }
-  .atom[aria-selected="true"] { background: var(--primary-c); }
-  .atom[aria-selected="true"]:hover { background: color-mix(in srgb, var(--primary-c), var(--primary) 12%); }
-  .atom.focus::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--primary); }
+  .atom[aria-selected="true"] { background: var(--secondary-c); }
+  .atom.focus::before { content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px; border-radius: 0 3px 3px 0; background: var(--primary); }
   .atom .row-check { margin-top: 2px; opacity: 0; transition: opacity var(--d-fast); }
   .atom:hover .row-check, .atom .row-check:checked, .atom.focus .row-check, .rows.selecting .row-check { opacity: 1; }
   @media (hover: none) { .atom .row-check { opacity: 1; } }
-  .atom .type { margin-top: 1px; }
   .body { min-width: 0; }
-  .row-title { font: var(--w-medium) var(--size-item)/var(--lh-item) var(--font); letter-spacing: -.003em; max-width: 96ch; text-wrap: pretty; }
+  .row-title { font-size: 14px; line-height: 20px; color: var(--text); max-width: 96ch; text-wrap: pretty; }
   .atom.rejected .row-title { color: var(--text-3); text-decoration: line-through; text-decoration-thickness: 1px; }
   .quote { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 2px; text-align: left;
-    color: var(--text-2); max-width: 96ch; }
+    color: var(--text-2); font-size: 13px; max-width: 96ch; }
   .quote::before { content: "«"; } .quote::after { content: "»"; }
-  .row-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px var(--s-4); margin-top: var(--s-2); font-size: var(--size-foot);
+  .row-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px var(--s-4); margin-top: var(--s-2); font-size: 12px;
     line-height: var(--lh-foot); color: var(--text-3); }
   .row-meta:empty { display: none; }
   .row-meta > span + span::before { content: "·"; margin-right: var(--s-4); color: var(--text-3); }
-  .row-meta .conf { color: var(--danger); font-weight: var(--w-medium); display: inline-flex; align-items: center; gap: var(--s-2); }
+  .row-meta .conf { color: var(--danger); font-weight: 500; display: inline-flex; align-items: center; gap: var(--s-2); }
   .row-meta .ok { color: var(--ok); }
-  .col-status { padding-top: 2px; }
-  @container list (min-width: 1160px) {
-    .rows-head, .atom { grid-template-columns: 20px 60px minmax(0, 1fr) minmax(120px, 220px) 120px 80px 112px; }
-    .col-x { display: block; }
+  .m-src { display: inline-flex; align-items: center; gap: 4px; }
+  .src-cell { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .more-src { font-size: 12px; }
+  .mat { width: 18px; height: 18px; border-radius: 5px; background: #5B45C9; color: #fff; display: inline-grid; place-items: center; flex: none; }
+  .col-status { padding-top: 0; }
+  @container list (min-width: 760px) {
+    .rows-head, .atom { grid-template-columns: 18px 72px minmax(0, 1fr) minmax(140px, 200px) 120px; }
+    .col-src { display: block; }
     .m-src { display: none; }
     .row-meta > .m-src + span::before { display: none; }
   }
-  .group-head { position: sticky; top: 28px; z-index: 1; display: flex; align-items: center; gap: var(--s-4); height: 28px; padding: 0 var(--gutter);
-    background: var(--surface-2); border-bottom: 1px solid var(--outline-2); font-size: var(--size-foot); color: var(--text-2); }
-  .group-head b { font-weight: var(--w-semibold); }
+  @container list (min-width: 1160px) {
+    .rows-head, .atom { grid-template-columns: 18px 72px minmax(0, 1fr) minmax(140px, 220px) 120px 80px 120px; }
+    .col-x { display: block; }
+  }
+  .group-head { position: sticky; top: 38px; z-index: 1; display: flex; align-items: center; gap: var(--s-4); height: 30px; padding: 0 14px;
+    background: var(--surface-2); font-size: 12px; color: var(--text-2); }
+  .group-head b { font-weight: 600; }
   .glyph.ok { background: var(--ok-c); color: var(--ok); }
 
   .bulkbar { position: absolute; left: 50%; bottom: var(--s-8); transform: translateX(-50%); z-index: 20;
-    display: flex; align-items: center; gap: var(--s-4); min-height: 48px; padding: var(--s-3) var(--s-4) var(--s-3) var(--s-6); border-radius: var(--r-xl);
+    display: flex; align-items: center; gap: var(--s-4); min-height: 52px; padding: 6px 8px 6px 20px; border-radius: 26px;
     background: var(--hud); color: var(--hud-text); box-shadow: var(--shadow-3); -webkit-backdrop-filter: var(--blur-hud); backdrop-filter: var(--blur-hud);
     max-width: calc(100% - 32px); flex-wrap: wrap; animation: hud-in var(--d-slow) var(--ease-out); }
   @keyframes hud-in { from { opacity: 0; transform: translate(-50%, 24px); } }
-  .bulkbar .count { font-weight: var(--w-semibold); white-space: nowrap; }
-  .bulkbar .conf { color: #FFB4A8; font-size: var(--size-foot); white-space: nowrap; }
+  .bulkbar .count { font-weight: 600; white-space: nowrap; }
+  .bulkbar .conf { color: #FFB4A8; font-size: 12px; white-space: nowrap; }
   .bulkbar .vsep { width: 1px; height: 20px; background: var(--hud-line); }
-  .bulkbar :global(.btn) { background: rgba(255,255,255,.12); color: var(--hud-text); box-shadow: none; }
-  .bulkbar :global(.btn:hover:not(:disabled)) { background: rgba(255,255,255,.2); }
-  .bulkbar :global(.btn.primary) { background: var(--primary); }
+  .bulkbar :global(.btn) { height: 36px; padding: 0 14px; border-radius: 18px; background: var(--hud-2); color: var(--hud-text); box-shadow: none; }
+  .bulkbar :global(.btn:hover:not(:disabled)) { background: color-mix(in srgb, var(--hud-2), #fff 10%); }
+  .bulkbar :global(.btn.primary) { background: #A8C7FA; color: #062E6F; }
+  .bulkbar :global(.btn.primary:hover:not(:disabled)) { background: #BCD4FB; }
   .bulkbar :global(.btn.ghost) { background: none; color: var(--hud-text-2); }
   .bulkbar :global(.btn.danger-text) { color: #FFB4A8; }
   .bulkbar :global(.kbd) { background: rgba(255,255,255,.14); color: var(--hud-text); }
   .bulkbar .up :global(.menu) { top: auto; bottom: calc(100% + 8px); color: var(--text); }
+  @media (max-width: 760px) {
+    :global(.page-head.m .xbtn .trunc) { display: none; }
+    :global(.page-head.m .xbtn) { width: 36px; padding: 0 !important; }
+    .scope-row { gap: 6px; }
+    .search { width: 100%; flex: 1 1 100%; order: 9; }
+  }
 </style>

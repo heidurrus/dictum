@@ -66,11 +66,11 @@
   </div>
 {:else}
   <div class="pane-head">
-    <span class="type {typeClass[atom.type]}">{code}</span>
+    <span class="type idb {typeClass[atom.type]}">{code}</span>
     <span class="t3 trunc grow">{t("at.full." + atom.type)}</span>
-    {#if atom.status === "accepted"}<span class="status ok"><Icon name="check" size={12} /> {t("at.st.accepted")}</span>
-    {:else if atom.status === "rejected"}<span class="status"><Icon name="close" size={12} /> {t("at.st.rejected")}</span>
-    {:else}<span class="status accent"><Icon name="clock" size={12} /> {t("at.st.pending")}</span>{/if}
+    {#if atom.status === "accepted"}<span class="tag-m ok">{t("at.tag.accepted")}</span>
+    {:else if atom.status === "rejected"}<span class="tag-m">{t("at.tag.rejected")}</span>
+    {:else}<span class="tag-m warn">{t("at.tag.pending")}</span>{/if}
   </div>
 
   <div class="pane-body scroll">
@@ -210,28 +210,41 @@
 {/if}
 
 <style>
+  /* 5.0: the inspector card. Statement, conflict cards, evidence wells and the decision bar in tonal surfaces. */
+  .pane-head { height: 56px; padding: 0 20px; border-bottom-color: var(--outline-2); }
   .insp-empty { padding-top: 20vh; }
   .del { justify-items: start; order: 9; }
-  .pane-foot { padding: var(--s-5); gap: var(--s-3); }
+  .pane-foot { padding: 12px 16px; gap: 8px; background: var(--surface); border-top-color: var(--outline-2); }
+  .pane-foot .btn { height: 36px; padding: 0 16px; border-radius: 18px; background: var(--surface-2); box-shadow: none; font-weight: 600; }
+  .pane-foot .btn:hover:not(:disabled) { background: var(--surface-3); }
+  .pane-foot .btn.primary { background: var(--primary); color: var(--on-primary); }
+  .pane-foot .btn.primary:hover:not(:disabled) { background: var(--primary); box-shadow: var(--shadow-2); }
+  .pane-foot .btn.ghost { background: none; }
+  .pane-foot .btn[aria-pressed="true"]:not(.primary) { background: var(--secondary-c); color: var(--on-secondary-c); }
   .insp-empty p { font-size: var(--size-body); color: var(--text-3); }
-  .edit { font: var(--w-medium) var(--size-item)/var(--lh-item) var(--font); resize: vertical; }
-  .conflict { border-radius: var(--r-m); background: var(--danger-c); padding: var(--s-5); display: grid; gap: var(--s-4); grid-template-columns: minmax(0, 1fr); }
+  .edit { font: var(--w-medium) var(--size-item)/var(--lh-item) var(--font); resize: vertical; border-radius: 12px; }
+  .conflict { border-radius: 16px; background: var(--danger-c); padding: 14px 16px; display: grid; gap: var(--s-4); grid-template-columns: minmax(0, 1fr); }
   .conflict.waiting { background: var(--warn-c); }
-  .conflict h4 { font-size: var(--size-body); font-weight: var(--w-semibold); color: var(--danger); display: flex; align-items: center; gap: var(--s-3); flex-wrap: wrap; }
+  .conflict h4 { font-size: 13px; font-weight: 600; color: var(--danger); display: flex; align-items: center; gap: var(--s-3); flex-wrap: wrap; }
   .conflict.waiting h4 { color: var(--warn); }
   .cf-desc { color: var(--text-2); }
   .conflict-sides { display: grid; gap: var(--s-3); }
-  .conflict-side { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: var(--s-3); padding: var(--s-4); border-radius: var(--r-s); background: var(--surface); }
-  .conflict-side b { font: var(--w-semibold) var(--size-mono)/var(--lh-body) var(--mono); color: var(--text-3); }
-  .conflict-side .meta { font-size: var(--size-foot); margin-top: 2px; }
+  .conflict-side { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: var(--s-3); padding: 10px 12px; border-radius: 12px; background: var(--surface); }
+  .conflict-side b { font: 600 var(--size-mono)/var(--lh-body) var(--mono); color: var(--text-3); }
+  .conflict-side .meta { font-size: 12px; margin-top: 2px; }
   .conflict-actions { display: flex; gap: var(--s-3); flex-wrap: wrap; }
-  .evidence + .evidence { margin-top: var(--s-2); }
-  .evidence-head { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-4) var(--s-5); border: 0; border-bottom: 1px solid var(--outline-2);
-    background: none; width: 100%; text-align: left; font-size: var(--size-foot); color: var(--text-2); cursor: pointer; }
-  .evidence-head:hover { background: var(--surface-2); }
-  .evidence-head b { color: var(--text); font-weight: var(--w-medium); }
-  .ev-line { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: var(--s-4); padding: var(--s-3) var(--s-5); color: var(--text-3); }
+  .conflict-actions .btn { height: 30px; border-radius: 15px; padding: 0 12px; box-shadow: none; background: var(--surface); }
+  .conflict-actions .btn.primary { background: var(--primary); color: var(--on-primary); }
+  .conflict-actions .btn.ghost { background: none; }
+  .evidence { border-radius: 16px; box-shadow: none; background: var(--surface-2); }
+  .evidence + .evidence { margin-top: var(--s-3); }
+  .evidence-head { display: flex; align-items: center; gap: var(--s-3); padding: 10px 14px; border: 0; border-bottom: 1px solid var(--outline-2);
+    background: none; width: 100%; text-align: left; font-size: 12px; color: var(--text-2); cursor: pointer; }
+  .evidence-head:hover { background: var(--surface-3); }
+  .evidence-head b { color: var(--text); font-weight: 500; }
+  .ev-line { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: var(--s-4); padding: 6px 14px; color: var(--text-3); }
+  .ev-line:last-child { padding-bottom: 10px; }
   .ev-line.hit { color: var(--text); }
-  .ev-line .who { font-weight: var(--w-medium); color: var(--text-2); }
-  .kv dd :global(.popbtn) { max-width: 100%; }
+  .ev-line .who { font-weight: 500; color: var(--text-2); }
+  .kv dd :global(.popbtn) { max-width: 100%; border-radius: 16px; }
 </style>

@@ -388,6 +388,65 @@ del { background: var(--del); border-radius: 2px; color: var(--text-2); }
 @container ws (min-width: 1300px) { .c-wide { display: table-cell; } }
 @container ws (min-width: 2000px) { .c-xwide { display: table-cell; } }
 
+/* ── 5.0 pieces (prototype-v5: .card, .seg, .chip, .tag, .type, "Generic tables") ──
+   Used by the screens restyled in 4.9.14 (Требования, Документы, Бэклог, Выгрузка, Скиллы). */
+.card-m { background: var(--surface); border-radius: var(--r-l); box-shadow: var(--shadow-1); min-width: 0; min-height: 0; }
+.card-m.flat { box-shadow: none; }
+/* The head row of a restyled screen: pill buttons, the primary one filled. */
+.page-head.m .tb-actions .btn, .page-head.m .tb-actions .popbtn { height: 40px; padding: 0 20px; border-radius: 20px; font-size: 14px;
+  font-weight: 600; background: var(--surface-2); color: var(--text); box-shadow: none; gap: 8px; }
+.page-head.m .tb-actions .btn:hover:not(:disabled), .page-head.m .tb-actions .popbtn:hover { background: var(--surface-3); }
+.page-head.m .tb-actions .btn.primary { background: var(--primary); color: var(--on-primary); }
+.page-head.m .tb-actions .btn.primary:hover:not(:disabled) { background: var(--primary); box-shadow: var(--shadow-2); }
+.page-head.m .tb-actions .btn.ghost { background: none; color: var(--text-2); }
+.page-head.m .tb-actions .btn.ghost:hover:not(:disabled) { background: var(--surface-2); }
+.page-head.m .tb-actions .btn.icon { width: 40px; padding: 0; }
+.page-head.m .tb-actions .btn:focus-visible, .page-head.m .tb-actions .popbtn:focus-visible { box-shadow: var(--ring); }
+.page-head.m .tb-actions .popbtn { padding: 0 14px 0 18px; }
+.page-head.m .tb-actions .split .btn:first-child, .page-head.m .tb-actions .split > .btn { border-radius: 20px 0 0 20px; padding-right: 14px; }
+.page-head.m .tb-actions .split .pop .btn { border-radius: 0 20px 20px 0; padding: 0 12px; margin-left: 1px; }
+@media (max-width: 760px) {
+  .page-head.m .tb-actions .btn, .page-head.m .tb-actions .popbtn { height: 36px; padding: 0 14px; font-size: 13px; }
+  .page-head.m .tb-actions .btn.icon { width: 36px; }
+}
+/* Segmented control and filter chips of a scope row */
+.seg-m { display: inline-flex; background: var(--surface-2); border-radius: 20px; padding: 3px; gap: 2px; flex: none; max-width: 100%; overflow-x: auto;
+  scrollbar-width: none; }
+.seg-m button { height: 32px; padding: 0 14px; border: 0; border-radius: 17px; background: none; color: var(--text-2); font: 500 13px/1 var(--font);
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; cursor: pointer; transition: background var(--d-fast), color var(--d-fast); }
+.seg-m button:hover:not(:disabled) { color: var(--text); }
+.seg-m button[aria-pressed="true"], .seg-m button[aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow-1); }
+.seg-m button:focus-visible { box-shadow: var(--ring-inset); }
+.seg-m .n { color: var(--text-3); font-weight: 400; font-variant-numeric: tabular-nums; }
+.seg-m .n.danger { color: var(--danger); font-weight: 500; }
+.chip-m { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 0; border-radius: 8px; background: none;
+  box-shadow: inset 0 0 0 1px var(--outline); font: 500 13px/1 var(--font); color: var(--text-2); white-space: nowrap; cursor: pointer; flex: none; }
+.chip-m.sm { height: 28px; padding: 0 10px; font-size: 12px; }
+.chip-m:hover { background: var(--surface-2); }
+.chip-m[aria-pressed="true"] { background: var(--secondary-c); color: var(--on-secondary-c); box-shadow: none; }
+.chip-m.danger { color: var(--danger); }
+.chip-m.danger[aria-pressed="true"] { background: var(--danger-c); color: var(--danger); }
+.chip-m:focus-visible { box-shadow: var(--ring); }
+.chip-m .n { font-variant-numeric: tabular-nums; opacity: .8; }
+/* Status tag and ID badge */
+.tag-m { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 6px; font-size: 12px; font-weight: 500;
+  line-height: 1; white-space: nowrap; background: var(--surface-2); color: var(--text-2); }
+.tag-m.ok { background: var(--ok-c); color: var(--ok); } .tag-m.warn { background: var(--warn-c); color: var(--warn); }
+.tag-m.danger { background: var(--danger-c); color: var(--danger); } .tag-m.prim { background: var(--primary-c); color: var(--on-primary-c); }
+.type.idb { font: 600 11px/16px var(--mono); padding: 1px 6px; border-radius: 5px; background: var(--surface-2); gap: 0; }
+.type.idb::before { display: none; }
+/* Tables in a card */
+.rtable { width: 100%; border-collapse: collapse; }
+.rtable th { text-align: left; font-size: 12px; font-weight: 600; color: var(--text-3); padding: 10px 14px; border-bottom: 1px solid var(--outline-2);
+  white-space: nowrap; }
+.rtable td { padding: 12px 14px; border-bottom: 1px solid var(--outline-2); vertical-align: top; }
+.rtable tbody tr:hover td { background: var(--surface-2); }
+/* Panes as separate cards: the screen's columns float on the background with a gap. */
+.pane-cards { height: 100%; min-height: 0; }
+.pane-cards > .panes { gap: 14px; }
+.pane-cards > .panes > .pane { background: var(--surface); border-radius: var(--r-l); box-shadow: var(--shadow-1); overflow: hidden; }
+.pane-cards > .panes > .pane + .pane { border-left: 0; }
+
 /* ── HUD: toasts, bulk bar; sheet, palette ──────────────────────────────── */
 .toasts { position: fixed; left: 50%; bottom: var(--s-8); transform: translateX(-50%); display: grid; gap: var(--s-4); z-index: 200;
   justify-items: center; transition: bottom var(--d-slow) var(--ease-out); pointer-events: none; }
@@ -407,10 +466,16 @@ body.has-bulk .toasts { bottom: 88px; }
   padding: var(--s-8); display: grid; gap: var(--s-5); grid-template-columns: minmax(0, 1fr); animation: drop var(--d-slow) var(--ease-out); }
 .sheet h2 { font: var(--w-semibold) var(--size-title-2)/var(--lh-title-2) var(--font); letter-spacing: -.012em; }
 .sheet p { color: var(--text-2); }
-.sheet .facts { margin: 0; border-radius: var(--r-m); background: var(--surface-2); padding: var(--s-4) var(--s-5);
+.sheet .facts { margin: 0; border-radius: 16px; background: var(--surface-2); padding: var(--s-4) var(--s-5);
   display: grid; grid-template-columns: auto 1fr; gap: var(--s-3) var(--s-6); }
 .sheet .facts dt { color: var(--text-3); } .sheet .facts dd { margin: 0; font-weight: var(--w-medium); min-width: 0; overflow-wrap: anywhere; }
 .sheet .acts, .sheet-actions { display: flex; justify-content: flex-end; gap: var(--s-4); margin-top: var(--s-4); }
+.sheet .acts .btn, .sheet-actions .btn { height: 40px; padding: 0 20px; border-radius: 20px; font-weight: 600; box-shadow: none; background: var(--surface-2); }
+.sheet .acts .btn:hover:not(:disabled), .sheet-actions .btn:hover:not(:disabled) { background: var(--surface-3); }
+.sheet .acts .btn.primary, .sheet-actions .btn.primary { background: var(--primary); color: var(--on-primary); }
+.sheet .acts .btn.danger-fill, .sheet-actions .btn.danger-fill { background: var(--rec); color: #fff; }
+.sheet .acts .btn:focus-visible, .sheet-actions .btn:focus-visible { box-shadow: var(--ring); }
+.sheet .input { border-radius: 12px; }
 
 /* ── Speakers ───────────────────────────────────────────────────────────── */
 .spk-0 { color: var(--spk-1); } .spk-1 { color: var(--spk-2); } .spk-2 { color: var(--spk-3); }

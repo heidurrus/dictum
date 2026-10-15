@@ -208,7 +208,10 @@
   .oi-head { display: flex; align-items: center; gap: var(--s-5); flex-wrap: wrap; }
   .oi-head p { flex: 1; min-width: 240px; max-width: 72ch; }
   .spacer { flex: 1; }
-  .list { overflow: hidden; }
+  .list { overflow: hidden; border-radius: var(--r-l); box-shadow: var(--shadow-1); }
+  .oi :global(.section-h) { margin: var(--s-8) 4px var(--s-4); }
+  .oi :global(.section-h h2) { font-size: 16px; line-height: 22px; }
+  .oi .btn { border-radius: 16px; }
   .empty-line { padding: var(--s-5) var(--s-6); color: var(--text-3); }
   .qrow, .arow { display: flex; gap: var(--s-5); align-items: flex-start; padding: var(--s-5) var(--s-6); border-bottom: 1px solid var(--outline-2); }
   .qrow:last-child, .arow:last-child { border-bottom: 0; }

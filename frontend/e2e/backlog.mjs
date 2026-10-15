@@ -32,7 +32,7 @@ await page.locator(".seg-row").first().waitFor();
 await page.getByRole("button", { name: "Извлечь требования" }).click();
 await page.getByRole("button", { name: "Требования из источника · 3" }).waitFor({ timeout: 15000 });
 await page.goto(base + "/#/atoms");
-await sub.filter({ hasText: "на ревью" }).waitFor();
+await sub.filter({ hasText: "на проверку" }).waitFor();
 await page.locator(".check-all input").check();
 await page.locator(".bulkbar").getByRole("button", { name: /конфликтные/ }).click();   // all, conflicts included
 await page.getByText("Все требования разобраны").waitFor();
