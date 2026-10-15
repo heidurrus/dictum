@@ -4,7 +4,7 @@ Spec FR-PLAT-04 (first-run setup) and FR-PLAT-05 (check on every start). Every
 check is cheap and idempotent, so the same plan serves both: on a healthy
 machine all checks pass in well under a second and setup is skipped.
 
-Stdlib only: this runs before torch / gigaam exist.
+Stdlib only: this runs before torch and the speech package exist.
 """
 import importlib.metadata as md
 import importlib.util
@@ -199,7 +199,7 @@ def build_plan(hw, installer=None, state=None, hf_token_set=lambda: bool(os.gete
             args.append("--reinstall" if "uv" in installer.base_cmd() else "--force-reinstall")
         installer.install(args, log)
 
-    def install_gigaam(log):
+    def install_asr(log):
         installer.install([GIGAAM_SPEC], log)
 
     def install_ffmpeg(log):
@@ -218,8 +218,8 @@ def build_plan(hw, installer=None, state=None, hf_token_set=lambda: bool(os.gete
         Step("torch", "PyTorch", f"Machine-learning runtime · {variant.note} "
              f"({'~2.5 GB' if variant.name == 'cuda' else '~300 MB'})",
              lambda: torch_matches(variant), install_torch),
-        Step("gigaam", "GigaAM speech recognition", f"Pinned version {GIGAAM_COMMIT[:7]} (~50 MB)",
-             gigaam_pinned, install_gigaam),
+        Step("gigaam", "Speech recognition", f"Pinned version {GIGAAM_COMMIT[:7]} (~50 MB)",
+             gigaam_pinned, install_asr),
         Step("ffmpeg", "ffmpeg", "Audio conversion (~30 MB)",
              lambda: find_ffmpeg() is not None, install_ffmpeg),
         Step("model", "Speech model", f"{DEFAULT_ASR_MODEL} (~500 MB, downloaded once)",

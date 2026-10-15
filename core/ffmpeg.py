@@ -1,7 +1,7 @@
 """Locate ffmpeg: a system install wins, otherwise the binary shipped in the
 imageio-ffmpeg wheel that setup installs automatically (spec FR-PLAT-04, D-17).
 
-GigaAM's own ``load_audio`` runs a bare ``ffmpeg`` from PATH, and the wheel's
+The speech package's own ``load_audio`` runs a bare ``ffmpeg`` from PATH, and the wheel's
 binary has a versioned name inside site-packages, so ``ensure_ffmpeg_on_path``
 exposes it as ``ffmpeg`` in a per-user bin folder that is put on PATH.
 """

@@ -1,6 +1,6 @@
 """Import ready-made transcripts (spec FR-SRC-03 AC2: text sources skip transcription).
 
-Supported: WebVTT (Teams, Zoom, Google Meet), SRT, DOCX (Teams export or any
+Supported: WebVTT (Teams, Zoom, Meet), SRT, DOCX (Teams export or any
 document), PDF with a text layer (via pypdf), plain text in common layouts, and
 this app's own JSON result. Output
 has the same shape as a transcription result, so the UI (and later the atom

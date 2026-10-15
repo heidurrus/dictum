@@ -30,7 +30,7 @@ def user_agent():
             version = f.read().strip()
     except OSError:
         version = "dev"
-    return f"RequirementsWorkbench/{version} (+https://github.com/heidurrus/requirements-workbench)"
+    return f"Dictum/{version} (+https://getdictum.app)"
 
 
 class AuthError(Exception):
@@ -153,7 +153,7 @@ class AtlassianAuth:
         if redirect_uri in clients:
             return clients[redirect_uri]
         reg = self._request(self.metadata()["registration_endpoint"], {
-            "client_name": "Requirements Workbench", "redirect_uris": [redirect_uri],
+            "client_name": "Dictum", "redirect_uris": [redirect_uri],
             "grant_types": ["authorization_code", "refresh_token"], "response_types": ["code"],
             "token_endpoint_auth_method": "none"})
         if not reg.get("client_id"):

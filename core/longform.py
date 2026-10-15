@@ -1,5 +1,5 @@
-"""Long recordings (over ~25 s) are cut into chunks by pyannote's voice activity detection before GigaAM
-transcribes them. GigaAM hands pyannote the file *path*, and pyannote then decodes it with torchcodec,
+"""Long recordings (over ~25 s) are cut into chunks by pyannote's voice activity detection before the speech
+model transcribes them. The speech package hands pyannote the file *path*, and pyannote then decodes it with torchcodec,
 which torchaudio 2.9+ requires and which fails without FFmpeg's shared libraries. We already decode
 audio through our own ffmpeg (gigaam.preprocess.load_audio), so hand pyannote the waveform instead."""
 from typing import List, Tuple
@@ -7,7 +7,7 @@ from typing import List, Tuple
 
 def segment_waveform(audio, sad_segments, sr, max_duration=22.0, min_duration=15.0,
                      strict_limit_duration=30.0, new_chunk_threshold=0.2) -> Tuple[list, List[Tuple[float, float]]]:
-    """GigaAM's chunking rules, given the speech segments: chunks of 15–22 s, hard-split over 30 s."""
+    """The speech package's chunking rules, given the speech segments: chunks of 15–22 s, hard-split over 30 s."""
     segments = []
     boundaries: List[Tuple[float, float]] = []
     curr_duration = curr_start = curr_end = 0.0
@@ -54,7 +54,7 @@ def segment_audio_file(wav_file, sr, device="cpu", **kwargs):
 
 
 def install():
-    """Replace GigaAM's version; transcribe_longform looks the function up at call time."""
+    """Replace the speech package's version; transcribe_longform looks the function up at call time."""
     try:
         import gigaam.vad_utils as vu
     except Exception:          # pyannote missing: longform is unavailable anyway
@@ -106,7 +106,7 @@ def transcribe_chunks(model, chunks, batch_size=16, progress=None, word_timestam
 
 
 def transcribe_longform(model, wav_file, progress=None, word_timestamps=False):
-    """GigaAM's transcribe_longform with the VAD fed a waveform and the device cache released
+    """The speech package's transcribe_longform with the VAD fed a waveform and the device cache released
     after every batch. Returns [{start, end, text, words}]."""
     from gigaam.preprocess import SAMPLE_RATE
     chunks, bounds = segment_audio_file(wav_file, SAMPLE_RATE, device=model._device)

@@ -107,7 +107,7 @@ class McpSession:
     def initialize(self):
         self._post({"jsonrpc": "2.0", "id": next(self._ids), "method": "initialize",
                     "params": {"protocolVersion": PROTOCOL, "capabilities": {},
-                               "clientInfo": {"name": "requirements-workbench", "version": "1"}}})
+                               "clientInfo": {"name": "dictum", "version": "1"}}})
         self._post({"jsonrpc": "2.0", "method": "notifications/initialized"}, expect_reply=False)
         self._ready = True
 

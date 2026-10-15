@@ -1,5 +1,5 @@
 # Base layer: shipped with the app and needed before first-run setup.
-# Heavy components (PyTorch, GigaAM, ffmpeg, models) are installed by the
+# Heavy components (PyTorch, the speech package, ffmpeg, models) are installed by the
 # in-app Setup screen, see core/setup_plan.py.
 flask>=3.1
 python-dotenv>=1.0

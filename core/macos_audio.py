@@ -90,7 +90,7 @@ class SystemAudioTap:
 
         aggregate = {
             _key(ca.kAudioAggregateDeviceNameKey): DEVICE_NAME,
-            _key(ca.kAudioAggregateDeviceUIDKey): "workbench-sysaudio-" + uuid.uuid4().hex[:12],
+            _key(ca.kAudioAggregateDeviceUIDKey): "dictum-sysaudio-" + uuid.uuid4().hex[:12],
             _key(ca.kAudioAggregateDeviceMainSubDeviceKey): out_uid,
             _key(ca.kAudioAggregateDeviceIsPrivateKey): True,
             _key(ca.kAudioAggregateDeviceIsStackedKey): False,
