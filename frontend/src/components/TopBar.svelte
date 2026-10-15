@@ -7,7 +7,7 @@
   import { DEFAULT_HOTKEYS, comboLabel } from "../lib/hotkeys.js";
   import { api } from "../lib/api.js";
   import { reopenOnboarding, startTutorial } from "../lib/onboarding.svelte.js";
-  import { app, t, go, currentProject, switchProject, loadProjects, restoreProject, toast, setTheme, isDark } from "../lib/state.svelte.js";
+  import { app, t, currentProject, switchProject, loadProjects, restoreProject, toast, setTheme, isDark } from "../lib/state.svelte.js";
 
   let menuOpen = $state(false);
   let showArchive = $state(false);
@@ -79,7 +79,6 @@
   async function restore(id) {
     try { await restoreProject(id); } catch (err) { toast(err.message, { kind: "danger" }); }
   }
-  function openSettings() { menuOpen = false; go("/settings"); }
 
   // Archive the current project (5.0.2: moved here from Settings → Проект). The last open project stays.
   function askArchive() { if (project && app.projects.length > 1) { archiveAsk = project; menuOpen = false; } }
@@ -127,11 +126,6 @@
           </button>
         {/each}
         {#if project}
-          <button class="menu-item mode" role="menuitem" onclick={openSettings} title={t("nav.settings")}>
-            <span class="tick"></span>
-            {#if project.local_only}<Icon name="lock" size={12} /><span class="grow">{t("project.local_only")}</span>
-            {:else}<Icon name="cloud" size={12} /><span class="grow">{t("project.cloud_ok")}</span>{/if}
-          </button>
           <button class="menu-item archive-it" role="menuitem" onclick={askArchive} disabled={app.projects.length < 2}
                   title={app.projects.length < 2 ? t("project.archive_last") : ""}>
             <span class="tick"></span><Icon name="trash" size={12} /><span class="grow">{t("project.archive")}</span></button>
@@ -208,7 +202,6 @@
   .menu-check { display: flex; align-items: center; gap: var(--s-3); padding: 0 var(--s-4) var(--s-3); font-size: var(--size-foot); color: var(--text-2); cursor: pointer; }
   .menu-new { display: flex; gap: var(--s-3); padding: 0 var(--s-2) var(--s-3); }
   .menu-new .input { height: var(--h-ctl-sm); font-size: var(--size-foot); min-width: 0; flex: 1; }
-  .mode { color: var(--text-2); }
   .menu-item.archive-it:not(:hover):not(:focus-visible) { color: var(--danger); }
   .menu-item.archive-it:disabled { color: var(--text-3); background: none; cursor: default; }
   .arch { display: flex; align-items: center; gap: var(--s-4); padding: var(--s-1) var(--s-4) var(--s-1) 28px; }
