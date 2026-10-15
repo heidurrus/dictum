@@ -1,7 +1,7 @@
 """Build the installable app with a bundled Python (spec FR-PLAT-04/06, D-16/D-17).
 
     python packaging/build.py --target macos-arm64    # on a Mac  → dist/*.dmg
-    python packaging/build.py --target windows-x64    # on Windows → dist/*-Setup.exe
+    python packaging/build.py --target windows-x64    # on Windows → dist/*-windows-x64.exe
 
 Steps: download the pinned standalone CPython (checksum-verified), install the
 base layer into it, copy the app, then
@@ -219,6 +219,10 @@ def build_windows(skip_installer=False):
              "-r", os.path.join(ROOT, "requirements.txt")])
     trim_runtime(runtime)
     copy_app(os.path.join(stage, "app"))
+    # The app icon (16 to 256 px, from docs/design/icon/dictum-1024.png). The launcher is the bundled pythonw.exe,
+    # so the icon goes next to it ({app}\\Dictum.ico) and installer/Dictum.iss points the shortcuts and the
+    # uninstall entry at it; the setup exe gets it through SetupIconFile.
+    shutil.copy2(os.path.join(PKG, "windows", "Dictum.ico"), os.path.join(stage, "Dictum.ico"))
     if skip_installer:
         return stage
     iscc = find_iscc()
@@ -228,7 +232,7 @@ def build_windows(skip_installer=False):
     os.makedirs(DIST, exist_ok=True)
     run([iscc, f"/DStageDir={stage}", f"/DAppVersion={ver}", f"/O{DIST}",
          os.path.join(ROOT, "installer", "Dictum.iss")])
-    return os.path.join(DIST, f"{ARTIFACT}-{ver}-Setup.exe")
+    return os.path.join(DIST, f"{ARTIFACT}-{ver}-windows-x64.exe")
 
 
 def main():
