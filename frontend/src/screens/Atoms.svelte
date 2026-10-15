@@ -687,6 +687,7 @@
   .search .kbd { background: var(--surface-2); }
   .notices:not(:empty) { padding: var(--s-5) 14px 0; }
   .notices .banner { flex-wrap: wrap; }
+  .notices .banner > .grow { flex-basis: 240px; }
   .rule-text { white-space: pre-wrap; font: var(--size-mono)/var(--lh-mono) var(--mono); margin: var(--s-3) 0 0; color: var(--text); }
   .add-card { margin: var(--s-5) 14px 0; padding: var(--s-5); border-radius: var(--r-m); background: var(--surface-2);
     display: grid; gap: var(--s-4); grid-template-columns: minmax(0, 1fr); justify-items: start; flex: none; }

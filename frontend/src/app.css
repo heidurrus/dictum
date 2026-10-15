@@ -390,7 +390,7 @@ del { background: var(--del); border-radius: 2px; color: var(--text-2); }
 
 /* ── 5.0 pieces (prototype-v5: .card, .seg, .chip, .tag, .type, "Generic tables") ──
    Used by the screens restyled in 4.9.14 (Требования, Документы, Бэклог, Выгрузка, Скиллы). */
-.card-m { background: var(--surface); border-radius: var(--r-l); box-shadow: var(--shadow-1); min-width: 0; min-height: 0; }
+.card-m { background: var(--surface); border-radius: var(--r-l); box-shadow: var(--shadow-1); min-width: 0; }
 .card-m.flat { box-shadow: none; }
 /* The head row of a restyled screen: pill buttons, the primary one filled. */
 .page-head.m .tb-actions .btn, .page-head.m .tb-actions .popbtn { height: 40px; padding: 0 20px; border-radius: 20px; font-size: 14px;

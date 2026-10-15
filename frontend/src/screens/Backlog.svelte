@@ -479,6 +479,7 @@
   @keyframes breathe { 50% { opacity: .45; } }
   .notices:not(:empty) { padding: 12px 14px 0; }
   .notices .banner { flex-wrap: wrap; }
+  .notices .banner > .grow { flex-basis: 240px; }
   .progress.w { width: 120px; flex: none; }
 
   .tree { container-type: inline-size; container-name: list; padding-bottom: var(--s-11); }
