@@ -1,5 +1,9 @@
 # Changelog
 
+## 5.0.7 (2026-10-15)
+
+- A meeting's ⋯ menu offers "Transcribe again · Russian" and "Transcribe again · Multilingual", so a recording made in the wrong language is redone from the meeting itself; the record panel's language picker stays the default for new recordings.
+
 ## 5.0.6 (2026-10-15)
 
 - Settings → Models: a speech model in use is tagged "for Russian" or "for other languages" instead of "active", since each language has its own model and two cards can be in use at once.

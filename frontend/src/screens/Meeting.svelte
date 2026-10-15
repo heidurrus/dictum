@@ -18,7 +18,7 @@
   import { fmtTime, fmtDate, fmtDuration, speakerClass, speakerDisplay } from "../lib/format.js";
   import { saveText } from "../lib/save.js";
   import { audioLabel, fmtBytes, saveAudio } from "../lib/audio.js";
-  import { app, t, go, loadSources, toast, rememberSource, analysisOn } from "../lib/state.svelte.js";
+  import { app, t, go, loadSources, toast, rememberSource, analysisOn, asrModelFor, projectAsrLang } from "../lib/state.svelte.js";
 
   let { id, autoSummarize = false, focusSeg = null } = $props();
 
@@ -224,9 +224,10 @@
     } catch (err) { toast(err.message, { kind: "danger" }); }
   }
 
-  // Through the shared tracker, so the job shows in the sidebar card and in this screen's banner.
-  async function retranscribe() {
-    await transcribeSaved(id);
+  // Through the shared tracker, so the job shows in the sidebar card and in this screen's banner. The ⋯ menu
+  // offers both languages (5.0.7): a recording made with the wrong one is redone here, not from the record panel.
+  async function retranscribe(lang = projectAsrLang()) {
+    await transcribeSaved(id, asrModelFor(lang));
     await load();
   }
 
@@ -349,7 +350,7 @@
   function more(v) {
     if (v === "copy") copyText();
     else if (v === "txt") saveText(`${source.title}.txt`, source.text);
-    else if (v === "asr") retranscribe();
+    else if (v.startsWith("asr:")) retranscribe(v.slice(4));
     else if (v === "extract") refine = { note: "" };
     else if (v.startsWith("audio:")) { const f = source.audio_files.find(x => x.id === v.slice(6)); if (f) saveAudio(source, f); }
   }
@@ -386,7 +387,7 @@
                          { value: "txt", label: t("tr.save_txt"), icon: "download" },
                          ...(audioItems.length ? [{ sep: true }, ...audioItems] : []),
                          ...(atomCount && ba ? [{ sep: true }, { value: "extract", label: t("tr.extract_again"), icon: "refresh", disabled: !!app.extracting[id] }] : []),
-                         ...(source.audio_url ? [{ sep: true }, { value: "asr", label: t("tr.asr_again"), icon: "wave" }] : [])]} />
+                         ...(source.audio_url ? [{ sep: true }, ...["ru", "multi"].map(l => ({ value: "asr:" + l, label: `${t("tr.asr_again")} · ${t("mlang." + l)}`, icon: "wave" }))] : [])]} />
         {#if !ba}
           <!-- a meeting recorder: nothing to extract -->
         {:else if app.extracting[id]}
