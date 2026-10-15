@@ -17,7 +17,7 @@ from tests.test_recorder import wait_for
 
 @pytest.fixture(autouse=True)
 def data_dir(tmp_path, monkeypatch):
-    monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("DICTUM_DATA_DIR", str(tmp_path / "data"))
 
 
 @pytest.fixture()
@@ -307,7 +307,7 @@ def test_requests_carry_the_app_user_agent():
     atl = FakeAtlassian()
     AtlassianAuth(store=MemoryStore(), opener=lambda req, timeout=None: seen.append(req.headers.get("User-agent")) or atl(req),
                   base="https://mcp").metadata()
-    assert seen and all(ua and ua.startswith("RequirementsWorkbench/") for ua in seen)
+    assert seen and all(ua and ua.startswith("Dictum/") for ua in seen)
 
 
 def test_tokens_are_kept_in_a_private_file_not_the_keychain(tmp_path, monkeypatch):

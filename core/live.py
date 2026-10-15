@@ -24,14 +24,14 @@ from core.recorder import SAMPLE_RATE, last_silence, speech_bounds_samples
 WAV_HEADER_BYTES = 44
 CHANNELS = ("mic", "sys")
 MAX_WINDOW = 60
-MAX_CHUNK_SECONDS = 20         # GigaAM's short-form limit is ~25 s: longer cuts are split at pauses
+MAX_CHUNK_SECONDS = 20         # the speech model's short-form limit is ~25 s: longer cuts are split at pauses
 LABELS = {"mic": "BA", "sys": "OTHER"}
 
 log = logging.getLogger("dictum.live")
 
 
-class GigaAMAsr:
-    """The configured GigaAM model behind the live pass: batch size 1, device memory released after every pass.
+class SpeechAsr:
+    """The configured speech model behind the live pass: batch size 1, device memory released after every pass.
     `load_model` is the loader the final pass uses (app.get_model)."""
 
     def __init__(self, load_model, model_name, device):

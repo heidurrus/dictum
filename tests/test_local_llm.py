@@ -119,7 +119,7 @@ def test_catalog_is_pinned():
 # ── installer ────────────────────────────────────────────────────────────────
 
 def test_installer_refuses_when_the_disk_is_too_full(tmp_path, monkeypatch):
-    monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DICTUM_DATA_DIR", str(tmp_path))
     monkeypatch.setattr(local_llm.shutil, "disk_usage", lambda p: type("U", (), {"free": 2 * GB})())
     monkeypatch.setattr(local_llm, "engine_asset", lambda: Asset("u", "0" * 64, 10))
     with pytest.raises(LocalModelError, match="disk space"):
@@ -128,7 +128,7 @@ def test_installer_refuses_when_the_disk_is_too_full(tmp_path, monkeypatch):
 
 def test_installer_downloads_engine_then_model(tmp_path, monkeypatch):
     import tarfile
-    monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DICTUM_DATA_DIR", str(tmp_path))
     engine_src = tmp_path / "src" / "llama-b1"
     engine_src.mkdir(parents=True)
     exe = "llama-server.exe" if sys.platform == "win32" else "llama-server"
@@ -189,7 +189,7 @@ HTTPServer(("127.0.0.1", port), H).serve_forever()
 def fake_engine(tmp_path, monkeypatch):
     if sys.platform == "win32":
         pytest.skip("the stand-in server is a shebang script")
-    monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DICTUM_DATA_DIR", str(tmp_path))
     folder = tmp_path / "local-llm" / "engine" / local_llm.ENGINE_BUILD / "llama-x"
     folder.mkdir(parents=True)
     server = folder / "llama-server"
@@ -243,7 +243,7 @@ def test_server_that_dies_on_start_reports_why(fake_engine, tmp_path):
 
 
 def test_missing_model_asks_to_download(tmp_path, monkeypatch):
-    monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DICTUM_DATA_DIR", str(tmp_path))
     with pytest.raises(llm.LLMError, match="Settings"):
         llm.complete_json("s", "u", {}, {**PREFS, "local_model": ""}, None, "")
 
@@ -258,7 +258,7 @@ def test_deleting_the_running_model_stops_the_server(fake_engine):
 # ── API ──────────────────────────────────────────────────────────────────────
 
 def test_status_and_download_api(client, app_module, monkeypatch, tmp_path):
-    monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DICTUM_DATA_DIR", str(tmp_path))
     body = client.get("/api/local-llm").get_json()
     assert [m["id"] for m in body["models"]] == ["qwen3.6-35b-a3b", "qwen3.8-27b", "gemma-4-12b", "qwen3.5-9b", "qwen3.5-4b"]
     assert sum(m["recommended"] for m in body["models"]) == 1 and body["download"]["status"] == "idle"
@@ -271,7 +271,7 @@ def test_status_and_download_api(client, app_module, monkeypatch, tmp_path):
 
 
 def test_settings_accept_the_local_provider(client, monkeypatch, tmp_path):
-    monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DICTUM_DATA_DIR", str(tmp_path))
     r = client.post("/settings", json={"llm_provider": "local", "local_model": "qwen3.5-4b"}).get_json()
     assert r["llm_provider"] == "local" and r["local_model"] == "qwen3.5-4b"
     assert client.post("/settings", json={"local_model": "gpt-17"}).status_code == 400
@@ -292,7 +292,7 @@ def test_a_server_left_by_a_crash_is_stopped_on_next_launch(fake_engine):
 def test_cleanup_never_kills_an_unrelated_process(tmp_path, monkeypatch):
     """Even one whose command line mentions llama-server and the port (e.g. a shell or an editor)."""
     import subprocess
-    monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DICTUM_DATA_DIR", str(tmp_path))
     if sys.platform == "win32":
         pytest.skip("POSIX command-line check")
     bystander = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)", "llama-server", "--port", "4321"])
@@ -372,7 +372,7 @@ def test_windows_registry_reports_the_biggest_card():
 
 
 def test_integrated_graphics_counts_as_no_gpu(monkeypatch, tmp_path):
-    monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DICTUM_DATA_DIR", str(tmp_path))
     monkeypatch.setattr(local_llm, "_gpu_cache", {})
     monkeypatch.setattr(local_llm.sys, "platform", "win32")
     monkeypatch.setattr(local_llm, "_registry_gpu", lambda: {"name": "Intel UHD", "memory": 128 * 1024 ** 2})

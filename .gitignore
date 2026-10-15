@@ -16,7 +16,6 @@ packaging/.cache/
 frontend/node_modules/
 
 # regenerable prototype screenshots
-docs/design/prototype/shots/
 
 # Claude Code worktrees and session files
 .claude/

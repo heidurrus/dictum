@@ -1,4 +1,4 @@
-"""Features added after the PM review (docs/product/pm-review.md)."""
+"""Features added after a product review."""
 import io
 import zipfile
 
@@ -12,7 +12,7 @@ from tests.test_frd import PREFS, full_reply, llm, seed
 
 @pytest.fixture(autouse=True)
 def data_dir(tmp_path, monkeypatch):
-    monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("DICTUM_DATA_DIR", str(tmp_path / "data"))
 
 
 @pytest.fixture()

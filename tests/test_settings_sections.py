@@ -222,7 +222,7 @@ def test_settings_hotkeys_conflict(data_dir_settings):
 
 @pytest.fixture
 def data_dir_settings(tmp_path, monkeypatch):
-    monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DICTUM_DATA_DIR", str(tmp_path))
     return tmp_path
 
 
@@ -248,7 +248,7 @@ def test_storage_counts_and_size(client, app_module):
     for k in ("meetings", "materials", "whispers"):
         assert after["counts"][k] == before["counts"][k] + 1, k
     assert after["counts"]["projects"] >= 1
-    assert after["movable"] is False                 # tests run with WORKBENCH_DATA_DIR: never moved
+    assert after["movable"] is False                 # tests run with DICTUM_DATA_DIR: never moved
 
 
 @pytest.fixture
@@ -355,7 +355,7 @@ def test_pointer_to_a_missing_folder_falls_back_to_the_default(home, monkeypatch
 
 
 def test_move_route_refusals_and_job(client, app_module, monkeypatch, tmp_path):
-    # With DICTUM_DATA_DIR / WORKBENCH_DATA_DIR set (tests, portable installs) the folder never moves.
+    # With DICTUM_DATA_DIR (or the 4.x variable) set (tests, portable installs) the folder never moves.
     res = client.post("/api/data-dir/move", json={"path": str(tmp_path / "x")})
     assert res.status_code == 400 and res.get_json()["code"] == "override"
     monkeypatch.setattr(paths, "_override", lambda: None)

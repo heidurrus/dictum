@@ -1,5 +1,5 @@
 <script>
-  // The pane grid of a screen (redesign §7): [outline] content [inspector] [context].
+  // The pane grid of a screen: [outline] content [inspector] [context].
   // Widths come from the workspace through container queries; nothing here is a fixed column.
   import { app, inspectorOn } from "../lib/state.svelte.js";
 

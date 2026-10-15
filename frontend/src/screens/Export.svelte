@@ -162,7 +162,7 @@
     }
   }
 
-  // Four destinations, one place (redesign §8.7).
+  // Four destinations, one place.
   let dest = $state("jira");             // jira | word | trace | letter
   let docs = $state([]);
   let templates = $state([]);

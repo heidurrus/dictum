@@ -12,7 +12,7 @@ from tests.test_recorder import wait_for
 
 @pytest.fixture(autouse=True)
 def data_dir(tmp_path, monkeypatch):
-    monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("DICTUM_DATA_DIR", str(tmp_path / "data"))
 
 
 @pytest.fixture()

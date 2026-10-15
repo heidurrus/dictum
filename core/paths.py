@@ -115,9 +115,9 @@ def migrate_legacy_data_dir(root=None):
 def app_data_dir():
     """Per-user folder for recordings and app state (spec FR-PLAT-06 AC3).
 
-    Override with DICTUM_DATA_DIR (or the older WORKBENCH_DATA_DIR; used by tests
-    and portable installs). Without an override, the first call moves a 4.x
-    RequirementsWorkbench folder to Dictum (see migrate_legacy_data_dir).
+    Override with DICTUM_DATA_DIR (the 4.x name is still read as a fallback; used by tests
+    and portable installs). Without an override, the first call moves the 4.x
+    data folder to Dictum (see migrate_legacy_data_dir).
     """
     global _migration_checked, _resolved
     override = _override()
@@ -253,7 +253,7 @@ def recordings_dir():
 def models_dir(kind):
     """Downloaded model weights live with the app's data, so uninstall can remove them.
 
-    kind: "gigaam" or "huggingface".
+    kind: "gigaam" (the speech models; the folder name is kept) or "huggingface".
     """
     path = os.path.join(app_data_dir(), "models", kind)
     os.makedirs(path, exist_ok=True)

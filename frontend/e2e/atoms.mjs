@@ -1,5 +1,5 @@
 // End-to-end check of requirement atoms against e2e/fake_llm_server.py (default http://127.0.0.1:5098).
-// Run: WORKBENCH_DATA_DIR=$(mktemp -d) python frontend/e2e/fake_llm_server.py & node e2e/atoms.mjs
+// Run: DICTUM_DATA_DIR=$(mktemp -d) python frontend/e2e/fake_llm_server.py & node e2e/atoms.mjs
 import { chromium } from "playwright-core";
 import { writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -7,7 +7,7 @@ import { join } from "node:path";
 
 const base = process.argv[2] || "http://127.0.0.1:5098";
 const shots = process.env.SHOTS || "";
-const vttPath = join(mkdtempSync(join(tmpdir(), "wb-")), "Созвон по карточке.vtt");
+const vttPath = join(mkdtempSync(join(tmpdir(), "dictum-")), "Созвон по карточке.vtt");
 writeFileSync(vttPath, "WEBVTT\n\n" +
   "00:00:01.000 --> 00:00:04.000\n<v SPEAKER_00>Карточка открывается не дольше двух секунд</v>\n\n" +
   "00:00:05.000 --> 00:00:08.000\n<v SPEAKER_01>Хватит и пяти секунд</v>\n\n" +

@@ -3,7 +3,7 @@
 // "в контексте" and "Добавить в заметки" puts it into the notes → pause shows the paused state → resume → stop →
 // the final transcript replaces the provisional lines, "Требования из встречи" is shown and the meeting is processed.
 // Runs once per interface language.
-// Run: FAKE_RECORDER=1 WORKBENCH_DATA_DIR=$(mktemp -d) python frontend/e2e/fake_llm_server.py 5312 &
+// Run: FAKE_RECORDER=1 DICTUM_DATA_DIR=$(mktemp -d) python frontend/e2e/fake_llm_server.py 5312 &
 //      node frontend/e2e/session.mjs http://127.0.0.1:5312
 import { chromium } from "playwright-core";
 

@@ -6,7 +6,7 @@ import { join } from "node:path";
 
 const base = process.argv[2] || "http://127.0.0.1:5098";
 const shots = process.env.SHOTS || "";
-const dir = mkdtempSync(join(tmpdir(), "wb-"));
+const dir = mkdtempSync(join(tmpdir(), "dictum-"));
 const vttPath = join(dir, "Созвон по карточке.vtt");
 writeFileSync(vttPath, "WEBVTT\n\n" +
   "00:00:01.000 --> 00:00:04.000\n<v SPEAKER_00>Карточка открывается не дольше двух секунд</v>\n\n" +

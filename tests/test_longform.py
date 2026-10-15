@@ -21,7 +21,7 @@ class _Timeline:
         return self._segs
 
 
-def test_chunking_follows_gigaam_rules():
+def test_chunking_follows_the_speech_packages_rules():
     sr = 100
     audio = list(range(100 * sr))                                    # 100 s of "audio"
     speech = _Timeline([_Seg(0, 10), _Seg(10.5, 20), _Seg(21, 24), _Seg(30, 70), _Seg(90, 90.1)])
@@ -40,7 +40,7 @@ def test_pipeline_receives_the_waveform_not_the_path(monkeypatch):
         def __call__(self, file):
             seen["file"] = file
             return _Timeline([_Seg(0, 1)])
-    class Wave(list):                                               # what gigaam's load_audio returns, minus torch
+    class Wave(list):                                               # what the speech package's load_audio returns, minus torch
         def unsqueeze(self, dim): return self
         def float(self): return self
         def cpu(self): return self
@@ -53,7 +53,7 @@ def test_pipeline_receives_the_waveform_not_the_path(monkeypatch):
     assert bounds == [(0, 1)]
 
 
-def test_install_replaces_gigaams_function(monkeypatch):
+def test_install_replaces_the_speech_packages_function(monkeypatch):
     fake = types.ModuleType("gigaam.vad_utils")
     fake.segment_audio_file = lambda *a, **k: "original"
     monkeypatch.setitem(sys.modules, "gigaam.vad_utils", fake)
@@ -64,7 +64,7 @@ def test_install_replaces_gigaams_function(monkeypatch):
 def test_failed_jobs_leave_a_traceback_in_the_log(tmp_path, monkeypatch):
     import logging
     from core import paths
-    monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DICTUM_DATA_DIR", str(tmp_path))
     shared = logging.getLogger("workbench.jobs")
     for h in list(shared.handlers):          # the app module may already have attached its own file
         shared.removeHandler(h); h.close()

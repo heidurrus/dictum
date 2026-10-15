@@ -278,7 +278,7 @@ def test_a_local_only_project_never_calls_claude(client, app_module, lib, pid, p
 
 
 def test_the_ask_skill_is_built_in_and_editable_like_the_recaps(monkeypatch, tmp_path):
-    monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DICTUM_DATA_DIR", str(tmp_path))
     s = skills.resolve()["ask"]
     assert s.name == "ask" and s.builtin and s.error is None
     copy = skills.create("ask", title="Мой Спросить")

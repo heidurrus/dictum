@@ -1,7 +1,7 @@
 """First stage of the installed app. Runs on the Python bundled in the installer.
 
 The installer ships a standalone Python with the small base layer (Flask,
-pywebview, uv…). Heavy components (PyTorch, GigaAM, ffmpeg) are installed by
+pywebview, uv…). Heavy components (PyTorch, the speech package, ffmpeg) are installed by
 the Setup screen into a per-user virtual environment instead, which:
 - keeps the signed macOS .app bundle unmodified (installing into it would
   break its code signature), and

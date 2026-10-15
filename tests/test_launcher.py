@@ -75,7 +75,7 @@ def test_healthy_machine_shows_starting_page_then_the_app():
         assert status == 200 and b"Starting Dictum" in body      # the page the window shows meanwhile
         assert json.loads(get(slot, "/starting/status")[1]) == {"state": "loading", "error": ""}
         assert get(slot, "/health")[0] == 404                   # main app not loaded yet
-        assert instance.is_workbench(slot.port)                 # single-instance check works meanwhile
+        assert instance.is_dictum(slot.port)                 # single-instance check works meanwhile
         port = slot.port
         release.set()
         assert wait_for(lambda: _up(port), timeout=5)

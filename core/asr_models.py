@@ -1,6 +1,6 @@
-"""Speech-recognition models (GigaAM): what is on disk, what can be downloaded, one download at a time.
+"""Speech-recognition models: what is on disk, what can be downloaded, one download at a time.
 
-GigaAM fetches a model on first use with no progress and no resume; a broken connection leaves a damaged
+The speech package fetches a model on first use with no progress and no resume; a broken connection leaves a damaged
 file and "model checksum failed" at the next transcription. Here the download runs as its own job, is
 verified before it replaces anything, and the Settings screen shows what is installed."""
 import hashlib
@@ -35,7 +35,7 @@ def _hashes():
     try:
         from gigaam import _MODEL_HASHES
         return _MODEL_HASHES
-    except Exception:            # tests, or gigaam not installed yet
+    except Exception:            # tests, or the speech package not installed yet
         return {}
 
 

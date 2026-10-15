@@ -4,7 +4,7 @@ Spec FR-PLAT-01 (desktop window by default on Windows and macOS), FR-PLAT-03
 (browser mode as an option: --browser), FR-PLAT-04/05 (automatic dependency
 installation on first run and a check on every start).
 
-Only needs the base layer (Flask, pywebview); torch and GigaAM are imported
+Only needs the base layer (Flask, pywebview); torch and the speech package are imported
 after setup has made sure they exist.
 """
 import atexit
@@ -98,7 +98,7 @@ def start(slot, browser_mode, app_module=None, detect_hw=detect, plan_factory=bu
     """Start the setup screen or the app on `slot`. Returns the SetupRunner (or None).
 
     With defer_import (the default) the slot first serves a small "starting" page, so the
-    window opens at once, and the main app (torch, GigaAM: up to a minute on a cold start)
+    window opens at once, and the main app (torch and the speech package: up to a minute on a cold start)
     is imported on a background thread and takes over the same address; the page follows.
     Without it the import happens here and the app answers as soon as start() returns.
     """

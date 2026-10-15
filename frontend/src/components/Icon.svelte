@@ -1,5 +1,5 @@
 <script>
-  // 16-px line icons (docs/design/prototype.html). Static markup only, never user data.
+  // 16-px line icons. Static markup only, never user data.
   let { name, size = 16 } = $props();
   const ICONS = {
     chevron: '<path d="M6 3.5L10.5 8 6 12.5"/>',

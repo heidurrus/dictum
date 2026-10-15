@@ -3,7 +3,7 @@
 // task) → save → both are in the inbox under Сегодня → tick the task → "Сделать вопросом" on the reminder (no project:
 // the chooser) → the Q atom is in Требования → delete with undo. A meeting can't start while a whisper records.
 // Runs once per interface language.
-// Run: FAKE_RECORDER=1 WORKBENCH_DATA_DIR=$(mktemp -d) python frontend/e2e/fake_llm_server.py 5312 &
+// Run: FAKE_RECORDER=1 DICTUM_DATA_DIR=$(mktemp -d) python frontend/e2e/fake_llm_server.py 5312 &
 //      node frontend/e2e/whisper.mjs http://127.0.0.1:5312
 import { chromium } from "playwright-core";
 

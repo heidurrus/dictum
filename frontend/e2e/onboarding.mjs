@@ -4,7 +4,7 @@
 // import them → done → "Показать подсказки" → five tips over #t-rec, #t-whisper, #t-list, #t-library, #t-ask → the shell
 // on Встречи with the imported meeting → a reload does not show the onboarding again. The tips come back from Help; Esc
 // closes them. Runs once per interface language (the fake server resets the first-run state in between).
-// Run: ONBOARDING=1 WORKBENCH_DATA_DIR=$(mktemp -d) python frontend/e2e/fake_llm_server.py 5312 &
+// Run: ONBOARDING=1 DICTUM_DATA_DIR=$(mktemp -d) python frontend/e2e/fake_llm_server.py 5312 &
 //      node frontend/e2e/onboarding.mjs http://127.0.0.1:5312
 import { chromium } from "playwright-core";
 import { writeFileSync } from "node:fs";

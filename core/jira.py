@@ -4,7 +4,7 @@ Deterministic, no LLM: the same backlog gives the same tool calls in the same or
 The preview only reads (searchJiraIssuesUsingJql); nothing is written before the
 BA presses the button (BR-11). Every issue carries the label rw-<item uuid>, so a
 retry after a failure finds what was already created instead of duplicating it
-(BR-15). Only fields the workbench owns are written: summary, description, labels,
+(BR-15). Only fields the app owns are written: summary, description, labels,
 parent (FR-JIRA-04 AC2).
 """
 import datetime
@@ -136,7 +136,7 @@ def description(item, doc_title, version, lang="ru", quotes="full", docs=None):
 
 
 def payload(item, target, doc_title, version, lang, parent_key=None, quotes="full", docs=None):
-    """The fields the workbench owns, exactly as they will be sent."""
+    """The fields the app owns, exactly as they will be sent."""
     kind_type = (target.get("types") or {}).get(item["kind"])
     labels = [APP_LABEL, label(item)] + ([f"moscow-{item['priority']}"] if item.get("priority") else [])
     return {"issueTypeName": kind_type, "summary": item["title"][:250],

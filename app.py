@@ -66,7 +66,7 @@ GPU_NAME = torch.cuda.get_device_name(0) if CUDA_AVAILABLE else None
 MPS_AVAILABLE = torch.backends.mps.is_available() if hasattr(torch.backends, "mps") else False
 
 # System ffmpeg if present, else the one setup installs (imageio-ffmpeg), exposed on
-# PATH because GigaAM's load_audio calls a bare "ffmpeg"
+# PATH because the speech package's load_audio calls a bare "ffmpeg"
 FFMPEG_EXE = ensure_ffmpeg_on_path()
 FFMPEG_AVAILABLE = FFMPEG_EXE is not None
 
@@ -120,9 +120,9 @@ AVAILABLE_MODELS = [
     "multilingual_large_ctc",
 ]
 
-# Formats that need ffmpeg conversion to WAV before GigaAM can read them
+# Formats that need ffmpeg conversion to WAV before the speech model can read them
 NEEDS_CONVERSION = {".webm", ".ogg", ".opus", ".mp4", ".m4a", ".weba"}
-# Everything ffmpeg/GigaAM can read that people actually upload; anything else gets a
+# Everything ffmpeg and the speech model can read that people actually upload; anything else gets a
 # clear message instead of an ffmpeg error (the desktop file picker allows all files).
 AUDIO_VIDEO_EXTENSIONS = {".wav", ".mp3", ".flac", ".ogg", ".opus", ".m4a", ".aac", ".wma", ".webm",
                           ".weba", ".mp4", ".m4v", ".mov", ".mkv", ".avi", ".aiff", ".aif", ".amr", ".3gp"}
@@ -325,7 +325,7 @@ def _transcribe_channels(job_id, mic_path, sys_path, model_name, diarize, device
 
 
 def _is_long(audio_path):
-    """Over GigaAM's short-form limit (25 s)? Read from the WAV header when it is one; otherwise let the model decide."""
+    """Over the speech model's short-form limit (25 s)? Read from the WAV header when it is one; otherwise let the model decide."""
     if not audio_path.lower().endswith(".wav"):
         return False
     try:
@@ -550,7 +550,7 @@ def _start_live(source, folder, opts, recorder):
         return None
     if not opts or not _asr_installed(opts["model_name"]):
         return None
-    asr = lambda: live_mod.GigaAMAsr(get_model, opts["model_name"], opts["device"])  # noqa: E731  loaded in its thread
+    asr = lambda: live_mod.SpeechAsr(get_model, opts["model_name"], opts["device"])  # noqa: E731  loaded in its thread
     return live_mod.LiveTranscriber(source["id"], folder, asr, store=library, pauses=recorder.pauses,
                                     labels={"mic": BA_LABEL, "sys": OTHER_LABEL}).start()
 
@@ -800,7 +800,7 @@ def _whisper_live_asr(opts):
         return None
     if not opts or not _asr_installed(opts["model_name"]):
         return None
-    return lambda: live_mod.GigaAMAsr(get_model, opts["model_name"], opts["device"])
+    return lambda: live_mod.SpeechAsr(get_model, opts["model_name"], opts["device"])
 
 
 def _new_whisper_capture(mic, opts):
@@ -809,7 +809,7 @@ def _new_whisper_capture(mic, opts):
 
 
 def _whisper_final_text(path, opts):
-    """The final GigaAM pass on the whisper's mic.wav: transcribe_longform when diarization's VAD is available (an HF
+    """The final speech-recognition pass on the whisper's mic.wav: transcribe_longform when diarization's VAD is available (an HF
     token), else the short-form pass on pieces cut at pauses (a whisper is at most 90 s). The e2e fake replaces this."""
     import wave
     import numpy as np
@@ -827,7 +827,7 @@ def _whisper_final_text(path, opts):
     pieces = [p for _, p in live_mod.split_at_pauses(samples) if live_mod.has_speech(p) is not None]
     if not pieces:
         return ""
-    texts = live_mod.GigaAMAsr(get_model, opts["model_name"], opts["device"]).transcribe(pieces)
+    texts = live_mod.SpeechAsr(get_model, opts["model_name"], opts["device"]).transcribe(pieces)
     return " ".join(t.strip() for t in texts if t and t.strip())
 
 

@@ -2,7 +2,7 @@
 // material that assigns itself by meaning, "Похожие материалы", an auto label removed and never put back, filter by
 // the label, the in-context checkbox, the keyword search across a material and a meeting line, delete and undo.
 // Runs once per interface language.
-// Run: WORKBENCH_DATA_DIR=$(mktemp -d) python frontend/e2e/fake_llm_server.py 5312 & node frontend/e2e/library.mjs http://127.0.0.1:5312
+// Run: DICTUM_DATA_DIR=$(mktemp -d) python frontend/e2e/fake_llm_server.py 5312 & node frontend/e2e/library.mjs http://127.0.0.1:5312
 import { chromium } from "playwright-core";
 
 const base = process.argv[2] || "http://127.0.0.1:5098";

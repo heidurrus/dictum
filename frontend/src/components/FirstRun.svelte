@@ -1,5 +1,5 @@
 <script>
-  // The empty state of Встречи (redesign §8.10; 5.0 C8 keeps it for projects created after the first run): three rows,
+  // The empty state of Встречи (5.0 C8 keeps it for projects created after the first run): three rows,
   // name, AI check, first source, in the tonal 5.0 look.
   import Icon from "./Icon.svelte";
   import { api } from "../lib/api.js";

@@ -1,7 +1,7 @@
 """Tiny Flask app for the first-run Setup screen (spec FR-PLAT-04).
 
 Needs only the base layer (Flask); the main app can't be imported until setup
-has installed torch and GigaAM.
+has installed torch and the speech package.
 """
 import os
 
@@ -42,7 +42,7 @@ def create_setup_app(runner, on_done=None):
 
 
 def create_starting_app(status):
-    """The page the window shows while the main app imports torch and GigaAM (which takes
+    """The page the window shows while the main app imports torch and the speech package (which takes
     up to a minute on a cold start): a spinner, then the app on the same address. `status`
     returns {"state": "loading" | "failed", "error": str}."""
     app = Flask(__name__ + ".starting", static_folder=None)

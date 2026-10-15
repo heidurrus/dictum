@@ -192,7 +192,7 @@ def test_unsupported_file_type_gets_a_clear_message(client):
 
 
 def test_settings_roundtrip_keeps_key_secret(client, monkeypatch, tmp_path):
-    monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DICTUM_DATA_DIR", str(tmp_path))
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     body = client.get("/settings").get_json()
     assert body["anthropic_key_set"] is False and body["llm_provider"] == "claude"
@@ -204,7 +204,7 @@ def test_settings_roundtrip_keeps_key_secret(client, monkeypatch, tmp_path):
 
 
 def test_hotkeys_map_roundtrips_and_rejects_unknown_actions(client, monkeypatch, tmp_path):
-    monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DICTUM_DATA_DIR", str(tmp_path))
     keys = client.get("/settings").get_json()["hotkeys"]
     assert keys["record"] == "cmd+r" and keys["palette"] == "cmd+k" and keys["nav8"] == "cmd+8"
     body = client.post("/settings", json={"hotkeys": {"ask": "cmd+shift+j"}}).get_json()
@@ -218,7 +218,7 @@ def test_hotkeys_map_roundtrips_and_rejects_unknown_actions(client, monkeypatch,
 
 
 def test_summarize_without_key_asks_for_setup(client, monkeypatch, tmp_path):
-    monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DICTUM_DATA_DIR", str(tmp_path))
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     res = client.post("/summarize", json={"text": "Иван: привет"})
     assert res.status_code == 400 and res.get_json()["needs_setup"] is True
@@ -227,7 +227,7 @@ def test_summarize_without_key_asks_for_setup(client, monkeypatch, tmp_path):
 
 def test_summarize_streams_partial_text_into_the_job(client, app_module, monkeypatch, tmp_path):
     import threading
-    monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DICTUM_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-x")
     release = threading.Event()
 
@@ -249,7 +249,7 @@ def test_summarize_streams_partial_text_into_the_job(client, app_module, monkeyp
 
 
 def test_summary_errors_are_reported(client, app_module, monkeypatch, tmp_path):
-    monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DICTUM_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-x")
 
     def failing(*a, **k):

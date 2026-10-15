@@ -1,5 +1,5 @@
 // Встречи (spec 5.0 C2): list, search, rename in the panel, open the meeting. Runs once per interface language.
-// Run: WORKBENCH_DATA_DIR=$(mktemp -d) python frontend/e2e/fake_llm_server.py 5312 & node frontend/e2e/meetings.mjs http://127.0.0.1:5312
+// Run: DICTUM_DATA_DIR=$(mktemp -d) python frontend/e2e/fake_llm_server.py 5312 & node frontend/e2e/meetings.mjs http://127.0.0.1:5312
 import { chromium } from "playwright-core";
 import { writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -16,7 +16,7 @@ const L = {
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 const errors = [];
 for (const [lang, s] of Object.entries(L)) {
-  const dir = mkdtempSync(join(tmpdir(), "wb-"));
+  const dir = mkdtempSync(join(tmpdir(), "dictum-"));
   const a = join(dir, `${s.a}.txt`), b = join(dir, `${s.b}.txt`);
   writeFileSync(a, `Склад принимает заказы до полудня. Пароль дня: ${s.word}.\n`);
   writeFileSync(b, "Обсудили отпуск и дежурства.\n");

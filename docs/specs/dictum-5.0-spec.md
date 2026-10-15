@@ -12,10 +12,10 @@
 > backpressure rule (C11).
 > C4.2 (requirements on the fly) was removed in 5.0.3 at the user's request; the section below is kept as written.
 
-For the agent (or human) building release 5.0 of the app known until now as Requirements Workbench.
+For the agent (or human) building release 5.0 of the app, the successor of 4.2.
 Everything in the clickable prototype `docs/design/prototype-v5.html` is in scope. The prototype is
 the visual and behavioural source of truth; this document says what is behind it, in which order to
-build it, and how to know a chunk is done. Read `docs/design/v5-foresight.md` for the reasoning.
+build it, and how to know a chunk is done.
 
 Confidence tags: `[P]` seen in the prototype, `[I]` implied by it, `[A]` an assumption made here
 (see §9). Every chunk ends with acceptance criteria and the tests it must add.
@@ -24,18 +24,18 @@ Confidence tags: `[P]` seen in the prototype, `[I]` implied by it, `[A]` an assu
 
 ## 0. Ground rules for the builder
 
-**Repo and stack.** `heidurrus/requirements-workbench`. Backend: Flask in `app.py`, modules in
+**Repo and stack.** `heidurrus/dictum`. Backend: Flask in `app.py`, modules in
 `core/`, SQLite via `core/store.py` (schema v8). Frontend: Svelte 5 runes in `frontend/src`, built
 to `static/app` (the build is committed). Desktop: pywebview (WebKit) from `launcher.py`;
-`core/desktop_api.py` is the JS bridge (`window.pywebview.api`). Local ASR: GigaAM
-(`core/longform.py`). Local LLM: llama.cpp `llama-server` managed by `core/local_llm.py`
+`core/desktop_api.py` is the JS bridge (`window.pywebview.api`). Local ASR: the built-in speech
+model (`core/longform.py`). Local LLM: llama.cpp `llama-server` managed by `core/local_llm.py`
 (engine build pinned, models pinned by revision + SHA-256, `--reasoning off`). Jobs:
 `core/jobs.py` (`JobStore`, `SerialQueue`; progress polled through `/job/<id>`).
 
 **Commands.** Python: `.venv/bin/python -m pytest -q` (torch is stubbed by `tests/conftest.py`;
 import `tests.conftest` before `app` to run the server without torch). Frontend, from `frontend/`:
 `./node_modules/.bin/vite build`, `./node_modules/.bin/svelte-check --threshold warning`. e2e:
-`WORKBENCH_DATA_DIR=$(mktemp -d) python3 frontend/e2e/fake_llm_server.py 5312` then
+`DICTUM_DATA_DIR=$(mktemp -d) python3 frontend/e2e/fake_llm_server.py 5312` then
 `node frontend/e2e/<suite>.mjs http://127.0.0.1:5312`. e2e scripts must live in `frontend/e2e/`
 (that is where `playwright-core` resolves). Prefer `locator("tr.item", { hasText })` over
 `getByText` because names repeat in the sidebar. Build: `.venv/bin/python packaging/build.py
@@ -50,7 +50,8 @@ installer accept; maintenance of the old line, if any, stays on `4.2.x`); C11 se
 gate for every increment; `t(key)` returns the key when missing, so leftovers show on screen. The
 default language follows the OS language on first start (English unless the system is Russian),
 and the switch in Settings keeps working. Keep the e2e class
-selectors listed in `docs/design/redesign.md` §12 as aliases. Keep all existing backend tests
+selectors of 4.x (`.screen-sub`, `.bulkbar`, `.check-all`, `.row-check`, `.pill`, `.src-select`,
+`.seg-row`, `.counts`, `.list`, `.sec`, `.atom`, `.result`, `.types`) as aliases. Keep all existing backend tests
 green; the suite is 399 tests at the start of 5.0.
 
 **Hard rules.** Never create, edit or test anything in the Jira project QAAP on qi-iq.atlassian.net;
@@ -65,7 +66,7 @@ never deleted or overwritten; stopping, auto-stopping, crashes and renames all k
 
 | Area | Today (4.2.x) | 5.0 (prototype page) |
 |---|---|---|
-| Name, icon | Requirements Workbench, blue icon (4.2.2) | **Dictum**, same icon |
+| Name, icon | the 4.x name, blue icon (4.2.2) | **Dictum**, same icon |
 | Shell | macOS-style sidebar + toolbar + panes (`Sidebar.svelte`, `Screen.svelte`, `Panes.svelte`) | Navigation rail, page headline, tonal cards, status chip (`#meetings` etc.) |
 | Home | Overview + Sources table | **Встречи**: meeting list, details panel with tabs (`#meetings`) |
 | A source | Transcript page after the job | **Meeting page**: live transcript, notes pane, requirements on the fly, recap styles (`#session`) |
@@ -215,16 +216,16 @@ rows that C3–C7 write. C4 and C6 are the risky ones; each has a fallback that 
   names; `Info.plist.in` usage descriptions ("Dictum records your microphone…").
 - Data folder: `core/paths.py` returns `~/Library/Application Support/Dictum` (Windows:
   `%APPDATA%\Dictum`). On first start, if the new folder does not exist and the old
-  `RequirementsWorkbench` one does, **move** it (rename, same volume) and write a
+  4.x one does, **move** it (rename, same volume) and write a
   `migrated-from.txt`. The runtime, models and engine move with it, so nothing downloads again.
-- Strings: every "Requirements Workbench" in `i18n.js`, `README.md`, `app.py` notifications,
-  `launcher.py` `APP_TITLE`, `core/exports.py` docx footers, skills templates. Keep the export format
-  id `requirements-workbench-project` readable on import (accept both ids, write `dictum-project`).
+- Strings: every use of the 4.x name in `i18n.js`, `README.md`, `app.py` notifications,
+  `launcher.py` `APP_TITLE`, `core/exports.py` docx footers, skills templates. Keep the 4.x export format
+  id readable on import (accept both ids, write `dictum-project`).
 - Jira OAuth app name and callback stay as they are (they are registered externally).
 
 Acceptance: fresh install starts with an empty `Dictum` folder; an install over 4.2.2 starts with
-all projects, models and settings present and the old folder gone; `grep -ri "requirements
-workbench"` in `frontend/src`, `core`, `app.py`, `packaging` returns only the import-compat line and
+all projects, models and settings present and the old folder gone; a case-insensitive grep for the
+4.x name in `frontend/src`, `core`, `app.py`, `packaging` returns only the import-compat line and
 the changelog. Tests: `test_paths_migration` (old folder moved, nothing copied twice), `test_boot`
 updated, `test_store` import of a 4.x export.
 
@@ -311,7 +312,7 @@ Recap (Резюме tab in the panel and in the meeting inspector): style switch
   later); the editor applies an appended line to its own state through the live poll so a debounce
   in flight does not overwrite it. `recap(source_id, style, incremental)`: one `summaries` row per
   style with `through_idx`; incremental means the prompt gets that style's previous recap plus
-  only the segments after `through_idx` and is asked to update, not rewrite (Foresight's pattern);
+  only the segments after `through_idx` and is asked to update, not rewrite (the reference product's pattern);
   "Re-summarize" sends everything. Switching style with no row yet runs a full recap. Styles are three prompts in `skills/` as a built-in
   skill (`recap.brief.md`, `recap.bullets.md`, `recap.actions.md`), editable like other skills.
 - Routes: `PUT /api/sources/<id>/notes` `{text}`, `POST /api/sources/<id>/notes/append`
@@ -331,7 +332,7 @@ segments), e2e `meeting.mjs`.
 
 [P] `#session` while recording: the audio pill (Идёт запись · pause · stop), the transcript grows
 ("Слушаю…" at the end), "Требования на лету" with new items and a "6 новых" tag, the
-question-detected card (Foresight's), auto-stop on silence with a notification. Pause shows "На
+question-detected card (as in the reference product), auto-stop on silence with a notification. Pause shows "На
 паузе — звук не пишется".
 
 This is the riskiest chunk. Ship it in three steps; each step is releasable.
@@ -340,7 +341,7 @@ This is the riskiest chunk. Ship it in three steps; each step is releasable.
 `window` seconds (default 15) reads the audio appended since the last pass from `mic.wav` and
 `sys.wav` (the recorder writes continuously; read the WAV data region by byte offset, never move
 or lock the file), cuts at the last silence inside the window (`recorder.speech_bounds`), runs
-GigaAM on each channel through the existing `transcribe_chunks`, and appends segments
+the speech model on each channel through the existing `transcribe_chunks`, and appends segments
 `{t0, t1, channel, text, provisional: true}` to the source (the source row is created at
 recording start with `status = "recording"`). On stop, the normal full transcription runs as today
 and **replaces** the provisional segments (timestamps from the full pass win), so nothing the live
@@ -481,7 +482,7 @@ project uses the local model only (assert no Claude call in the test). Tests: `t
 [P] `#whisper`: headline, filter switch Все · Открытые · Задачи · Заметки · Напоминания; capture
 card with three states: idle (big button, "Нажмите и скажите, что нужно сделать", hints ⌥ Пробел,
 menu bar), listening (red pulsing button, "Слушаю…", words appearing, stop on second press or two
-seconds of silence), result ("Вы сказали · 0:07 · GigaAM, локально" + the transcript; parsed card
+seconds of silence), result ("Вы сказали · 0:07 · <speech model>, локально" + the transcript; parsed card
 with type chips Задача / Заметка / Напоминание / Идея, editable title, due tag, project tag with
 the reason "проект угадан по словам…", "Ещё одно в этой же фразе" when two items were found,
 buttons "Сохранить n", "Переговорить", "Отменить"; the privacy line); inbox card with search,
@@ -490,7 +491,7 @@ icon, text, meta (kind · due · project) and "Сделать вопросом".
 
 - Capture: microphone only, through the existing recorder with one channel into
   `<data>/whispers/<id>/mic.wav`; stop on button or after 2 s of silence once speech was heard
-  (`speech_bounds` on the live window, C4.1's tailing); ASR with GigaAM (`transcribe_longform`,
+  (`speech_bounds` on the live window, C4.1's tailing); ASR with the speech model (`transcribe_longform`,
   short file); the live words come from C4.1's live transcriber with `window = 2`. Depends on
   C4.1; on a machine where live mode fell back (C4.1's rule) the words appear after the stop,
   which is acceptable. A whisper is refused while a meeting is being recorded (one recorder).
@@ -532,7 +533,7 @@ converted. Tests: `test_whisper_parse_dates` (fixed `now`), `test_whisper_two_it
    the prototype, keep them as components, no bitmaps), terms line, "Начать".
 2. Разрешения: Микрофон / Системный звук / Уведомления rows with Разрешено / Не разрешено,
    per-row "Разрешить" and "Системные настройки", "Разрешить всё", "Позже".
-3. Модели: speech model cards (GigaAM variants from `/api/asr/models`) and LLM cards (from
+3. Модели: speech model cards (the speech model variants from `/api/asr/models`) and LLM cards (from
    `/api/local-llm` plus "Claude (облако)"), RAM line computed from the machine ("На этом Mac
    32 ГБ памяти и чип M3 Pro"), recommended tag, "Загрузить".
 4. Загрузка: per-model progress, "В фоне" continues onboarding while downloads run (status chip
@@ -574,7 +575,7 @@ platform calls), `test_onboarding_state`; e2e `onboarding.mjs`.
 ### C9. Settings as sections
 
 [P] `#settings`: left column Модели · Приватность · Хранилище · Запись · Jira · Горячие клавиши;
-cards per section. Модели: speech cards (GigaAM, installed / active), LLM cards (the real registry:
+cards per section. Модели: speech cards (installed / active), LLM cards (the real registry:
 Qwen3.5 4B, Qwen3.5 9B, Gemma 4 12B, Qwen3.6 35B-A3B, Qwen3.8 27B, Claude), the stats row ("За
 неделю на этом компьютере обработано n тыс. токенов · n встреч · n отправлено в облако").
 Приватность: "Только локально" per project, consent reminder. Хранилище: the data folder path,
@@ -749,7 +750,7 @@ message, result, error}`) and `JobCancelled`.
   poor in testing: `multilingual-e5-small` (smaller, weaker).
 - **A4 Thresholds** (0.45 label assign, 0.30 graph edge, top 12 retrieval) are starting points;
   expose them in a `tuning` block of settings, not in the UI.
-- **A5 Live transcription** uses the same GigaAM model as the final pass. If the M1 Pro cannot keep
+- **A5 Live transcription** uses the same speech model as the final pass. If the M1 Pro cannot keep
   a 15 s window under 15 s with the 12B LLM resident, the live pass should pause the LLM server
   (`local_llm` idle stop) while recording and restart it on stop.
 - **A6 Whisper reminders** only fire while the app runs. A launch agent for reminders is out of

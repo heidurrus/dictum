@@ -44,7 +44,7 @@ def test_free_preferred_port_is_used():
 
 
 def test_foreign_server_is_not_mistaken_for_the_app(foreign_server):
-    assert not instance.is_workbench(foreign_server)
+    assert not instance.is_dictum(foreign_server)
 
 
 def test_stale_or_foreign_instance_record_is_ignored(foreign_server, monkeypatch):
@@ -97,7 +97,7 @@ def test_setup_screen_and_app_both_identify_themselves():
                                                           lambda log: done.update(x=True))],
                             log=lambda m: None)
     try:
-        assert instance.is_workbench(slot.port), "setup screen must identify as the app"
+        assert instance.is_dictum(slot.port), "setup screen must identify as the app"
         runner.wait(5)
     finally:
         slot.stop()
@@ -107,6 +107,6 @@ def test_setup_screen_and_app_both_identify_themselves():
                    plan_factory=lambda hw: [Step("x", "X", "", lambda: True)], log=lambda m: None,
                    defer_import=False)
     try:
-        assert instance.is_workbench(slot2.port), "main app must identify as the app"
+        assert instance.is_dictum(slot2.port), "main app must identify as the app"
     finally:
         slot2.stop()

@@ -26,7 +26,7 @@ def url_for(port):
 
 def register_identity_route(flask_app):
     @flask_app.route(IDENTITY_PATH)
-    def _workbench_identity():
+    def _identity():
         return {"app": APP_ID, "pid": os.getpid()}
 
 
@@ -51,7 +51,7 @@ def choose_port(preferred=DEFAULT_PORT):
     return free_port() if port_accepts_connections(preferred) else preferred
 
 
-def is_workbench(port, timeout=1.0):
+def is_dictum(port, timeout=1.0):
     try:
         with urllib.request.urlopen(url_for(port) + IDENTITY_PATH, timeout=timeout) as r:
             return json.load(r).get("app") == APP_ID
@@ -78,7 +78,7 @@ def clear_instance():
         pass
 
 
-def find_running_instance(probe=is_workbench):
+def find_running_instance(probe=is_dictum):
     """Port of a running copy of this app, or None. Foreign servers and stale records are ignored."""
     candidates = []
     try:

@@ -352,7 +352,7 @@ def test_live_route_returns_new_segments_and_the_recording_state(client, recordi
 def test_live_mode_starts_when_a_model_is_installed_and_reports_its_state(client, recording_app, monkeypatch):
     a = recording_app
     monkeypatch.setattr(a, "_asr_installed", lambda name: True)
-    monkeypatch.setattr(a.live_mod, "GigaAMAsr", lambda load, name, device: FakeAsr())
+    monkeypatch.setattr(a.live_mod, "SpeechAsr", lambda load, name, device: FakeAsr())
     body = client.post("/desktop-record/start", json={"model": "v3_e2e_rnnt", "device": "cpu"}).get_json()
     assert body["live"] == "on"
     sid = body["source_id"]

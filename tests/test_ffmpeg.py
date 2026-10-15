@@ -20,7 +20,7 @@ def fake_binary(tmp_path):
 @pytest.fixture()
 def no_system_ffmpeg(monkeypatch, tmp_path):
     monkeypatch.setenv("PATH", str(tmp_path / "empty"))
-    monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("DICTUM_DATA_DIR", str(tmp_path / "data"))
 
 
 def test_system_ffmpeg_wins(monkeypatch):
@@ -37,7 +37,7 @@ def test_bundled_binary_is_exposed_as_plain_ffmpeg_for_child_processes(no_system
     path = ffmpeg.ensure_ffmpeg_on_path(bundled=lambda: fake_binary)
     assert os.path.basename(path) == "ffmpeg"
     assert shutil.which("ffmpeg") == path
-    # What GigaAM's load_audio does: run a bare "ffmpeg".
+    # What the speech package's load_audio does: run a bare "ffmpeg".
     out = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True, env=os.environ.copy())
     assert out.stdout.strip() == "fake ffmpeg -version"
 
