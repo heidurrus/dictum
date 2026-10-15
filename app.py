@@ -1169,6 +1169,7 @@ def _settings_payload():
         "live_window_atoms": prefs["live_window_atoms"],
         "silence_stop_minutes": prefs["silence_stop_minutes"],
         "menubar": prefs["menubar"],
+        "consent_reminder": prefs["consent_reminder"],
         "embed_model": prefs["embed_model"],
         "recap_style": prefs["recap_style"],
         "notes_style": prefs["notes_style"],
@@ -1189,8 +1190,8 @@ def save_settings():
     data = request.get_json(silent=True) or {}
     prefs = {k: data[k] for k in ("llm_provider", "claude_model", "ollama_model", "local_model", "hotkeys",
                                  "live_transcription", "live_requirements", "live_questions", "live_window_atoms",
-                                 "silence_stop_minutes", "menubar", "embed_model", "recap_style", "notes_style",
-                                 "tuning") if k in data}
+                                 "silence_stop_minutes", "menubar", "consent_reminder", "embed_model", "recap_style",
+                                 "notes_style", "tuning") if k in data}
     try:
         if prefs:
             settings.save_settings(prefs)

@@ -192,7 +192,9 @@
           {/if}
           <label class="row">
             <span class="l"><b>{t("set.pr.consent")}</b><small>{t("set.pr.consent_d")}</small></span>
-            <input type="checkbox" class="switch" checked disabled aria-label={t("set.pr.consent")} />
+            <input type="checkbox" class="switch consent-reminder" checked={s ? s.consent_reminder !== false : true}
+                   disabled={!s} aria-label={t("set.pr.consent")}
+                   onchange={e => save({ consent_reminder: e.currentTarget.checked })} />
           </label>
         </div>
         <div class="setcard card-m">

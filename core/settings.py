@@ -30,6 +30,7 @@ DEFAULTS = {
     "live_window_atoms": 90,           # seconds between two live extraction passes
     "silence_stop_minutes": 10,        # stop the recording after this much silence; 0 = never (5.0 C4.3)
     "menubar": True,                   # the macOS menu-bar item (5.0 C7, core/hotkeys.py)
+    "consent_reminder": True,          # ask for the participants' consent once per session before recording
     "embed_model": "",                 # the index's embedding model id; empty = the downloaded one (5.0 C5)
     "recap_style": "brief",            # the recap style a meeting opens with until one is chosen there (5.0 C9)
     "notes_style": "standard",         # "standard" | "concise": how much a recap says (5.0 C9)
@@ -192,7 +193,7 @@ def save_settings(updates):
                 raise ValueError("tuning values must be numbers")
             data[key] = {**data[key], **value}
             continue
-        if key in ("live_transcription", "live_requirements", "live_questions", "menubar"):
+        if key in ("live_transcription", "live_requirements", "live_questions", "menubar", "consent_reminder"):
             data[key] = value is True or str(value).strip().lower() in ("true", "1", "yes", "on")
             continue
         if key in ("live_window_atoms", "silence_stop_minutes"):

@@ -108,10 +108,11 @@ const channelName = c => t(c === "mic" ? "channel.mic" : "channel.sys");
 
 export function loadMics() { listMicrophones(app.device.desktop).then(m => (cap.mics = m)); }
 
-// FR-SRC-02 / PM-05: remind about consent once per session, and log the confirmation.
+// FR-SRC-02 / PM-05: remind about consent once per session, and log the confirmation. Settings → Privacy can turn
+// the reminder off (consent_reminder); then recording starts at once and nothing is logged.
 function consented() { try { return sessionStorage.getItem("wb.consent") === "1"; } catch (_) { return false; } }
 export function askThenRecord() {
-  if (consented()) startRecording();
+  if (app.settings?.consent_reminder === false || consented()) startRecording();
   else cap.consentAsk = true;
 }
 // The shell's record button (rail, phone header): the same flow; the consent sheet is part of Встречи.
