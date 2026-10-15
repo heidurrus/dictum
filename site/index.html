@@ -48,10 +48,11 @@
   .nav .wrap { display: flex; align-items: center; gap: 22px; height: 52px; }
   .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; text-decoration: none; letter-spacing: -0.01em; }
   .brand .mark { width: 26px; height: 26px; border-radius: 7px; }
-  .nav nav { display: flex; gap: 22px; margin-left: auto; font-size: 14px; color: var(--ink-2); }
-  .nav nav a { text-decoration: none; }
+  .nav nav { display: flex; align-items: center; gap: 22px; margin-left: auto; font-size: 14px; line-height: 1; color: var(--ink-2); }
+  .nav nav a { text-decoration: none; display: inline-flex; align-items: center; height: 32px; }
   .nav nav a:hover { color: var(--ink); }
-  .nav .cta { font-size: 13px; font-weight: 600; color: #fff; background: var(--blue-2); padding: 7px 14px; border-radius: 999px; text-decoration: none; }
+  .nav .cta { font-size: 13px; font-weight: 600; color: #fff; background: var(--blue-2); padding: 0 14px; border-radius: 999px; text-decoration: none; }
+  .nav .cta:hover { color: #fff; background: #0A4DB8; }
   @media (max-width: 760px) { .nav nav a.opt { display: none; } }
 
   /* ── hero ────────────────────────────────────────────────────────────── */
