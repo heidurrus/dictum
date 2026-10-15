@@ -1,5 +1,10 @@
 # Changelog
 
+## 5.0.3 (2026-10-15)
+
+- **Ollama is no longer a language model choice.** Settings → Models offers Claude (cloud) and the built-in local model. If Ollama was selected, Dictum switches to the built-in model on start, so nothing goes to the cloud unless you choose Claude; download the built-in model in Settings → Models if you have not yet. The Ollama line is gone from Settings → Privacy and Settings → System, and the `OLLAMA_HOST` setting is no longer read.
+- **Requirements are no longer extracted while recording.** The "Requirements on the fly" block on the meeting page and its switch in Settings → Recording are removed. The live transcript, the question card and auto-stop on silence stay, and requirements are extracted from the full transcript after you stop, as before. Requirements already found during earlier recordings stay in the project as ordinary requirements.
+
 ## 5.0.2 (2026-10-15)
 
 - **Allowing system audio no longer hangs.** On the first-run Permissions step, Allow for system audio could spin forever when macOS was still showing its prompt or the permission was off. It now answers within a couple of seconds; if no sound came through, it stays "Not allowed" and explains what to do: macOS may be asking right now, or turn on Dictum in System Settings → Privacy & Security → Screen & System Audio Recording, then press Allow again.
