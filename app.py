@@ -1017,6 +1017,8 @@ def api_whisper_to_question(whisper_id):
                 pid = None
         pid = pid or library.current_project()["id"]
         out = whisper_mod.to_question(library, w, pid)
+    except whisper_mod.AnalysisOff as e:
+        return jsonify({"error": str(e)}), 409
     except StoreError as e:
         return jsonify({"error": str(e)}), 404 if "not found" in str(e) else 400
     _index_after(pid, is_source=False)
@@ -1639,15 +1641,16 @@ def api_projects():
 @app.route("/api/projects", methods=["POST"])
 def api_create_project():
     data = request.get_json(silent=True) or {}
-    return _store_call(library.create_project, data.get("name"), bool(data.get("local_only")))
+    return _store_call(library.create_project, data.get("name"), bool(data.get("local_only")),
+                       bool(data.get("analysis", True)))
 
 
 @app.route("/api/projects/<project_id>", methods=["PATCH"])
 def api_update_project(project_id):
     data = request.get_json(silent=True) or {}
     return _store_call(library.update_project, project_id,
-                       **{k: data[k] for k in ("name", "local_only", "archived", "language", "jira_quotes", "auto_extract")
-                          if k in data})
+                       **{k: data[k] for k in ("name", "local_only", "archived", "language", "jira_quotes", "auto_extract",
+                                                "analysis") if k in data})
 
 
 @app.route("/api/projects/<project_id>/current", methods=["POST"])
@@ -2574,13 +2577,14 @@ def _start_extraction(source_id, prefs, api_key, note=None):
 
 
 def _after_transcription(source_id):
-    """PM-13: when the project wants it and the AI is set up, go straight on to requirement extraction."""
+    """PM-13: when the project wants it and the AI is set up, go straight on to requirement extraction. A project with
+    business analysis off (a meeting recorder, 5.0.4) never starts extraction by itself."""
     try:
         source = library.get_source(source_id)
         project = library.get_project(source["project_id"])
     except StoreError:
         return None
-    if not project.get("auto_extract") or source["status"] != "ready" or source_id in _extracting:
+    if not project.get("analysis", True) or not project.get("auto_extract") or source["status"] != "ready" or source_id in _extracting:
         return None
     try:                                    # a convenience: it must never fail the transcription itself
         prefs, api_key, problem = _ai_prefs(project)
