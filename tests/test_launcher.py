@@ -7,6 +7,7 @@ import urllib.request
 from flask import Flask
 
 import launcher
+from core import instance
 from core.hardware import Hardware
 from core.setup_plan import Step
 from core.setup_runner import SetupRunner
@@ -39,11 +40,69 @@ def test_healthy_machine_starts_app_directly():
     module = fake_app_module()
     runner = launcher.start(slot, browser_mode=False, app_module=module,
                             detect_hw=lambda: Hardware("darwin", "arm64"),
-                            plan_factory=lambda hw: [Step("a", "A", "", lambda: True)], log=lambda m: None)
+                            plan_factory=lambda hw: [Step("a", "A", "", lambda: True)], log=lambda m: None,
+                            defer_import=False)
     try:
         assert runner is None
         assert module.IS_DESKTOP is True
         assert get(slot, "/health")[0] == 200
+    finally:
+        slot.stop()
+
+
+def test_healthy_machine_shows_starting_page_then_the_app():
+    """The window opens on a 'starting' page at once; the app (a slow import) takes over the same port."""
+    import threading
+    release = threading.Event()
+    module = fake_app_module()
+
+    class SlowModule:
+        """Stands in for `import app`: start() must not block on it."""
+        def __getattr__(self, name):
+            release.wait(5)
+            return getattr(module, name)
+
+        def __setattr__(self, name, value):
+            setattr(module, name, value)
+
+    slot = launcher.ServerSlot(port=0)
+    runner = launcher.start(slot, browser_mode=True, app_module=SlowModule(),
+                            detect_hw=lambda: Hardware("darwin", "arm64"),
+                            plan_factory=lambda hw: [Step("a", "A", "", lambda: True)], log=lambda m: None)
+    try:
+        assert runner is None
+        status, body = get(slot, "/")
+        assert status == 200 and b"Starting Dictum" in body      # the page the window shows meanwhile
+        assert json.loads(get(slot, "/starting/status")[1]) == {"state": "loading", "error": ""}
+        assert get(slot, "/health")[0] == 404                   # main app not loaded yet
+        assert instance.is_workbench(slot.port)                 # single-instance check works meanwhile
+        port = slot.port
+        release.set()
+        assert wait_for(lambda: _up(port), timeout=5)
+        assert slot.port == port                                # same address: the page just reloads
+        assert get(slot, "/starting/status")[0] == 404
+        assert module.IS_DESKTOP is False
+    finally:
+        release.set()
+        slot.stop()
+
+
+def test_failed_import_is_reported_on_the_starting_page():
+    class BrokenModule:
+        def __getattr__(self, name):
+            raise ImportError("No module named 'torch'")
+
+    logged = []
+    slot = launcher.ServerSlot(port=0)
+    launcher.start(slot, browser_mode=True, app_module=BrokenModule(),
+                   detect_hw=lambda: Hardware("darwin", "arm64"),
+                   plan_factory=lambda hw: [Step("a", "A", "", lambda: True)], log=logged.append)
+    try:
+        assert wait_for(lambda: json.loads(get(slot, "/starting/status")[1])["state"] == "failed", timeout=5)
+        st = json.loads(get(slot, "/starting/status")[1])
+        assert st["error"] == "ImportError: No module named 'torch'"
+        assert get(slot, "/")[0] == 200                         # the page stays up to show the error
+        assert any("Could not start the app" in m and "Traceback" in m for m in logged)
     finally:
         slot.stop()
 

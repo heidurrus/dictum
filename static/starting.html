@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dictum</title>
+<style>
+  :root {
+    --paper: #EDEFEC; --panel: #FFFFFF; --ink: #191C1A; --ink-2: #5E645F; --rule: #DCDFDA; --accent: #2B5B78; --danger: #9E3626;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --paper: #15181A; --panel: #1D2124; --ink: #E6E9E6; --ink-2: #A2A9A5; --rule: #2E3337; --accent: #8FBBD6; --danger: #E0917F; }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--paper); color: var(--ink); display: flex; align-items: center; justify-content: center;
+         font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+  main { text-align: center; padding: 24px; max-width: 480px; }
+  .mark { width: 56px; height: 56px; margin: 0 auto 20px; display: block; }
+  h1 { font-size: 18px; font-weight: 600; margin: 0 0 6px; }
+  p { color: var(--ink-2); margin: 0; }
+  .spin { display: inline-block; width: 14px; height: 14px; vertical-align: -2px; margin-right: 8px; border: 2px solid var(--rule);
+          border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .failed h1 { color: var(--danger); }
+  pre { text-align: left; margin: 16px 0 0; font-size: 11.5px; color: var(--ink-2); background: var(--panel); border: 1px solid var(--rule);
+        border-radius: 6px; padding: 8px 12px; white-space: pre-wrap; max-height: 10em; overflow: auto; }
+</style>
+</head>
+<body>
+<main id="main">
+  <svg class="mark" viewBox="0 0 1024 1024" aria-hidden="true">
+    <rect width="1024" height="1024" rx="224" fill="#245E92"/>
+    <g stroke="#fff" stroke-width="60" stroke-linecap="round" fill="none">
+      <line x1="208" y1="424" x2="208" y2="600"/><line x1="304" y1="352" x2="304" y2="672"/><line x1="400" y1="388" x2="400" y2="636"/>
+      <line x1="496" y1="416" x2="816" y2="416"/><line x1="496" y1="512" x2="816" y2="512"/><line x1="496" y1="608" x2="816" y2="608"/>
+    </g>
+  </svg>
+  <h1 id="title"><span class="spin"></span><span id="t"></span></h1>
+  <p id="sub"></p>
+</main>
+<script>
+  const ru = (navigator.language || "").toLowerCase().startsWith("ru");
+  const T = ru
+    ? { starting: "Запускаем Dictum", sub: "Загружаем модели распознавания. Обычно это занимает меньше минуты.",
+        failed: "Dictum не смог запуститься", failedSub: "Закройте приложение и откройте его снова. Если ошибка повторяется, пришлите этот текст." }
+    : { starting: "Starting Dictum", sub: "Loading the speech models. This usually takes under a minute.",
+        failed: "Dictum could not start", failedSub: "Close the app and open it again. If this keeps happening, send this text." };
+  document.documentElement.lang = ru ? "ru" : "en";
+  document.getElementById("t").textContent = T.starting;
+  document.getElementById("sub").textContent = T.sub;
+
+  function failed(error) {
+    const main = document.getElementById("main");
+    main.classList.add("failed");
+    document.getElementById("title").textContent = T.failed;
+    document.getElementById("sub").textContent = T.failedSub;
+    const pre = document.createElement("pre");
+    pre.textContent = error;
+    main.appendChild(pre);
+  }
+
+  async function poll() {
+    try {
+      const st = await fetch("/starting/status", { cache: "no-store" });
+      if (st.ok) {
+        const data = await st.json();
+        if (data.state === "failed") return failed(data.error);
+      } else if (st.status === 404) {
+        // The app has replaced this page on the same address once /health answers.
+        const res = await fetch("/health", { cache: "no-store" });
+        if (res.ok) { location.replace("/"); return; }
+      }
+    } catch (_) { /* server swapping */ }
+    setTimeout(poll, 500);
+  }
+  poll();
+</script>
+</body>
+</html>

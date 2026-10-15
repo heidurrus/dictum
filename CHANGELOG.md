@@ -1,5 +1,10 @@
 # Changelog
 
+## 5.0.1 (2026-10-15)
+
+- **The window opens at once.** Starting Dictum used to show nothing for up to a minute while the speech models loaded (the Dock icon bounced, then sat there), which looked like the app had not opened. The window now appears immediately with a "Starting Dictum" page and switches to the app on the same address when it is ready; if the start fails, that page shows the error instead of a silent exit.
+- The first-run setup page is titled Dictum (it still said Requirements Workbench).
+
 ## 5.0.0 (2026-10-15): Dictum
 
 Requirements Workbench becomes Dictum: a meeting-first app with a live transcript, a knowledge library, answers with

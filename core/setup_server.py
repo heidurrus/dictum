@@ -39,3 +39,21 @@ def create_setup_app(runner, on_done=None):
         return jsonify({"ok": True})
 
     return app
+
+
+def create_starting_app(status):
+    """The page the window shows while the main app imports torch and GigaAM (which takes
+    up to a minute on a cold start): a spinner, then the app on the same address. `status`
+    returns {"state": "loading" | "failed", "error": str}."""
+    app = Flask(__name__ + ".starting", static_folder=None)
+    install_local_only_guard(app)
+
+    @app.route("/")
+    def index():
+        return send_from_directory(STATIC_DIR, "starting.html")
+
+    @app.route("/starting/status")
+    def starting_status():
+        return jsonify(status())
+
+    return app

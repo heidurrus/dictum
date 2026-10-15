@@ -104,7 +104,8 @@ def test_setup_screen_and_app_both_identify_themselves():
     slot2 = launcher.ServerSlot(port=0)
     launcher.start(slot2, browser_mode=True, app_module=module,
                    detect_hw=lambda: Hardware("darwin", "arm64"),
-                   plan_factory=lambda hw: [Step("x", "X", "", lambda: True)], log=lambda m: None)
+                   plan_factory=lambda hw: [Step("x", "X", "", lambda: True)], log=lambda m: None,
+                   defer_import=False)
     try:
         assert instance.is_workbench(slot2.port), "main app must identify as the app"
     finally:
