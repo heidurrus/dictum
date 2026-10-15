@@ -13,6 +13,7 @@ import signal
 import sys
 import threading
 import time
+import traceback
 import urllib.request
 import webbrowser
 
@@ -23,7 +24,7 @@ from core.hardware import detect
 from core.security import BIND_HOST
 from core.setup_plan import build_plan
 from core.setup_runner import SetupRunner
-from core.setup_server import create_setup_app
+from core.setup_server import create_setup_app, create_starting_app
 
 APP_TITLE = "Dictum"
 
@@ -93,8 +94,14 @@ def print_summary(app_module):
 
 
 def start(slot, browser_mode, app_module=None, detect_hw=detect, plan_factory=build_plan,
-          runner_factory=SetupRunner, log=print):
-    """Start the setup screen or the app on `slot`. Returns the SetupRunner (or None)."""
+          runner_factory=SetupRunner, log=print, defer_import=True):
+    """Start the setup screen or the app on `slot`. Returns the SetupRunner (or None).
+
+    With defer_import (the default) the slot first serves a small "starting" page, so the
+    window opens at once, and the main app (torch, GigaAM: up to a minute on a cold start)
+    is imported on a background thread and takes over the same address; the page follows.
+    Without it the import happens here and the app answers as soon as start() returns.
+    """
     runner = runner_factory(plan_factory(detect_hw()))
     missing = runner.missing_required()
 
@@ -109,7 +116,22 @@ def start(slot, browser_mode, app_module=None, detect_hw=detect, plan_factory=bu
             module.start_background()
 
     if not missing:
-        launch_app()
+        if not defer_import:
+            launch_app()
+            return None
+        status = {"state": "loading", "error": ""}
+        starting_app = create_starting_app(lambda: dict(status))
+        instance.register_identity_route(starting_app)
+        slot.serve(starting_app)
+
+        def load():
+            try:
+                launch_app()
+            except Exception as e:                      # shown on the starting page (the window has no console)
+                status.update(state="failed", error=f"{type(e).__name__}: {e}")
+                log("  Could not start the app:\n" + traceback.format_exc())
+
+        threading.Thread(target=load, name="dictum-start", daemon=True).start()
         return None
 
     log("  Setup needed: " + ", ".join(s.title for s in missing))
