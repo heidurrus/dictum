@@ -28,7 +28,7 @@ depends on an unmerged one.
 | 13 | Onboarding, permissions API, discovery, tutorial, e2e gate | C8 | 4.9.12 | merged, hand check pending |
 | 14 | Settings sections, stats, storage move, hotkeys UI | C9 | 4.9.13 | merged |
 | 15 | Requirements, Documents, Backlog, Export, Skills restyled; old tokens deleted | C10 | 4.9.14 | merged |
-| 16 | Release: Windows parity, README, changelog, screenshots, 5.0.0 | C11 | 5.0.0 | in progress |
+| 16 | Release: Windows parity, README, changelog, screenshots, 5.0.0 | C11 | 5.0.0 | merged |
 
 ## Log
 
@@ -48,3 +48,4 @@ depends on an unmerged one.
 - 2026-10-15 · 13 merged (ce4c63f). 682 tests, i18n 1580, onboarding.mjs ru/en (20 steps) + 13 suites; welcome screenshot OK. Hand check: real permission prompts, download progress, discovery on real folders, tutorial at narrow widths. Help menu now has Подсказки and Первый запуск заново.
 - 2026-10-15 · 14 merged (4dcacf1). 696 tests, i18n 1711, settings.mjs ru/en + 14 suites; model cards screenshot OK (machine line, RAM tags, index model). Data-dir move writes a pointer file in the default folder; refused while recording/downloading or with DICTUM_DATA_DIR set.
 - 2026-10-15 · 15 merged (fe9dcaa). 696 tests, i18n 1731, tokens check (old set deleted), 15 suites; 40 screenshots in docs/design/5.0. Deviations accepted: Документы cards double as the switcher (no list screen), 'Извлечь из новых встреч' is a per-meeting menu (no bulk endpoint).
+- 2026-10-15 · 16 merged (b8e8dae). 701 tests, i18n 1735, tokens check, CI yaml valid, 15 suites; README and the consolidated 5.0.0 changelog reviewed. Windows left to check on a real machine: Alt+Space may be taken by the window menu; the taskbar may show Python's icon (no launcher exe). 5.0.0 dmg built and installed; the user pushes master and tags v5.0.0.
