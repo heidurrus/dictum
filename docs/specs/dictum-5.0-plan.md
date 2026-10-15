@@ -31,7 +31,7 @@ depends on an unmerged one.
 | 16 | Release: Windows parity, README, changelog, screenshots, 5.0.0 | C11 | 5.0.0 | merged |
 | 17 | Hand-test feedback 1: system-audio Allow no longer hangs, consent reminder toggle, calm record panel, archive in the project picker | C8, C9, C2 | 5.0.2 | merged |
 | 18 | Hand-test feedback 2: remove Ollama and requirements on the fly | C4.2, C9 | 5.0.3 | merged |
-| 19 | Per-project switch: business analysis off makes Dictum a meeting recorder | C9, C2 | 5.0.4 | in review |
+| 19 | Per-project switch: business analysis off makes Dictum a meeting recorder | C9, C2 | 5.0.4 | merged |
 
 ## Log
 
@@ -56,3 +56,4 @@ depends on an unmerged one.
 - 2026-10-15 · 17 merged (f23ea23). 707 tests, i18n 1747, 15 suites by the agent; dry-run fix reviewed (reader thread, bounded wait, tap closed by whoever finishes last), record panel screenshots ru/en OK. Hand check: the real macOS system-audio prompt. Note for the user: ad-hoc signing makes TCC re-prompt after every build (Developer ID would fix it).
 - 2026-10-15 · 18 merged. 692 tests, i18n 1728, 15 suites by the agent; session.mjs re-run here; greps clean except the migration fixture. Deviation accepted: pending requirements found live in earlier recordings are no longer protected from re-extraction. 5.0.3 dmg built and installed.
 - 2026-10-15 · docs sweep merged (082c808): README rewritten for 5.0.3, stale 4.x docs deleted, specs and comments scrubbed of the old names; code identifiers kept for compatibility. 692 tests.
+- 2026-10-15 · 19 merged. 699 tests, i18n 1732, 15 suites by the agent; notes_mode.mjs (20 steps, ru+en) re-run here; backend guards reviewed (auto-extract, whisper question 409, Ask intent dropped); screenshots ru/en OK. Beyond the brief, accepted: Ask never creates a question in a notes-only project; the whole pipeline strip is hidden, not three rings; a checkbox at project creation. 5.0.4 dmg built.
