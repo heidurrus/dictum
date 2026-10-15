@@ -59,8 +59,12 @@ def _tree_size(root):
         for name in names:
             path = os.path.join(folder, name)
             if not os.path.islink(path):
+                try:
+                    size = os.path.getsize(path)
+                except FileNotFoundError:       # gone while walking (SQLite's -wal / -shm come and go)
+                    continue
                 files += 1
-                total += os.path.getsize(path)
+                total += size
     return files, total
 
 
