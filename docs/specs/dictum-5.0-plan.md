@@ -32,6 +32,7 @@ depends on an unmerged one.
 | 17 | Hand-test feedback 1: system-audio Allow no longer hangs, consent reminder toggle, calm record panel, archive in the project picker | C8, C9, C2 | 5.0.2 | merged |
 | 18 | Hand-test feedback 2: remove Ollama and requirements on the fly | C4.2, C9 | 5.0.3 | merged |
 | 19 | Per-project switch: business analysis off makes Dictum a meeting recorder | C9, C2 | 5.0.4 | merged |
+| 20 | The live transcript stays until the full one replaces it; project picker without the privacy row | C4.1, C2 | 5.0.5 | in review |
 
 ## Log
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 5.0.5 (2026-10-15)
+
+- **The live transcript stays after you stop.** The lines written while recording no longer vanish when the full transcription starts: the meeting page and the Meetings panel keep them, lighter, under a line saying the full transcript is being made, and the full transcript replaces them in one step when it is ready. If the full transcription fails, the live lines stay as the rough version and "Transcribe" runs it again. Recaps, requirement extraction, search, Ask and the index still read only the full transcript.
+- The project menu no longer shows the "Local only" / "Claude · cloud" row that only opened Settings. A local-only project still has the lock next to its name; the setting itself is in Settings → Privacy.
+
 ## 5.0.4 (2026-10-15)
 
 - **Business analysis can be switched off per project.** Settings → Project has a new "Business analysis" switch, on by default, so existing projects do not change. Off, the project is a meeting recorder: record, transcribe, recaps, notes, the library, Ask, Whisper and Settings stay; Requirements, Documents and Backlog leave the rail, Export leaves More, and the ⌘K palette, ⌘3–⌘5, the pipeline strip and requirement counts on Meetings, the Requirements tab, Extract requirements, the requirements panel on the meeting page, the Jira section in Settings and the Jira line in Privacy are gone with them. Nothing is deleted: switch it back on and everything that was there is back.
