@@ -201,6 +201,15 @@ def test_the_intent_creates_a_question_atom_quoting_the_cited_sources(lib, pid, 
     assert lib.ask_history(pid)[0]["created"] == created
 
 
+def test_the_intent_creates_nothing_when_business_analysis_is_off(lib, pid, project):
+    lib.update_project(pid, analysis=False)
+    before = len(lib.list_atoms(pid))
+    reply = ("Сделал вопрос [Источник 1].\n<intent>{\"create_question\": {\"statement\": \"Какой срок?\", "
+             "\"source_ns\": [1]}}</intent>")
+    out = ask.answer(lib, pid, "Сделай из этого вопрос для клиента: " + Q, True, scripted(reply))
+    assert out["created"] is None and "<intent>" not in out["answer"] and len(lib.list_atoms(pid)) == before
+
+
 def test_history_route_lists_newest_first_and_delete_removes_one(client, lib, pid, project):
     a = ask.answer(lib, pid, "Первый вопрос про срок ответа дилеру?", False, scripted("Да [Источник 1]."))
     time.sleep(0.01)
