@@ -10,6 +10,7 @@
 > «Извлечь из новых встреч» runs per meeting from a menu, with no bulk endpoint (C10). On Windows there is no global
 > hot key or menu-bar item, and live transcription on CPU falls back to post-stop transcription through the
 > backpressure rule (C11).
+> C4.2 (requirements on the fly) was removed in 5.0.3 at the user's request; the section below is kept as written.
 
 For the agent (or human) building release 5.0 of the app known until now as Requirements Workbench.
 Everything in the clickable prototype `docs/design/prototype-v5.html` is in scope. The prototype is

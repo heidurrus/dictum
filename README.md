@@ -25,7 +25,7 @@ bottom; Скиллы and Выгрузка are under «Ещё» and in the ⌘K p
 
 | Section | What you get |
 |---|---|
-| **Встречи** (Meetings) | The home page: every recording, import and text of the project with search over titles and transcripts, a details panel (recap, transcript, notes, requirements) and the pipeline strip. A meeting page shows the transcript as it is spoken, notes with autosave, requirements found on the fly, recap styles (brief, bullets, actions) with an incremental update, pause and resume, and auto-stop after minutes of silence. |
+| **Встречи** (Meetings) | The home page: every recording, import and text of the project with search over titles and transcripts, a details panel (recap, transcript, notes, requirements) and the pipeline strip. A meeting page shows the transcript as it is spoken, notes with autosave, recap styles (brief, bullets, actions) with an incremental update, pause and resume, and auto-stop after minutes of silence. |
 | **Материалы** (Materials) | Files, links and pasted notes of the project, as a list, tiles or a graph of what is similar in meaning. Labels assign themselves to related materials; «Похожие материалы» and «Где используется» per material; keyword search across the whole project. |
 | **Требования** (Requirements) | Small, testable statements extracted by the AI, each with a quote checked against its source. Six types: BR, FR, NFR, RSK, AS, Q. Review with the keyboard or in bulk, with undo; duplicates merged, conflicts side by side. |
 | **Документы** (Documents) | BRD, SRS, Vision & Scope, risk register, As-Is / To-Be, a GOST 34 specification or your own type, with stable IDs, versions, a quality check, sign-off and Word export. |
@@ -65,7 +65,6 @@ depends only on the providers you choose, and Settings → Приватност�
 | GigaAM speech recognition | Nothing. Audio never leaves the computer. |
 | Built-in model (llama.cpp) | Nothing. Meeting and material text is processed locally. |
 | Index model | Nothing. Search by meaning is computed locally. |
-| Ollama | Text goes to the Ollama server at `OLLAMA_HOST`, usually the same computer. |
 | Claude (cloud) | Meeting text, notes and materials go to Anthropic with your API key. |
 | Jira | An export sends stories and requirements; quotes follow the project's «Что уходит в Jira» setting. |
 
@@ -107,7 +106,7 @@ Settings → Модели shows each model as a card with its size, whether it i
 
 Each language-model card says «нужно n ГБ памяти», «не хватает памяти» when the machine is short, and how fast it
 will run; the first one that fits and runs at full speed is recommended. Claude (cloud) is a card too, with the API
-key field. Ollama also works. Speaker separation (optional) needs a free Hugging Face token and accepting the terms of
+key field. Speaker separation (optional) needs a free Hugging Face token and accepting the terms of
 the pyannote models.
 
 Live transcription needs a machine that keeps up: when a pass takes longer than its window, the window doubles (up
