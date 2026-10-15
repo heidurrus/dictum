@@ -146,7 +146,6 @@ def test_provisional_segments_land_in_the_store_and_the_final_save_replaces_them
     lt.run_pass()
     segs, _ = store.transcript(src["id"])
     assert [(s["idx"], s["speaker"], s["start"], s["provisional"]) for s in segs] == [(0, "BA", 0.0, True), (1, "BA", 1.5, True)]
-    assert store.delete_provisional_segments(src["id"]) == 2
     store.save_transcript(src["id"], {"text": "x", "segments": [{"speaker": "BA", "start": 0.0, "end": 1.0, "text": "x"}]})
     segs, _ = store.transcript(src["id"])
     assert [(s["text"], s["provisional"]) for s in segs] == [("x", False)]
@@ -373,19 +372,96 @@ def test_live_mode_is_off_without_an_installed_model_or_when_the_setting_is_off(
     assert client.post("/desktop-record/start", json={"model": "v3_e2e_rnnt"}).get_json()["live"] == "off"
 
 
-def test_stop_deletes_provisional_segments_before_the_final_job(client, recording_app, monkeypatch):
-    a = recording_app
-    sid = client.post("/desktop-record/start", json={}).get_json()["source_id"]
-    a.library.append_provisional_segments(sid, [{"speaker": "BA", "start": 0.0, "end": 1.0, "text": "черновик"}])
-    assert wait_for(lambda: client.get("/desktop-record/status").get_json()["channels"]["mic"]["frames"] >= 2048)
-    seen = {}
+def test_the_final_save_replaces_the_live_lines_in_one_transaction(tmp_path):
+    store = Store(root=str(tmp_path / "lib"), user="ba")
+    pid = store.ensure_default_project()["id"]
+    src = store.create_source(pid, "recording", "Встреча", status="processing")
+    store.append_provisional_segments(src["id"], [{"speaker": "BA", "start": 0.0, "end": 1.0, "text": "черновик"}])
+    with pytest.raises(Exception):           # a write that breaks halfway leaves the live lines as they were
+        store.save_transcript(src["id"], {"segments": [{"text": "итог"}, {"text": {"not": "a string"}}]})
+    assert [(s["text"], s["provisional"]) for s in store.transcript(src["id"])[0]] == [("черновик", True)]
+    store.save_transcript(src["id"], {"text": "итог", "segments": [{"speaker": "BA", "start": 0.0, "end": 1.0, "text": "итог"}]})
+    assert [(s["text"], s["provisional"]) for s in store.transcript(src["id"])[0]] == [("итог", False)]
+    assert store.get_source(src["id"])["status"] == "ready"
 
-    def fake_start(source, audio_path, opts):
-        seen["segments"] = a.library.transcript(source["id"])[0]
-        seen["status"] = a.library.get_source(source["id"])["status"]
-        seen["audio"] = os.path.basename(audio_path)
-        return "job-1"
-    monkeypatch.setattr(a, "_start_transcription", fake_start)
+
+def test_readers_of_the_meeting_content_ignore_the_live_lines(tmp_path):
+    store = Store(root=str(tmp_path / "lib"), user="ba")
+    pid = store.ensure_default_project()["id"]
+    src = store.create_source(pid, "recording", "Встреча", status="processing")
+    store.append_provisional_segments(src["id"], [{"speaker": "BA", "start": 0.0, "end": 1.0, "text": "черновик выгрузки"}])
+    assert [s["text"] for s in store.transcript(src["id"])[0]] == ["черновик выгрузки"]     # the page shows them
+    assert store.transcript(src["id"], final=True)[0] == []
+    assert store.transcript_text(src["id"]) == ""                 # recap
+    assert store.last_segment_idx(src["id"]) is None              # recap: nothing to summarise yet
+    assert store.list_sources(pid, q="черновик") == []           # the meetings search
+    assert [h for h in store.search(pid, "черновик") if h["entity"] == "segment"] == []      # Поиск, Ask
+    store.update_source(src["id"], status="failed", error="boom")   # a failed full pass keeps them, still not content
+    assert store.transcript_text(src["id"]) == "" and len(store.transcript(src["id"])[0]) == 1
+
+
+def test_the_index_skips_a_meeting_with_live_lines_only(tmp_path, monkeypatch):
+    from core import index
+    from tests import fake_embed
+    fake_embed.install(monkeypatch, index, [])
+    store = Store(root=str(tmp_path / "lib"), user="ba")
+    pid = store.ensure_default_project()["id"]
+    src = store.create_source(pid, "recording", "Встреча", status="ready")   # even if it were marked ready
+    store.append_provisional_segments(src["id"], [{"speaker": "BA", "start": 0.0, "end": 1.0, "text": "черновик " * 20}])
+    index.index_project(store, pid)
+    assert store.embeddings("segment", src["id"]) == {}
+
+
+def _stop_with_transcription(client, a, monkeypatch, transcribe):
+    """Record, add two live lines, stop with a model named; the full pass is `transcribe` run on the job thread."""
+    monkeypatch.setattr(a, "_transcribe", transcribe)
+    monkeypatch.setattr(a, "_index_after", lambda *args, **kw: None)
+    monkeypatch.setattr(a, "_after_transcription", lambda sid: None)
+    sid = client.post("/desktop-record/start", json={}).get_json()["source_id"]
+    a.library.append_provisional_segments(sid, [{"speaker": "BA", "start": 0.0, "end": 1.0, "text": "черновик"},
+                                                {"speaker": "OTHER", "start": 1.2, "end": 2.0, "text": "ответ"}])
+    assert wait_for(lambda: all(c["frames"] >= 2048 for c in client.get("/desktop-record/status").get_json()["channels"].values()))
     res = client.post("/desktop-record/stop", json={"model": "v3_e2e_rnnt", "device": "cpu"})
-    assert res.status_code == 200 and res.headers["X-Job-Id"] == "job-1" and res.headers["X-Source-Id"] == sid
-    assert seen == {"segments": [], "status": "processing", "audio": "mixed.wav"}
+    assert res.status_code == 200 and res.headers["X-Source-Id"] == sid
+    return sid, res.headers["X-Job-Id"]
+
+
+def test_stop_keeps_the_live_lines_until_the_full_transcript_replaces_them(client, recording_app, monkeypatch):
+    a = recording_app
+    gate, calls = threading.Event(), []
+
+    def slow_transcribe(job_id, path, *rest):
+        calls.append(os.path.basename(path))
+        assert gate.wait(10)
+        return {"text": "итог", "segments": [{"start": 0.0, "end": 1.0, "text": "итог " + os.path.basename(path)}]}
+    sid, job_id = _stop_with_transcription(client, a, monkeypatch, slow_transcribe)
+    body = client.get(f"/api/sources/{sid}").get_json()
+    assert body["status"] == "processing"
+    assert [(s["text"], s["provisional"]) for s in body["segments"]] == [("черновик", True), ("ответ", True)]
+    assert body["text"] == ""                               # the source text is the final transcript's
+    gate.set()
+    assert wait_for(lambda: a.jobs.get(job_id)["status"] == "done", timeout=10)
+    body = client.get(f"/api/sources/{sid}").get_json()
+    assert body["status"] == "ready" and sorted(calls) == ["mic.wav", "sys.wav"]
+    assert not any(s["provisional"] for s in body["segments"]) and body["segments"]
+    assert not any(s["text"] in ("черновик", "ответ") for s in body["segments"])
+
+
+def test_a_failed_full_pass_keeps_the_live_lines_and_can_run_again(client, recording_app, monkeypatch):
+    a = recording_app
+
+    def boom(*args):
+        raise RuntimeError("model exploded")
+    sid, job_id = _stop_with_transcription(client, a, monkeypatch, boom)
+    assert wait_for(lambda: a.jobs.get(job_id)["status"] == "error", timeout=10)
+    body = client.get(f"/api/sources/{sid}").get_json()
+    assert body["status"] == "failed" and "model exploded" in body["error"]
+    assert [(s["text"], s["provisional"]) for s in body["segments"]] == [("черновик", True), ("ответ", True)]
+    # "Расшифровать ещё раз": the lines stay while it runs and are replaced when it lands
+    monkeypatch.setattr(a, "_transcribe", lambda job_id, path, *rest: {
+        "text": "итог", "segments": [{"start": 0.0, "end": 1.0, "text": "итог"}]})
+    job2 = client.post(f"/api/sources/{sid}/transcribe", json={"model": "v3_e2e_rnnt", "device": "cpu"}).get_json()["job_id"]
+    assert wait_for(lambda: a.jobs.get(job2)["status"] == "done", timeout=10)
+    body = client.get(f"/api/sources/{sid}").get_json()
+    assert body["status"] == "ready" and {s["text"] for s in body["segments"]} == {"итог"}
+    assert not any(s["provisional"] for s in body["segments"])

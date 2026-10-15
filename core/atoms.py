@@ -140,7 +140,7 @@ def extract_candidates(store, source_id, prefs, api_key, skillset=None, progress
     """Atoms found in one source, verified against the text, without saving anything
     (used by extraction and by "try this skill")."""
     source = store.get_source(source_id)
-    segments, _ = store.transcript(source_id)
+    segments, _ = store.transcript(source_id, final=True)
     if not segments:
         raise LLMError("This source has no text yet.")
     skillset = skillset or skills.resolve()
