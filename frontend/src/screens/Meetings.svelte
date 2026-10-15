@@ -578,15 +578,15 @@
   .recdot.sq { border-radius: 2px; width: 9px; height: 9px; }
   .rec-wrap { position: relative; display: inline-flex; }
   .rec-pop { top: calc(100% + 6px); width: 320px; max-width: none; padding: var(--s-6); display: grid; gap: var(--s-5); grid-template-columns: minmax(0, 1fr); }
-  .rec-pop details summary { cursor: pointer; color: var(--c-text-2); font-size: var(--t-foot); }
+  .rec-pop details summary { cursor: pointer; color: var(--text-2); font-size: var(--size-foot); }
   .rec-pop details[open] summary { margin-bottom: var(--s-5); }
 
-  .dropzone { position: fixed; inset: 0; z-index: 140; background: color-mix(in srgb, var(--c-accent) 14%, var(--c-scrim)); display: grid; place-items: center;
+  .dropzone { position: fixed; inset: 0; z-index: 140; background: color-mix(in srgb, var(--primary) 14%, var(--scrim)); display: grid; place-items: center;
     pointer-events: none; animation: fade var(--d-fast) var(--ease-out); }
-  .dropzone div { background: var(--c-raised); border-radius: var(--r-xl); box-shadow: var(--e-4); padding: var(--s-9) var(--s-10); text-align: center;
-    display: grid; justify-items: center; gap: var(--s-3); max-width: 480px; color: var(--c-accent-text); }
-  .dropzone h3 { font: var(--w-semibold) var(--t-title-2)/var(--lh-title-2) var(--font-display); color: var(--c-text); }
-  .dropzone p { color: var(--c-text-3); font-size: var(--t-foot); }
+  .dropzone div { background: var(--surface); border-radius: var(--r-xl); box-shadow: var(--shadow-3); padding: var(--s-9) var(--s-10); text-align: center;
+    display: grid; justify-items: center; gap: var(--s-3); max-width: 480px; color: var(--primary); }
+  .dropzone h3 { font: var(--w-semibold) var(--size-title-2)/var(--lh-title-2) var(--font); color: var(--text); }
+  .dropzone p { color: var(--text-3); font-size: var(--size-foot); }
 
   /* Below 900 px the panel goes; a double-click (or Enter) opens the meeting. */
   @container ws (max-width: 900px) {

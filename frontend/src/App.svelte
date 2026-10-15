@@ -164,5 +164,5 @@
 {/if}
 
 <style>
-  .boot-error { margin: var(--sp-9) auto; width: min(560px, 90vw); }
+  .boot-error { margin: var(--s-9) auto; width: min(560px, 90vw); }
 </style>

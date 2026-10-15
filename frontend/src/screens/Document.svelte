@@ -295,6 +295,15 @@
     const date = s.source_date ? new Date(s.source_date * 1000).toLocaleDateString(app.lang, { day: "2-digit", month: "2-digit" }) : "";
     return [date, s.start != null ? fmtTime(s.start) : null].filter(Boolean).join(" — ");
   }
+  // Document cards (prototype-v5 pageDocuments): version · date · count, and the status tag.
+  function cardMeta(d) {
+    const cur = d.id === docId && body?.versions?.[0];
+    return [d.version ? `v${d.version}` : "", ago(cur ? cur.created_at : d.updated_at),
+            cur ? t("src.atoms_n", { n: cur.atom_count }) : d.short].filter(Boolean).join(" · ");
+  }
+  const cardTag = d => (d.stale ? ["warn", t("doc.tag.stale")] : !d.version ? ["", t("doc.tag.never")]
+    : d.status === "approved" ? ["ok", t("doc.st.approved")] : d.status === "review" ? ["prim", t("doc.st.review")] : ["", t("doc.st.draft")]);
+  const staleN = $derived(body?.stale?.stale ? body.stale.changed + body.stale.removed + body.stale.added : 0);
   function scrollTo(id) { document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }); }
   const ago = ts => fmtDate(ts, app.lang);
   const staleIds = $derived(new Set(isLatest && body?.stale?.stale ? body.stale.atom_ids : []));
@@ -346,8 +355,9 @@
 
 <svelte:window onkeydown={onKey} />
 
-<Page title={doc?.title || t("nav.document")} inspector={version ? "document" : ""}
-        sub={!doc ? "" : version ? t("doc.sub", { v: version.number, n: version.atom_count, when: ago(version.created_at) }) + " · " + t("doc.st." + (version.status || "draft")).toLowerCase() : t("doc.never")}>
+<Page title={doc?.title || t("nav.document")} inspector={version ? "document" : ""} headClass="m" card={false}
+        sub={!doc ? "" : version && isLatest && staleN ? t("doc.head_stale", { doc: doc.short, v: version.number, n: staleN })
+          : version ? t("doc.sub", { v: version.number, n: version.atom_count, when: ago(version.created_at) }) + " · " + t("doc.st." + (version.status || "draft")).toLowerCase() : t("doc.never")}>
   {#snippet heading()}
     {#if doc && editingTitle}
       <!-- svelte-ignore a11y_autofocus -->
@@ -366,7 +376,7 @@
       <PopMenu label={t("doc.status")} value={version.status || "draft"} ariaLabel={t("doc.st.label")}
                items={["draft", "review", "approved"].map(s => ({ value: s, label: t("doc.st." + s) }))} onpick={setStatus} />
       {#if version.number > 1}
-        <button class="btn tb-opt" aria-pressed={!!diff} onclick={toggleDiff}>
+        <button class="btn" aria-pressed={!!diff} onclick={toggleDiff}>
           <Icon name="compare" size={14} /> {diff ? t("doc.hide_diff") : t("doc.diff", { v: version.number - 1 })}</button>
       {/if}
       <div class="split">
@@ -381,7 +391,7 @@
       </div>
       {#if body.stale?.stale}
         <button class="btn primary" disabled={!!build} onclick={() => runBuild("changed")}>
-          <Icon name="refresh" size={14} /> {t("doc.rebuild")} · {body.stale.changed + body.stale.removed + body.stale.added}</button>
+          <Icon name="refresh" size={16} /> {t("doc.rebuild")} · {staleN}</button>
       {:else if hasRequirements}
         <button class="btn primary" onclick={() => go("/backlog")}>{t("doc.to_backlog")} <Icon name="arrow" size={14} /></button>
       {/if}
@@ -390,16 +400,17 @@
 
   <div class="doc-screen">
     {#if docList}
-      <div class="tabs doc-tabs" role="tablist" aria-label={t("nav.document")}>
+      <div class="doc-cards doc-tabs" role="tablist" aria-label={t("nav.document")}>
         {#each docList.documents as d (d.id)}
-          <button role="tab" aria-selected={d.id === docId} onclick={() => go(`/document/${d.id}`)} title={d.title}>
-            {d.short}{#if d.version}<span class="n">v{d.version}</span>{/if}
-            {#if d.stale}<span class="dot warn" title={t("nav.st.stale")}></span>
-            {:else if d.status === "approved"}<span class="dot ok" title={t("doc.st.approved")}></span>{/if}
+          {@const [tc, tl] = cardTag(d)}
+          <button class="doc-card" role="tab" aria-selected={d.id === docId} onclick={() => go(`/document/${d.id}`)} title={d.title}>
+            <span class="dc-ico"><Icon name="doc" size={20} /></span>
+            <span class="dc-text"><b class="trunc">{d.title}</b><span class="dc-meta trunc">{cardMeta(d)}</span></span>
+            <span class="tag-m {tc}">{tl}</span>
           </button>
         {/each}
         <span class="add-wrap">
-          <PopMenu cls="btn sm ghost" icon="plus" chevron="" text={t("doc.add")} ariaLabel={t("doc.add")} onpick={v => (v === "custom" ? go("/skills") : createDoc(v))}
+          <PopMenu cls="doc-card new" icon="plus" chevron="" text={t("doc.add_by_skill")} ariaLabel={t("doc.add")} onpick={v => (v === "custom" ? go("/skills") : createDoc(v))}
                    items={[...docList.types.map(ty => ({ value: ty.name, label: ty.title, hint: (ty.atom_types || []).map(x => PREFIX[x]).join(" ") })),
                            { sep: true }, { value: "custom", label: t("doc.add_custom_short"), icon: "skills" }]} />
         </span>
@@ -410,7 +421,7 @@
       <button class="btn sm" onclick={load}>{t("ov.retry")}</button></div></div>{/if}
 
     {#if body && !version}
-      <div class="fill scroll">
+      <div class="fill scroll card-m">
         {#if build}
           <div class="pad"><div class="banner info"><span class="spinner"></span><span class="grow num">{build.message}</span>
             <span class="progress w"><i style="width: {build.progress}%"></i></span></div>
@@ -445,7 +456,7 @@
         {/if}
       </div>
     {:else if body && version}
-      <div class="fill">
+      <div class="fill pane-cards">
       <Panes screen="document" contentClass="deskpane">
         {#snippet outline()}
           <div class="pane-body scroll">
@@ -515,7 +526,7 @@
 
         {#snippet inspector()}
           <div class="pane-head">
-            <div class="seg" role="tablist">
+            <div class="seg-m" role="tablist">
               <button role="tab" aria-selected={side === "quality"} onclick={() => (side = "quality")}>{t("doc.seg.quality")}{#if findings.length && isLatest}<span class="n">{findings.length}</span>{/if}</button>
               <button role="tab" aria-selected={side === "changes"} onclick={() => (side = "changes")}>{t("doc.seg.changes")}{#if diff}<span class="n">{diff.changes.length}</span>{/if}</button>
               <button role="tab" aria-selected={side === "info"} onclick={() => (side = "info")}>{t("doc.seg.info")}</button>
@@ -798,58 +809,76 @@
 {/snippet}
 
 <style>
+  /* prototype-v5 pageDocuments(): document cards on the background, the open document's panes as cards */
   .doc-screen { display: grid; grid-template-rows: auto auto minmax(0, 1fr); height: 100%; min-height: 0; }
+  .doc-cards { display: flex; gap: 14px; padding: 0 4px 14px; overflow-x: auto; scrollbar-width: none; min-width: 0; }
+  .doc-cards::-webkit-scrollbar { display: none; }
+  .doc-card { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; gap: 12px; flex: 0 0 auto;
+    width: clamp(260px, 26vw, 360px); min-height: 72px; padding: 14px 16px; border: 0; border-radius: 20px; background: var(--surface);
+    box-shadow: var(--shadow-1); text-align: left; cursor: pointer; color: var(--text); transition: box-shadow var(--d-fast), background var(--d-fast); }
+  .doc-card:hover { box-shadow: var(--shadow-2); }
+  .doc-card[aria-selected="true"] { background: var(--secondary-c); color: var(--on-secondary-c); box-shadow: none; }
+  .doc-card:focus-visible { box-shadow: var(--ring); }
+  .dc-ico { width: 40px; height: 40px; border-radius: 12px; background: var(--surface-2); display: grid; place-items: center; color: var(--text-2); }
+  .doc-card[aria-selected="true"] .dc-ico { background: var(--surface); }
+  .dc-text { display: grid; min-width: 0; gap: 2px; }
+  .dc-text b { font-size: 15px; line-height: 20px; font-weight: 600; }
+  .dc-meta { font-size: 13px; color: var(--text-3); }
+  .doc-card[aria-selected="true"] .dc-meta { color: inherit; opacity: .75; }
+  .add-wrap :global(.pop) { align-self: stretch; }
+  .add-wrap :global(.doc-card.new) { display: flex; align-items: center; justify-content: center; gap: 8px; height: 100%; min-height: 72px; width: auto; padding: 0 22px;
+    background: none; box-shadow: none; border: 2px dashed var(--outline); color: var(--text-3); font-weight: 500; }
+  .add-wrap :global(.doc-card.new:hover) { color: var(--text); border-color: var(--text-3); }
   .doc-screen > .fill { grid-row: 3; min-height: 0; container-type: inline-size; container-name: ws; }
   .pad { padding: var(--s-5) var(--gutter); display: grid; gap: var(--s-6); justify-items: center; }
   .pad .banner { width: min(100%, var(--w-paper)); }
-  .title-btn:hover { color: var(--c-accent-text); }
-  .title-input { font: var(--w-semibold) var(--t-title-3)/var(--lh-title-3) var(--font-display); width: min(520px, 40vw); height: 24px; }
-  .doc-tabs { align-items: center; gap: var(--s-6); }
-  .doc-tabs .dot { margin-left: 2px; }
-  .add-wrap { display: inline-flex; margin-left: calc(var(--s-3) * -1); }
-  .add-wrap :global(.menu) { position: fixed; top: auto; left: auto; margin-top: 24px; }
-  .split :global(.pop .btn) { border-radius: 0 var(--r-sm) var(--r-sm) 0; padding: 0 var(--s-3); margin-left: 1px; }
-  .split > .btn { border-radius: var(--r-sm) 0 0 var(--r-sm); }
+  .title-btn:hover { color: var(--primary); }
+  .title-input { font: var(--w-semibold) var(--size-title-3)/var(--lh-title-3) var(--font); width: min(520px, 40vw); height: 24px; }
+  .add-wrap { display: flex; flex: none; }
+  .add-wrap :global(.menu) { position: fixed; top: auto; left: auto; margin-top: 80px; }
+  .split :global(.pop .btn) { border-radius: 0 var(--r-s) var(--r-s) 0; padding: 0 var(--s-3); margin-left: 1px; }
+  .split > .btn { border-radius: var(--r-s) 0 0 var(--r-s); }
   .progress.w { width: 120px; flex: none; }
 
   .outline-body { padding: var(--s-5) var(--s-4) var(--s-9); display: grid; gap: 1px; align-content: start; grid-template-columns: minmax(0, 1fr); }
   .outline-body .cap { padding: var(--s-3) var(--s-4); }
   .outline-body .vers { margin-top: var(--s-6); }
-  .ol-row { display: flex; align-items: center; gap: var(--s-4); min-height: 28px; padding: var(--s-2) var(--s-4); border: 0; background: none;
-    border-radius: var(--r-sm); text-align: left; width: 100%; color: var(--c-text-2); cursor: pointer; }
-  .ol-row:hover { background: var(--c-fill-1); color: var(--c-text); }
+  .ol-row { display: flex; align-items: center; gap: var(--s-4); min-height: 32px; padding: var(--s-2) var(--s-4); border: 0; background: none;
+    border-radius: 12px; text-align: left; width: 100%; color: var(--text-2); cursor: pointer; }
+  .ol-row:hover { background: var(--surface-2); color: var(--text); }
   .ol-row.l2 { padding-left: var(--s-8); }
-  .ol-row .n { color: var(--c-text-3); font-variant-numeric: tabular-nums; min-width: 20px; }
-  .ver { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 var(--s-4); padding: var(--s-4); border-radius: var(--r-sm); border: 0;
+  .ol-row .n { color: var(--text-3); font-variant-numeric: tabular-nums; min-width: 20px; }
+  .ver { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0 var(--s-4); padding: 10px 12px; border-radius: 14px; border: 0;
     background: none; text-align: left; width: 100%; cursor: pointer; }
-  .ver:hover { background: var(--c-fill-1); } .ver[aria-current="true"] { background: var(--c-fill-2); }
+  .ver:hover { background: var(--surface-2); } .ver[aria-current="true"] { background: var(--secondary-c); color: var(--on-secondary-c); }
   .ver b { font-weight: var(--w-medium); }
-  .ver .num { font-size: var(--t-foot); color: var(--c-text-3); grid-column: 1 / -1; }
+  .ver .num { font-size: var(--size-foot); color: var(--text-3); grid-column: 1 / -1; }
 
-  :global(.pane.deskpane) { background: var(--c-pane); container-type: inline-size; }
+  :global(.pane-cards > .panes > .pane.deskpane) { background: var(--surface-2); container-type: inline-size; }
+  .fill :global(.pane-head) { height: 56px; border-bottom-color: var(--outline-2); }
   .over { padding: var(--s-4) var(--gutter) 0; flex: none; }
   .busy { opacity: .6; transition: opacity var(--d-base); }
   .desk { padding: var(--s-8) var(--gutter) var(--s-12); display: flex; justify-content: center; align-items: flex-start; }
-  .paper { width: 100%; max-width: var(--w-paper); background: var(--c-content); border-radius: var(--r-lg); box-shadow: var(--e-2);
+  .paper { width: 100%; max-width: var(--w-paper); background: var(--surface); border-radius: var(--r-l); box-shadow: var(--shadow-2);
     padding: clamp(40px, 7cqw, 72px) clamp(32px, 7cqw, 80px) clamp(56px, 8cqw, 96px) clamp(72px, 10cqw, 112px); }
   .paper.skeleton { display: grid; gap: var(--s-5); align-content: start; min-height: 60vh; }
-  .paper.skeleton i { height: 12px; border-radius: var(--r-xs); background: var(--c-fill-2); animation: breathe 1.6s ease-in-out infinite; }
+  .paper.skeleton i { height: 12px; border-radius: var(--r-xs); background: var(--surface-3); animation: breathe 1.6s ease-in-out infinite; }
   @keyframes breathe { 50% { opacity: .45; } }
-  .paper-kicker { font-size: var(--t-foot); color: var(--c-text-3); }
-  .paper h1 { font: var(--w-bold) var(--t-large)/var(--lh-large) var(--font-display); letter-spacing: -.02em; margin: var(--s-3) 0 var(--s-9); text-wrap: balance; }
-  .paper h2 { font: var(--w-semibold) var(--t-title-1)/var(--lh-title-1) var(--font-display); letter-spacing: -.016em; margin: var(--s-10) 0 var(--s-5); }
-  .paper h3 { font: var(--w-semibold) var(--t-title-2)/var(--lh-title-2) var(--font-display); letter-spacing: -.012em; margin: var(--s-8) 0 var(--s-4); }
-  .paper .body, .prose, .prose-list { font: var(--w-regular) var(--t-read)/var(--lh-read) var(--font); letter-spacing: -.005em; text-wrap: pretty; }
+  .paper-kicker { font-size: var(--size-foot); color: var(--text-3); }
+  .paper h1 { font: var(--w-bold) var(--size-large)/var(--lh-large) var(--font); letter-spacing: -.02em; margin: var(--s-3) 0 var(--s-9); text-wrap: balance; }
+  .paper h2 { font: var(--w-semibold) var(--size-title-1)/var(--lh-title-1) var(--font); letter-spacing: -.016em; margin: var(--s-10) 0 var(--s-5); }
+  .paper h3 { font: var(--w-semibold) var(--size-title-2)/var(--lh-title-2) var(--font); letter-spacing: -.012em; margin: var(--s-8) 0 var(--s-4); }
+  .paper .body, .prose, .prose-list { font: var(--w-regular) var(--size-read)/var(--lh-read) var(--font); letter-spacing: -.005em; text-wrap: pretty; }
   .prose { margin: 0 0 var(--s-5); }
   .prose-list { margin: 0 0 var(--s-5); padding-left: 22px; }
   .list-title { font-weight: var(--w-semibold); margin: var(--s-4) 0 var(--s-2); }
-  .muted-i { color: var(--c-text-3); font-style: italic; }
+  .muted-i { color: var(--text-3); font-style: italic; }
   .sec { scroll-margin-top: var(--s-6); } .sub { scroll-margin-top: var(--s-6); }
-  .req { position: relative; padding: var(--s-4) var(--s-5); margin: var(--s-2) calc(var(--s-5) * -1); border-radius: var(--r-md);
+  .req { position: relative; padding: var(--s-4) var(--s-5); margin: var(--s-2) calc(var(--s-5) * -1); border-radius: var(--r-m);
     transition: background var(--d-fast); scroll-margin: 96px 0; cursor: default; }
-  .req:hover { background: var(--c-fill-1); }
-  .req[aria-selected="true"] { background: var(--c-accent-tint); }
-  .req.stale { box-shadow: inset 2px 0 0 var(--c-warn-mark); border-radius: 0 var(--r-md) var(--r-md) 0; }
+  .req:hover { background: var(--surface-2); }
+  .req[aria-selected="true"] { background: var(--primary-c); }
+  .req.stale { box-shadow: inset 2px 0 0 var(--warn); border-radius: 0 var(--r-m) var(--r-m) 0; }
   .req-id { position: absolute; right: calc(100% + 4px); top: 11px; white-space: nowrap; }
   .req-foot { display: flex; flex-wrap: wrap; gap: var(--s-3); margin-top: var(--s-3); align-items: center; min-height: 24px; }
   .req-foot .src { display: contents; }
@@ -857,42 +886,46 @@
   .edit-req { margin-left: auto; opacity: 0; transition: opacity var(--d-fast); }
   .req:hover .edit-req, .req[aria-selected="true"] .edit-req, .edit-req:focus-visible { opacity: 1; }
   @media (hover: none) { .edit-req { opacity: 1; } }
-  .blk.free { margin: var(--s-4) calc(var(--s-5) * -1); padding: var(--s-4) var(--s-5); background: var(--c-fill-1); box-shadow: inset 2px 0 0 var(--c-line-control);
-    border-radius: 0 var(--r-md) var(--r-md) 0; }
+  .blk.free { margin: var(--s-4) calc(var(--s-5) * -1); padding: var(--s-4) var(--s-5); background: var(--surface-2); box-shadow: inset 2px 0 0 var(--outline);
+    border-radius: 0 var(--r-m) var(--r-m) 0; }
   .blk.free .cap { margin-bottom: 2px; }
   .blk-acts { display: flex; gap: var(--s-2); margin-top: var(--s-3); opacity: 0; transition: opacity var(--d-fast); }
   .blk.free:hover .blk-acts, .blk.free:focus-within .blk-acts { opacity: 1; }
   .free-edit { display: grid; gap: var(--s-3); margin: var(--s-3) 0; grid-template-columns: minmax(0, 1fr); }
-  .free-edit textarea { font: var(--w-regular) var(--t-read)/var(--lh-read) var(--font); }
+  .free-edit textarea { font: var(--w-regular) var(--size-read)/var(--lh-read) var(--font); }
   .add-free { margin: var(--s-3) 0 0 calc(var(--s-4) * -1); opacity: .0; transition: opacity var(--d-fast); }
   .sec:hover .add-free, .add-free:focus-visible { opacity: 1; }
   @media (hover: none) { .add-free { opacity: 1; } }
   .doc-table-wrap { overflow-x: auto; margin: var(--s-4) 0 var(--s-6); }
   .doc-table { width: 100%; border-collapse: collapse; line-height: 18px; }
-  .doc-table th { text-align: left; font-weight: var(--w-semibold); font-size: var(--t-foot); color: var(--c-text-2); background: var(--c-fill-1);
-    padding: var(--s-3) var(--s-4); border: 1px solid var(--c-line); }
-  .doc-table td { padding: var(--s-3) var(--s-4); border: 1px solid var(--c-line); vertical-align: top; }
+  .doc-table th { text-align: left; font-weight: var(--w-semibold); font-size: var(--size-foot); color: var(--text-2); background: var(--surface-2);
+    padding: var(--s-3) var(--s-4); border: 1px solid var(--outline-2); }
+  .doc-table td { padding: var(--s-3) var(--s-4); border: 1px solid var(--outline-2); vertical-align: top; }
   .doc-table td:first-child { white-space: nowrap; }
   .heat .doc-table { width: auto; }
   .heat .doc-table td { min-width: 110px; text-align: center; font-weight: var(--w-semibold); }
-  .heat .doc-table td:first-child { text-align: left; font-weight: var(--w-medium); background: var(--c-fill-1); }
-  .h-high { background: var(--c-danger-tint); color: var(--c-danger); }
-  .h-mid { background: var(--c-warn-tint); color: var(--c-warn); }
-  .h-low { background: var(--c-ok-tint); color: var(--c-ok); }
+  .heat .doc-table td:first-child { text-align: left; font-weight: var(--w-medium); background: var(--surface-2); }
+  .h-high { background: var(--danger-c); color: var(--danger); }
+  .h-mid { background: var(--warn-c); color: var(--warn); }
+  .h-low { background: var(--ok-c); color: var(--ok); }
 
   .findings { padding: var(--s-5) var(--s-6) var(--s-9); display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-4); align-content: start; }
-  .finding { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-3); padding: var(--s-5); border-radius: var(--r-md); background: var(--c-content);
-    box-shadow: 0 0 0 1px var(--c-line); text-align: left; transition: box-shadow var(--d-fast); }
-  .finding:hover { box-shadow: 0 0 0 1px var(--c-line-strong); }
-  .finding[aria-selected="true"] { box-shadow: 0 0 0 2px var(--c-accent); }
+  .finding { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-3); padding: 14px 16px; border-radius: 16px; background: var(--surface-2);
+    text-align: left; transition: box-shadow var(--d-fast), background var(--d-fast); }
+  .finding:hover { background: var(--surface-3); }
+  .finding[aria-selected="true"] { box-shadow: inset 0 0 0 2px var(--primary); }
+  .finding .btn, .findings > .btn, .insp-body .btn { border-radius: 16px; box-shadow: none; }
+  .finding .btn:not(.primary):not(.ghost), .findings > .btn, .insp-body .btn:not(.ghost) { background: var(--surface-2); }
+  .finding .btn:not(.primary):not(.ghost) { background: var(--surface); }
+  .finding .input { background: var(--surface); }
   .finding-head { display: flex; align-items: center; gap: var(--s-4); min-width: 0; }
-  .finding p { color: var(--c-text-2); }
+  .finding p { color: var(--text-2); }
   .finding-actions { display: flex; gap: var(--s-3); flex-wrap: wrap; align-items: center; }
   .banner { align-items: flex-start; flex-wrap: wrap; }
   .banner :global(svg) { margin-top: 2px; flex: none; }
   .empty.small { padding: var(--s-9) 0; }
-  .empty.small p { font-size: var(--t-body); }
-  .glyph.ok { background: var(--c-ok-tint); color: var(--c-ok); }
+  .empty.small p { font-size: var(--size-body); }
+  .glyph.ok { background: var(--ok-c); color: var(--ok); }
   .types { display: flex; flex-wrap: wrap; gap: var(--s-4); }
   .sw { display: flex; align-items: center; gap: var(--s-6); justify-content: space-between; cursor: pointer; }
   .sw b { font-weight: var(--w-medium); display: block; }

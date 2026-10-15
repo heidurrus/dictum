@@ -133,5 +133,5 @@
   .summary.refs :global(.ref) { color: var(--primary); cursor: pointer; }
   .summary.refs :global(.ref:hover) { text-decoration: underline; }
   .empty.small { padding: 24px 0; }
-  .empty.small p { font-size: var(--t-body); }
+  .empty.small p { font-size: var(--size-body); }
 </style>

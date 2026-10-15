@@ -58,14 +58,17 @@
 </div>
 
 <style>
-  .none { padding: var(--s-9) var(--s-7); color: var(--c-text-3); text-align: center; }
-  .src { padding: var(--s-5) var(--s-6) 0; font-size: var(--t-foot); }
-  .line { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: var(--s-4); padding: var(--s-4) var(--s-6); position: relative; }
-  .line.hit { background: var(--c-accent-tint); }
-  .line.hit::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--c-accent); }
+  /* 5.0: the evidence context card; the quoted line on the tonal primary container. */
+  .pane-head { height: 56px; padding: 0 20px; border-bottom-color: var(--outline-2); }
+  .pane-head .btn { border-radius: 14px; }
+  .none { padding: var(--s-9) var(--s-7); color: var(--text-3); text-align: center; }
+  .src { padding: 14px 20px 0; font-size: 12px; }
+  .line { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: var(--s-4); padding: 8px 20px; position: relative; }
+  .line.hit { background: var(--primary-c); color: var(--on-primary-c); }
+  .line.hit::before { content: ""; position: absolute; left: 0; top: 6px; bottom: 6px; width: 3px; border-radius: 0 3px 3px 0; background: var(--primary); }
   .line time { padding-top: 1px; }
-  .line p { line-height: 20px; color: var(--c-text-2); text-wrap: pretty; }
-  .line.hit p { color: var(--c-text); }
-  .spk { display: inline-flex; align-items: center; gap: var(--s-3); font-weight: var(--w-medium); }
-  .spk::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+  .line p { line-height: 20px; color: var(--text-2); text-wrap: pretty; }
+  .line.hit p { color: inherit; }
+  .spk { display: inline-flex; align-items: center; gap: var(--s-3); font-weight: 600; font-size: 12px; }
+  .spk::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
 </style>

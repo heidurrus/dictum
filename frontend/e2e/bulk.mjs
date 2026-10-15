@@ -38,7 +38,7 @@ async function importAndExtract(path, n) {
 await importAndExtract(call, 4);
 await importAndExtract(mail, 2);
 await page.goto(base + "/#/atoms");
-await sub.filter({ hasText: "6 на ревью" }).waitFor();
+await sub.filter({ hasText: "6 на проверку" }).waitFor();
 
 // Select everything shown and accept in one go; undo brings it all back.
 await page.locator(".check-all input").check();
@@ -46,10 +46,10 @@ await selected.filter({ hasText: "Выбрано: 6" }).waitFor();
 await page.locator(".bulkbar").getByText(/в конфликтах: \d/).waitFor();
 // The main button leaves atoms in a conflict for review; this one takes them too.
 await page.locator(".bulkbar").getByRole("button", { name: /конфликтные/ }).click();
-await sub.filter({ hasText: "0 на ревью · принято 6 из 6" }).waitFor();
+await sub.filter({ hasText: "6 всего · 0 на проверку · принято 6" }).waitFor();
 if (await page.locator(".bulkbar").count()) throw new Error("selection should clear after a bulk action");
 await page.getByRole("status").getByRole("button", { name: "Отменить" }).click();
-await sub.filter({ hasText: "6 на ревью" }).waitFor();
+await sub.filter({ hasText: "6 на проверку" }).waitFor();
 step("select all → accept 6 at once → undo");
 
 // Shift-click range, then change type in bulk.
@@ -60,9 +60,9 @@ await selected.filter({ hasText: "Выбрано: 3" }).waitFor();
 await page.locator(".bulkbar").getByRole("button", { name: "Сменить тип…" }).click();
 await page.locator(".bulkbar").getByRole("menuitem", { name: "Вопрос" }).click();
 await page.getByText("Изменено 3 требования").waitFor();
-await page.locator(".scope").getByRole("button", { name: "Тип", exact: true }).click();
-await page.getByRole("menuitem", { name: /^Вопрос/ }).filter({ hasText: "3" }).waitFor();
-await page.keyboard.press("Escape");
+await page.locator(".scope .types").getByRole("button", { name: "Q", exact: true }).click();     // the type chips of the scope row
+await page.locator(".scope .types button", { hasText: /Q\s*·\s*3/ }).waitFor();
+await page.locator(".scope .types").getByRole("button", { name: /^Q/ }).click();
 step("shift-click range → change type for 3");
 
 // Keyboard: space toggles, Esc clears, ⌘A selects all.
@@ -83,27 +83,27 @@ await page.waitForFunction(() => document.querySelectorAll(".atom").length === 2
   .catch(() => { throw new Error("source filter should show 2 atoms"); });
 await page.locator(".check-all input").check();
 await page.locator(".bulkbar").getByRole("button", { name: "Отклонить" }).click();
-await sub.filter({ hasText: "4 на ревью · принято 0 из 6" }).waitFor();
+await sub.filter({ hasText: "6 всего · 4 на проверку · принято 0" }).waitFor();
 if (shots) await page.screenshot({ path: join(shots, "bulk.png"), fullPage: true });
 step("source filter → reject everything from one source");
 
 // Delete: one atom by its button, then the rest by selection; undo brings them back.
 await page.locator(".scope").getByRole("button", { name: "Источник", exact: true }).click();
 await page.getByRole("menuitem", { name: "Все источники" }).click();
-await page.locator(".scope .seg").getByRole("button", { name: /^Все/ }).click();
-await sub.filter({ hasText: "принято 0 из 6" }).waitFor();
+await page.locator(".scope .seg-m").getByRole("button", { name: /^Все/ }).click();
+await sub.filter({ hasText: "6 всего · 4 на проверку · принято 0" }).waitFor();
 await page.locator(".atom .type").first().click();
 await page.locator(".inspector").getByRole("button", { name: "Удалить требование" }).click();
 await page.getByRole("status").getByText("Удалено 1 требование").waitFor();
-await sub.filter({ hasText: "из 5" }).waitFor();
+await sub.filter({ hasText: "5 всего" }).waitFor();
 await page.getByRole("status").getByRole("button", { name: "Отменить" }).click();
-await sub.filter({ hasText: "из 6" }).waitFor();
+await sub.filter({ hasText: "6 всего" }).waitFor();
 await page.locator(".check-all input").check();
 await page.keyboard.press("Delete");
 await page.getByRole("status").getByText("Удалено 6 требований").waitFor();
 await page.getByText("Требований пока нет").waitFor();
 await page.getByRole("status").getByRole("button", { name: "Отменить" }).click();
-await sub.filter({ hasText: "из 6" }).waitFor();
+await sub.filter({ hasText: "6 всего" }).waitFor();
 step("delete one, delete all selected with the Delete key, undo");
 
 await browser.close();

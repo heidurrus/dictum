@@ -1,5 +1,5 @@
-/* Dictum 5: tonal tokens, copied from docs/design/prototype-v5.html (light, system dark, forced dark).
-   Old screens reach them through the alias block in app.css; tokens.css goes away once they are restyled. */
+/* Dictum 5: the design tokens. The colours are the tonal set of docs/design/prototype-v5.html (light, system dark,
+   forced dark); below them the scales every screen shares (space, type, sizes, motion, focus). */
 :root {
   color-scheme: light;
   --bg: #F3F2F8; --surface: #FFFFFF; --surface-2: #ECEAF2; --surface-3: #E2E0EA; --surface-4: #D8D6E0;
@@ -10,13 +10,53 @@
   --ok: #1E8E3E; --ok-c: #DCF3E2; --warn: #9A5A00; --warn-c: #FFEBCC; --danger: #B3261E; --danger-c: #F9DEDC; --rec: #D93025;
   --mark: #FFF1B8; --mic: #0B57D0; --sys: #1E8E3E;
   --hud: #1F1F24; --hud-2: #2B2B31; --hud-text: #F2F1F7; --hud-text-2: #B6B5BF;
+  --type-br: #5B45C9; --type-fr: #0B57D0; --type-nfr: #0A6D66; --type-rsk: #B0471B; --type-as: #6A5A36; --type-q: #9A3A9E;
+  --spk-1: #0B57D0; --spk-2: #1E8E3E; --spk-3: #9A5A00; --spk-4: #9A3A9E; --spk-5: #0A6D66;
+  --ins: rgba(30,142,62,.14); --del: rgba(179,38,30,.12); --scrim: rgba(27,27,33,.32); --hud-line: rgba(255,255,255,.14);
   --shadow-1: 0 1px 2px rgba(27,27,33,.06), 0 1px 1px rgba(27,27,33,.03);
   --shadow-2: 0 2px 6px rgba(27,27,33,.08), 0 8px 24px rgba(27,27,33,.08);
   --shadow-3: 0 8px 28px rgba(27,27,33,.16), 0 24px 64px rgba(27,27,33,.18);
   --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  --r-s: 10px; --r-m: 16px; --r-l: 24px; --r-xl: 28px;
+  --r-xs: 4px; --r-s: 10px; --r-m: 16px; --r-l: 24px; --r-xl: 28px; --r-full: 999px;
   --rail: 88px;
+
+  /* type: size / line height (400 body, 500 controls, 600 titles) */
+  --size-caption: 11px; --lh-caption: 14px;
+  --size-foot: 12px;    --lh-foot: 16px;
+  --size-body: 13px;    --lh-body: 18px;
+  --size-item: 14px;    --lh-item: 20px;
+  --size-read: 15px;    --lh-read: 24px;
+  --size-title-3: 15px; --lh-title-3: 20px;
+  --size-title-2: 17px; --lh-title-2: 22px;
+  --size-title-1: 22px; --lh-title-1: 28px;
+  --size-large: 28px;   --lh-large: 34px;
+  --size-mono: 12px;    --lh-mono: 18px;
+  --w-regular: 400; --w-medium: 500; --w-semibold: 600; --w-bold: 700;
+
+  /* space (4 px grid) */
+  --s-1: 2px; --s-2: 4px; --s-3: 6px; --s-4: 8px; --s-5: 12px; --s-6: 16px;
+  --s-7: 20px; --s-8: 24px; --s-9: 32px; --s-10: 40px; --s-11: 56px; --s-12: 72px;
+
+  /* sizes; pane widths are fractions of the workspace (container units) */
+  --h-ctl-sm: 24px; --h-ctl: 28px; --h-ctl-lg: 36px; --h-toolbar: 52px; --h-scope: 40px;
+  --gutter: clamp(16px, 1.6vw, 32px);
+  --w-inspector: clamp(320px, 32cqw, 480px);
+  --w-context: clamp(380px, 25cqw, 640px);
+  --w-outline: clamp(208px, 16cqw, 320px);
+  --w-list: clamp(264px, 20cqw, 400px);
+  --w-measure: 72ch; --w-paper: 860px;
+  --content-w: 1180px; --content-wide: 1600px; --narrow-w: 720px;
+
+  /* motion */
+  --d-instant: 80ms; --d-fast: 140ms; --d-base: 220ms; --d-slow: 320ms;
+  --ease-out: cubic-bezier(.2, .8, .2, 1); --ease-in: cubic-bezier(.4, 0, 1, 1); --ease-spring: cubic-bezier(.34, 1.36, .64, 1);
+  --blur-hud: saturate(1.6) blur(24px);
+
+  /* focus */
+  --ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--primary);
+  --ring-inset: inset 0 0 0 2px var(--primary);
+  --ring-field: 0 0 0 3px color-mix(in srgb, var(--primary) 30%, transparent);
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   color-scheme: dark;
@@ -28,6 +68,9 @@
   --ok: #6DD58C; --ok-c: #0F3D20; --warn: #F0B548; --warn-c: #4A3000; --danger: #F2B8B5; --danger-c: #5C1A14; --rec: #FF6B5E;
   --mark: #4D4218; --mic: #A8C7FA; --sys: #6DD58C;
   --hud: #2A2A31; --hud-2: #35353D;
+  --type-br: #ADA0FF; --type-fr: #A8C7FA; --type-nfr: #52D0C4; --type-rsk: #FFA06E; --type-as: #CDB98C; --type-q: #E590EA;
+  --spk-1: #A8C7FA; --spk-2: #6DD58C; --spk-3: #F0B548; --spk-4: #E590EA; --spk-5: #52D0C4;
+  --ins: rgba(109,213,140,.18); --del: rgba(242,184,181,.18); --scrim: rgba(0,0,0,.56);
   --shadow-1: 0 1px 2px rgba(0,0,0,.4); --shadow-2: 0 4px 16px rgba(0,0,0,.45); --shadow-3: 0 16px 48px rgba(0,0,0,.6);
 } }
 :root[data-theme="dark"] {
@@ -40,5 +83,14 @@
   --ok: #6DD58C; --ok-c: #0F3D20; --warn: #F0B548; --warn-c: #4A3000; --danger: #F2B8B5; --danger-c: #5C1A14; --rec: #FF6B5E;
   --mark: #4D4218; --mic: #A8C7FA; --sys: #6DD58C;
   --hud: #2A2A31; --hud-2: #35353D;
+  --type-br: #ADA0FF; --type-fr: #A8C7FA; --type-nfr: #52D0C4; --type-rsk: #FFA06E; --type-as: #CDB98C; --type-q: #E590EA;
+  --spk-1: #A8C7FA; --spk-2: #6DD58C; --spk-3: #F0B548; --spk-4: #E590EA; --spk-5: #52D0C4;
+  --ins: rgba(109,213,140,.18); --del: rgba(242,184,181,.18); --scrim: rgba(0,0,0,.56);
   --shadow-1: 0 1px 2px rgba(0,0,0,.4); --shadow-2: 0 4px 16px rgba(0,0,0,.45); --shadow-3: 0 16px 48px rgba(0,0,0,.6);
+}
+@media (prefers-contrast: more) {
+  :root { --text-3: var(--text-2); --outline-2: var(--outline); }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root { --d-instant: 1ms; --d-fast: 1ms; --d-base: 1ms; --d-slow: 1ms; --ease-spring: linear; }
 }

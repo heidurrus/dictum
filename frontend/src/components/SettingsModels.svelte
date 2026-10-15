@@ -308,7 +308,7 @@
   .model.on { box-shadow: inset 0 0 0 2px var(--primary); background: var(--primary-c); color: var(--on-primary-c); }
   .model.dim:not(.on) { opacity: .7; }
   .model b { font-size: 14px; padding-right: 84px; }
-  .model b.mono { font-family: var(--font-mono); font-size: 13px; }
+  .model b.mono { font-family: var(--mono); font-size: 13px; }
   .model small { color: var(--text-2); font-size: 12px; } .model.on small { color: inherit; opacity: .8; }
   .model > .tag { position: absolute; top: 12px; right: 12px; }
   .tags { display: flex; flex-wrap: wrap; gap: 4px; }

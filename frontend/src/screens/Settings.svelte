@@ -336,7 +336,7 @@
   .setnav .node:hover { background: var(--surface-2); }
   .setnav .node[aria-current="page"] { background: var(--secondary-c); color: var(--on-secondary-c); }
   .setcards { display: grid; gap: 14px; align-content: start; min-height: 0; overflow: auto; padding-bottom: 24px; max-width: 980px; }
-  .sec-title { font: 600 20px/28px var(--font-display, inherit); margin: 4px 0 0; }
+  .sec-title { font: 600 20px/28px var(--font, inherit); margin: 4px 0 0; }
   .settings-page :global(.card-m) { background: var(--surface); border-radius: 24px; box-shadow: var(--shadow-1); }
   .settings-page :global(.setcard) { padding: 18px 20px; }
   .settings-page :global(.setcard h3) { font-size: 16px; font-weight: 600; margin-bottom: 4px; }

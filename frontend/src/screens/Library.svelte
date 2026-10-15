@@ -724,12 +724,12 @@
   .sheet-form { display: contents; }
   .sheet.read { width: min(720px, calc(100vw - 32px)); }
   .readtext { max-height: 60vh; white-space: pre-wrap; line-height: 21px; word-break: break-word; }
-  .dropzone { position: fixed; inset: 0; z-index: 140; background: color-mix(in srgb, var(--c-accent) 14%, var(--c-scrim)); display: grid; place-items: center;
+  .dropzone { position: fixed; inset: 0; z-index: 140; background: color-mix(in srgb, var(--primary) 14%, var(--scrim)); display: grid; place-items: center;
     pointer-events: none; }
-  .dropzone div { background: var(--c-raised); border-radius: var(--r-xl); box-shadow: var(--e-4); padding: var(--s-9) var(--s-10); text-align: center;
-    display: grid; justify-items: center; gap: var(--s-3); max-width: 480px; color: var(--c-accent-text); }
-  .dropzone h3 { font: var(--w-semibold) var(--t-title-2)/var(--lh-title-2) var(--font-display); color: var(--c-text); }
-  .dropzone p { color: var(--c-text-3); font-size: var(--t-foot); }
+  .dropzone div { background: var(--surface); border-radius: var(--r-xl); box-shadow: var(--shadow-3); padding: var(--s-9) var(--s-10); text-align: center;
+    display: grid; justify-items: center; gap: var(--s-3); max-width: 480px; color: var(--primary); }
+  .dropzone h3 { font: var(--w-semibold) var(--size-title-2)/var(--lh-title-2) var(--font); color: var(--text); }
+  .dropzone p { color: var(--text-3); font-size: var(--size-foot); }
 
   @container ws (max-width: 1100px) {
     .library { grid-template-columns: 200px minmax(0, 1fr); }

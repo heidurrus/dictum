@@ -30,7 +30,7 @@ await page.getByText("Оператор видит историю заказов"
 await page.getByRole("button", { name: "Извлечь требования" }).click();
 await page.getByRole("button", { name: "Требования из источника · 2" }).waitFor({ timeout: 15000 });
 await page.goto(base + "/#/atoms");
-await page.locator(".screen-sub", { hasText: "на ревью" }).waitFor();
+await page.locator(".screen-sub", { hasText: "на проверку" }).waitFor();
 for (let i = 0; i < 2; i++) await page.keyboard.press("a");
 await page.getByText("Все требования разобраны").waitFor();
 

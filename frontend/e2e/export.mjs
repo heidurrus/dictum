@@ -30,7 +30,7 @@ await page.locator(".seg-row").first().waitFor();
 await page.getByRole("button", { name: "Извлечь требования" }).click();
 await page.getByRole("button", { name: "Требования из источника · 3" }).waitFor({ timeout: 15000 });
 await page.goto(base + "/#/atoms");
-await sub.filter({ hasText: "на ревью" }).waitFor();
+await sub.filter({ hasText: "на проверку" }).waitFor();
 await page.locator(".check-all input").check();
 await page.locator(".bulkbar").getByRole("button", { name: /конфликтные/ }).click();   // all, conflicts included
 await page.getByText("Все требования разобраны").waitFor();
@@ -39,8 +39,8 @@ await page.locator(".screen-head").getByRole("button", { name: "Собрать �
 await sub.filter({ hasText: "версия 1" }).waitFor({ timeout: 15000 });
 await page.goto(base + "/#/backlog");
 await page.locator(".screen-head").getByRole("button", { name: "Собрать бэклог" }).click();
-await sub.filter({ hasText: "историй: 2" }).waitFor({ timeout: 15000 });
-await page.locator(".screen-head").getByRole("button", { name: /К выгрузке в Jira/ }).click();
+await sub.filter({ hasText: "2 истории" }).waitFor({ timeout: 15000 });
+await page.locator(".screen-head").getByRole("button", { name: /В Jira/ }).click();
 step("backlog → export screen");
 
 // Connect: the sign-in opens in a browser tab, the app notices.

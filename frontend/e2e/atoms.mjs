@@ -43,20 +43,20 @@ await srcFilter.waitFor();
 if (!(await srcFilter.textContent()).includes("Созвон по карточке")) throw new Error("the source filter should be set");
 await srcFilter.click();
 await page.getByRole("menuitem", { name: "Все источники" }).click();
-await page.getByText("4 на ревью · принято 0 из 4").waitFor();
-await page.locator(".scope .seg").getByRole("button", { name: /^Конфликты/ }).click();          // conflicts are a filter; the card is in the inspector
+await page.getByText("4 всего · 4 на проверку · принято 0").waitFor();
+await page.locator(".scope").getByRole("button", { name: /^В конфликте/ }).click();          // conflicts are a filter chip; the card is in the inspector
 await page.locator(".conflict", { hasText: "Разные требования к сроку" }).waitFor();
-await page.locator(".scope .seg").getByRole("button", { name: /^На ревью/ }).click();
+await page.locator(".scope .seg-m").getByRole("button", { name: /^На проверку/ }).click();
 await shot("atoms.png");
 step("atoms listed with counts and a conflict");
 
 // Keyboard review: accept the selected (first) atom, reject the next.
 await page.keyboard.press("a");
-await page.getByText("3 на ревью · принято 1 из 4").waitFor();
+await page.getByText("4 всего · 3 на проверку · принято 1").waitFor();
 await page.keyboard.press("x");
-await page.getByText("2 на ревью · принято 1 из 4").waitFor();
+await page.getByText("4 всего · 2 на проверку · принято 1").waitFor();
 await page.getByRole("status").getByRole("button", { name: "Отменить" }).click();
-await page.getByText("3 на ревью · принято 1 из 4").waitFor();
+await page.getByText("4 всего · 3 на проверку · принято 1").waitFor();
 step("keyboard accept / reject / undo");
 
 // Edit a statement: the original wording stays visible.
@@ -68,25 +68,23 @@ await page.getByText("Исходная формулировка:").first().waitF
 step("edit keeps the original wording");
 
 // Resolve the conflict by turning it into a question for the client.
-await page.locator(".scope .seg").getByRole("button", { name: /^Конфликты/ }).click();
+await page.locator(".scope").getByRole("button", { name: /^В конфликте/ }).click();
 await page.locator(".conflict").getByRole("button", { name: "Спросить заказчика" }).click();
 await page.getByText("ждёт ответа заказчика").first().waitFor();
-await page.locator(".scope .seg").getByRole("button", { name: /^Все/ }).click();
-await page.locator(".scope").getByRole("button", { name: "Тип", exact: true }).click();
-await page.getByRole("menuitem", { name: /^Вопрос/ }).click();
+await page.locator(".scope .seg-m").getByRole("button", { name: /^Все/ }).click();
+await page.locator(".scope .types").getByRole("button", { name: "Q", exact: true }).click();     // the type chips of the scope row
 await page.locator(".atom", { hasText: "Уточнить у заказчика" }).waitFor();
 step("conflict becomes a question");
 
 // A quote opens the source at that line.
-await page.locator(".scope").getByRole("button", { name: "Тип", exact: true }).click();
-await page.getByRole("menuitem", { name: /^Все/ }).click();
+await page.locator(".scope .types").getByRole("button", { name: /^Q/ }).click();
 await page.locator(".atom", { hasText: "Хватит и пяти секунд" }).first().locator(".type").click();
 await page.locator(".inspector .evidence-head").first().click();
 await page.locator(".seg-row.flash", { hasText: "Хватит и пяти секунд" }).waitFor();
 step("evidence quote jumps to the transcript line");
 
 await page.goto(base + "/#/atoms");
-await page.locator(".screen-sub", { hasText: "на ревью" }).waitFor();
+await page.locator(".screen-sub", { hasText: "на проверку" }).waitFor();
 for (let i = 0; i < 6; i++) await page.keyboard.press("a");
 try { await page.getByText("Все требования разобраны").waitFor({ timeout: 8000 }); }
 catch (err) { await page.screenshot({ path: join(shots || tmpdir(), "atoms-fail.png"), fullPage: true }); throw err; }
