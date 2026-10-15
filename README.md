@@ -40,6 +40,7 @@ The website is **[getdictum.app](https://getdictum.app)**.
 | **Documents** | BRD, SRS, Vision & Scope, risk register, As-Is / To-Be, a GOST 34 specification or your own type, with stable IDs, versions, a quality check and sign-off. |
 | **Backlog → Jira** | Epics, user stories with Given / When / Then criteria, sub-tasks and an INVEST check, then a push to Jira Cloud after a read-only preview. A retry finds what was already created instead of duplicating it. |
 | **Skills** | The instructions behind every AI step are editable skills: change a prompt, add an example, or create your own document type. |
+| **Meetings only** | Business analysis can be switched off per project (Settings → Project): requirements, documents, the backlog and Jira are hidden and Dictum is a meeting recorder with recaps, notes, the library and Ask. Switching it back on brings everything back; nothing is deleted. |
 | **Export** | Jira, Word documents (standard or GOST templates), a traceability matrix in Excel, a follow-up letter with the open client questions, and the whole project as one file to move to another machine. Project files exported by 4.x still import. |
 
 ⌘K opens commands and search over every page, meeting, document and requirement; keys can be changed in Settings.

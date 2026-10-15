@@ -14,7 +14,7 @@
   import { nextStep } from "../lib/next.js";
   import { fmtDate, fmtTime, renderMarkdown, speakerClass, speakerDisplay } from "../lib/format.js";
   import { audioLabel, fmtBytes, saveAudio } from "../lib/audio.js";
-  import { app, t, go, loadSources, toast, rememberSource, currentProject, saveOptions } from "../lib/state.svelte.js";
+  import { app, t, go, loadSources, toast, rememberSource, currentProject, saveOptions, analysisOn } from "../lib/state.svelte.js";
 
   let selectedId = $state(null);
   let query = $state("");
@@ -75,12 +75,14 @@
 
   // ── header and strip ──────────────────────────────────────────────────────
   const project = $derived(currentProject());
+  // Business analysis off (5.0.4): a meeting recorder, so no pipeline strip, requirement counts, tab or extraction.
+  const ba = $derived(analysisOn());
   const s = $derived(app.status);
   const next = $derived(nextStep());
   const sub = $derived([project?.name || "", t("meet.count", { n: app.sources.length }),
-    t("src.atoms_n", { n: s?.atoms?.total || 0 })].filter(Boolean).join(" · "));
+    ba ? t("src.atoms_n", { n: s?.atoms?.total || 0 }) : ""].filter(Boolean).join(" · "));
   // The same states and words the old overview pipeline used; the chip the next step points at is marked.
-  const stages = $derived(!s ? [] : [
+  const stages = $derived(!s || !ba ? [] : [
     { key: "meetings", path: "/meetings", name: t("nav.meetings"), ring: !s.sources ? "" : s.processing ? "active" : "done", p: s.processing ? 50 : 100,
       text: !s.sources ? t("ov.s.sources_none") : s.processing ? t("ov.s.sources_run", { n: s.processing, all: s.sources }) : t("ov.s.sources", { n: s.sources }) },
     { key: "atoms", path: "/atoms", name: t("nav.atoms"), ring: !s.atoms.total ? "" : s.atoms.review ? "active" : s.atoms.conflicts ? "stale" : "done",
@@ -108,12 +110,13 @@
     if (!id || !sel) { detail = null; atoms = []; return; }
     sel.status; sel.has_summary; sel.atom_count; app.atomsVersion;
     api(`/api/sources/${id}`).then(b => { if (selectedId === id) detail = b; }).catch(() => {});
-    if (sel.status === "ready" && app.currentProjectId)
+    if (sel.status === "ready" && app.currentProjectId && ba)
       api(`/api/projects/${app.currentProjectId}/atoms?source_id=${id}`)
         .then(b => { if (selectedId === id) atoms = b.atoms.filter(a => a.status !== "merged"); }).catch(() => {});
     else atoms = [];
   });
   const cur = $derived(detail && detail.id === selectedId ? detail : null);
+  $effect(() => { if (!ba && tab === "atoms") tab = "summary"; });
 
   // The title is edited in place: blur or Enter saves, Escape puts it back.
   $effect(() => {
@@ -164,7 +167,7 @@
     ({ value: "audio:" + f.id, label: audioLabel(f, all.length), icon: "download", hint: fmtBytes(f.size) })));
   const moreItems = $derived(!selected ? [] : [
     ...(audioItems.length ? [...audioItems, { sep: true }] : []),
-    { value: "extract", label: t("at.extract"), icon: "spark", disabled: selected.status !== "ready" || !!app.extracting[selected.id] },
+    ...(ba ? [{ value: "extract", label: t("at.extract"), icon: "spark", disabled: selected.status !== "ready" || !!app.extracting[selected.id] }] : []),
     { value: "rename", label: t("sources.rename"), icon: "pencil" },
     { sep: true },
     { value: "delete", label: t("sources.delete"), icon: "trash", danger: true },
@@ -430,7 +433,7 @@
                 </div>
                 <div class="right">
                   <span class="tag {st.cls}" title={st.tip || undefined}>{#if st.dot}<i class="live-dot"></i>{/if}{st.text}</span>
-                  <span class="num">{m.atoms ? t("meet.reqs_short", { n: m.atoms }) : ""}</span>
+                  <span class="num">{m.atoms && ba ? t("meet.reqs_short", { n: m.atoms }) : ""}</span>
                 </div>
               </div>
             {:else}
@@ -451,10 +454,11 @@
             <div class="meta"><span class="num">{fmtDate(selected.created_at, app.lang)}</span>
               {#if selected.duration}<span class="num">{fmtTime(selected.duration)}</span>{/if}
               {#if who}<span>{who}</span>{/if}
-              <span>{t("src.atoms_n", { n: selected.atoms || 0 })}</span></div>
+              {#if ba}<span>{t("src.atoms_n", { n: selected.atoms || 0 })}</span>{/if}</div>
           </div>
           <div class="mtabs" role="tablist">
-            {#each [["summary", t("meet.tab.summary")], ["transcript", t("nav.transcript")], ["notes", t("meet.tab.notes")], ["atoms", t("nav.atoms")]] as [k, label] (k)}
+            {#each [["summary", t("meet.tab.summary")], ["transcript", t("nav.transcript")], ["notes", t("meet.tab.notes")],
+                    ...(ba ? [["atoms", t("nav.atoms")]] : [])] as [k, label] (k)}
               <button role="tab" class:on={tab === k} aria-selected={tab === k} onclick={() => (tab = k)}>{label}</button>
             {/each}
           </div>
@@ -493,7 +497,7 @@
                     <div>
                       {#if seg.speaker}<span class="spk {speakerClass(seg.speaker, speakerOrder)}">{speakerDisplay(seg.speaker, seg.speaker_name, t)}</span>{" "}{/if}<span
                         class="tx">{#each pieces(seg) as p, k (k)}<span class:q={p.q} class:hit={p.h}>{p.t}</span>{/each}</span>
-                      {#if m.length}
+                      {#if m.length && ba}
                         <div class="latoms">{#each m as a, k (a.atom_id + ":" + k)}<button class="latom" title={a.statement}
                             onclick={() => go(`/atoms/atom/${a.atom_id}`)}><span class="type plain {typeClass[a.type]}">{PREFIX[a.type]}</span><span class="trunc">{a.statement}</span></button>{/each}</div>
                       {/if}
@@ -511,7 +515,7 @@
                 <div class="empty"><p>{t("nt.empty")}</p>
                   <button class="btn" onclick={() => open(selected.id)}><Icon name="pencil" size={14} /> {t("nt.write")}</button></div>
               {/if}
-            {:else}
+            {:else if ba}
               {#each atoms as a (a.id)}
                 <button class="req" class:rejected={a.status === "rejected"} onclick={() => go(`/atoms/atom/${a.id}`)}>
                   <span class="type plain {typeClass[a.type]}">{a.rid || PREFIX[a.type]}</span>
@@ -528,7 +532,7 @@
           <div class="panel-foot">
             <button class="btn lg primary" onclick={() => open(selected.id)} disabled={selected.status === "processing" && !selected.duration}>
               {t("meet.open")} <Icon name="arrow" size={14} /></button>
-            <button class="btn lg" onclick={() => go(`/atoms/source/${selected.id}`)}>{t("meet.atoms_btn", { n: selected.atoms || 0 })}</button>
+            {#if ba}<button class="btn lg" onclick={() => go(`/atoms/source/${selected.id}`)}>{t("meet.atoms_btn", { n: selected.atoms || 0 })}</button>{/if}
             <span class="up"><PopMenu cls="btn lg ghost icon" icon="more" chevron="" ariaLabel={t("tr.more")} title={t("tr.more")} align="right"
                               items={moreItems} onpick={more} /></span>
           </div>

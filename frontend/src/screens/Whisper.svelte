@@ -86,6 +86,9 @@
   }
   const projectItems = $derived([{ value: "", label: t("wh.project_none") }, { sep: true },
                                  ...app.projects.map(p => ({ value: p.id, label: p.name }))]);
+  // "Сделать вопросом" makes a requirement, so it offers only projects with business analysis on (5.0.4).
+  const qProjects = $derived(app.projects.filter(p => p.analysis !== false));
+  const linkedOn = w => qProjects.some(p => p.id === w.project_id);
   function dropItem(i) {
     wh.items = wh.items.filter((_, j) => j !== i);
     if (active >= wh.items.length) active = Math.max(0, wh.items.length - 1);
@@ -254,11 +257,13 @@
                   <span class="grow"></span>
                   {#if w.atom_id}
                     <button class="link" onclick={() => openQuestion(w.atom_id, w.project_id)}>{t("wh.question_done")}</button>
-                  {:else if w.project_name}
+                  {:else if w.project_name && linkedOn(w)}
                     <button class="link to-q" onclick={() => toQuestion(w)}>{t("wh.to_question")}</button>
+                  {:else if !qProjects.length}
+                    <button class="link to-q" disabled title={t("wh.to_question_none")}>{t("wh.to_question")}</button>
                   {:else}
                     <PopMenu cls="link to-q" chevron="" text={t("wh.to_question")} align="right"
-                             items={[{ heading: t("wh.question_in") }, ...app.projects.map(p => ({ value: p.id, label: p.name }))]}
+                             items={[{ heading: t("wh.question_in") }, ...qProjects.map(p => ({ value: p.id, label: p.name }))]}
                              onpick={v => toQuestion(w, v)} />
                   {/if}
                   <button class="x del" onclick={() => remove(w)} aria-label={t("wh.delete")} title={t("wh.delete")}><Icon name="trash" size={14} /></button>

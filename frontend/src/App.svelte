@@ -24,7 +24,8 @@
   import { cap, recordFromShell, stopRecording } from "./lib/capture.svelte.js";
   import { toggleWhisper } from "./lib/whisper.svelte.js";
   import { progressText } from "./lib/progress.js";
-  import { app, t, go, loadProjects, loadSources, setLang, applyTheme, setTheme, isDark, loadStatus, undoLast, toggleInspector, jobsTick } from "./lib/state.svelte.js";
+  import { app, t, go, loadProjects, loadSources, setLang, applyTheme, setTheme, isDark, loadStatus, undoLast, toggleInspector, jobsTick,
+           analysisOn, BA_ROUTES, BA_PATHS } from "./lib/state.svelte.js";
 
   let ready = $state(false);
   let error = $state("");
@@ -73,6 +74,7 @@
     }
     else if (/^nav\d$/.test(action)) {
       const path = RAIL_PATHS[Number(action.slice(3)) - 1];
+      if (path && BA_PATHS.has(path) && !analysisOn()) { e.preventDefault(); return; }   // hidden in a notes-only project
       if (path) { e.preventDefault(); app.palette = false; go(path); }
     }
   }
@@ -92,6 +94,11 @@
   // The empty address opens Встречи, the home page.
   $effect(() => {
     if (ready && app.route.name === "home") go("/meetings");
+  });
+  // Business analysis off (5.0.4): its screens are not there; an address, a link or a project switch lands on Встречи.
+  const ba = $derived(analysisOn());
+  $effect(() => {
+    if (ready && !ba && BA_ROUTES.has(app.route.name)) go("/meetings");
   });
   $effect(() => { app.atomsVersion; loadStatus(); });
 
@@ -133,6 +140,8 @@
       <div class="page">
         {#if app.route.name === "meetings"}
           <Meetings />
+        {:else if BA_ROUTES.has(app.route.name) && !ba}
+          <!-- business analysis is off: the effect above goes to Встречи -->
         {:else if app.route.name === "atoms"}
           <Atoms />
         {:else if app.route.name === "document"}

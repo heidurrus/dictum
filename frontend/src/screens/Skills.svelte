@@ -8,7 +8,7 @@
   import { api, pollJob } from "../lib/api.js";
   import { fmtDate, renderMarkdown } from "../lib/format.js";
   import { saveUrl } from "../lib/save.js";
-  import { app, t, go, toast, currentProject } from "../lib/state.svelte.js";
+  import { app, t, go, toast, currentProject, analysisOn } from "../lib/state.svelte.js";
 
   let list = $state(null);               // {stages, skills, project_id}
   let skill = $state(null);              // full skill as loaded
@@ -543,7 +543,7 @@
     <div class="usage">
       <p class="cap">{t("sk.u.doc_type")}</p>
       <p class="t2">{t("sk.doc_type_hint")}</p>
-      <div><button class="btn primary" onclick={() => go(`/document/new/${skill.name}`)}>{t("sk.doc_type_create")}</button></div>
+      {#if analysisOn()}<div><button class="btn primary" onclick={() => go(`/document/new/${skill.name}`)}>{t("sk.doc_type_create")}</button></div>{/if}
     </div>
   {:else if stageInfo}
     {@const here = stageInfo.effective === skill.name}

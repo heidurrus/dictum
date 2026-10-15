@@ -307,7 +307,8 @@ def answer(store, project_id, question, context_only, generate, skillset=None, m
         text, cites = parse_citations(body, sources)
         if not text:
             text = NOT_FOUND[lang]
-        if intent:
+        # A project with business analysis off (5.0.4) holds no requirements: the intent is dropped, the answer stays.
+        if intent and store.get_project(project_id).get("analysis", True):
             created = create_question(store, project_id, intent, sources, cites, model=model)
     elapsed = round(clock() - started, 1)
     used = len({(c["entity"], c["entity_id"]) for c in cites})

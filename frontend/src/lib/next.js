@@ -1,12 +1,13 @@
 // The one next step of the pipeline, from the project's status.
 // Used by the pipeline strip on Встречи; screens name their own primary button from the same state.
-import { app, t } from "./state.svelte.js";
+import { app, t, analysisOn } from "./state.svelte.js";
 
 export function nextStep() {
   const s = app.status;
   if (!s) return null;
   if (!s.sources) return { icon: "sources", title: t("next.import"), text: t("next.import_d"), cta: t("nav.sources"), go: "/sources" };
   if (s.processing) return { icon: "clock", title: t("next.wait", { n: s.processing }), text: t("next.wait_d"), wait: true };
+  if (!analysisOn()) return null;       // a meeting recorder (5.0.4): nothing after the meetings themselves
   if (s.atoms.review) return { icon: "atoms", title: t("next.review", { n: s.atoms.review }), text: t("next.review_d"), cta: t("next.review_cta"), go: "/atoms" };
   if (s.atoms.conflicts) return { icon: "warn", title: t("next.conflicts", { n: s.atoms.conflicts }), text: t("next.conflicts_d"), cta: t("next.conflicts_cta"), go: "/atoms" };
   if (!s.atoms.total) return { icon: "atoms", title: t("next.extract"), text: t("next.extract_d"), cta: t("nav.sources"), go: "/sources" };

@@ -24,6 +24,7 @@ import uuid
 from core import live as live_mod, skills
 from core.paths import app_data_dir
 from core.recorder import DualChannelRecorder, wav_duration
+from core.store import StoreError
 
 STAGE = "whisper"
 KINDS = ("task", "note", "remind", "idea")
@@ -441,10 +442,17 @@ def parse(transcript, complete, now, lang="ru", projects=(), current_id=None, la
 
 
 # ── turning an item into a client question ───────────────────────────────────
+class AnalysisOff(StoreError):
+    """The target project has business analysis switched off: it holds no requirements, so no question goes there."""
+
+
 def to_question(store, whisper, project_id):
     """A Q atom in `project_id` quoting the whisper's transcript (a line of the project's hidden "Шепнуть" source);
-    the whisper is marked with it. Returns {atom_id, label, statement, project_id, whisper}."""
-    store.get_project(project_id)
+    the whisper is marked with it. Returns {atom_id, label, statement, project_id, whisper}. Refused (AnalysisOff)
+    when the project has business analysis switched off."""
+    project = store.get_project(project_id)
+    if not project.get("analysis", True):
+        raise AnalysisOff(f"business analysis is off in “{project['name']}”: questions go to a project with it on")
     source = store.whisper_source(project_id)
     quote = whisper["transcript"] or whisper["text"]
     idx = store.add_note_line(source["id"], quote)

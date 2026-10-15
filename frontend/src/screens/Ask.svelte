@@ -6,7 +6,7 @@
   import Page from "../components/Page.svelte";
   import { api, pollJob } from "../lib/api.js";
   import { fmtTime } from "../lib/format.js";
-  import { app, t, go, currentProject, writePref } from "../lib/state.svelte.js";
+  import { app, t, go, currentProject, writePref, analysisOn } from "../lib/state.svelte.js";
 
   const PREF = "askContextOnly";
   function readCtx() {
@@ -124,7 +124,10 @@
     if (c.entity === "segment") return c.start != null ? `${t("ask.cite_meeting")} · ${fmtTime(c.start)}` : t("ask.cite_meeting");
     return c.title;
   }
+  // Business analysis off (5.0.4): a requirement cited from before stays a label; its screen is not there.
+  const ba = $derived(analysisOn());
   function open(c) {
+    if (c.entity === "atom" && !ba) return;
     if (c.entity === "segment") go(`/meeting/${c.entity_id}/seg/${c.locator}`);
     else if (c.entity === "atom") go(`/atoms/atom/${c.entity_id}`);
     else go(`/library/${c.entity_id}`);
@@ -175,10 +178,10 @@
             {:else}
               <div class="st"><Icon name="check" size={14} /> {statusLine(m)}</div>
               <div class="text">{#each parts(m.answer, m.citations) as p, i (i)}{#if p.cite}<button class="cite" title={t("ask.cite_open", { title: p.cite.title })}
-                  onclick={() => open(p.cite)}>{chip(p.cite)}</button>{:else if p.b}<b>{p.text}</b>{:else}{p.text}{/if}{/each}</div>
+                  disabled={p.cite.entity === "atom" && !ba} onclick={() => open(p.cite)}>{chip(p.cite)}</button>{:else if p.b}<b>{p.text}</b>{:else}{p.text}{/if}{/each}</div>
               {#if m.created}
                 <div class="created"><Icon name="check" size={14} /> {t("ask.created")}
-                  <button class="cite" onclick={() => go(`/atoms/atom/${m.created.atom_id}`)}>{m.created.label}</button>
+                  <button class="cite" disabled={!ba} onclick={() => go(`/atoms/atom/${m.created.atom_id}`)}>{m.created.label}</button>
                   <span class="t2">«{m.created.statement}»</span></div>
               {/if}
             {/if}

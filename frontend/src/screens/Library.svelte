@@ -11,7 +11,7 @@
   import { api, pollJob } from "../lib/api.js";
   import { extractAtoms } from "../lib/atoms.js";
   import { fmtBytes } from "../lib/audio.js";
-  import { app, t, go, toast, currentProject, writePref } from "../lib/state.svelte.js";
+  import { app, t, go, toast, currentProject, writePref, analysisOn } from "../lib/state.svelte.js";
 
   let list = $state([]);                  // GET /api/projects/<id>/materials
   let labels = $state([]);                // GET /api/projects/<id>/labels
@@ -255,8 +255,10 @@
     catch (err) { toast(err.message, { kind: "danger" }); }
   }
   function reveal() { if (cur?.path) window.pywebview?.api?.reveal?.(cur.path); }
+  // Business analysis off (5.0.4): no extraction, no requirement hits in search, no "used in" requirements/documents.
+  const ba = $derived(analysisOn());
   const moreItems = $derived(!selected ? [] : [
-    { value: "extract", label: t("at.extract"), icon: "spark", disabled: !selected.chars || !!app.extracting[selected.id] },
+    ...(ba ? [{ value: "extract", label: t("at.extract"), icon: "spark", disabled: !selected.chars || !!app.extracting[selected.id] }] : []),
     ...(selected.material_kind === "url" ? [{ value: "resync", label: t("lib.resync"), icon: "refresh" }] : []),
     { value: "reindex", label: t("lib.reindex"), icon: "refresh", disabled: !indexReady || indexing },
     { sep: true },
@@ -329,7 +331,7 @@
     return () => clearTimeout(timer);
   });
   const GROUPS = [["meetings", ["segment", "note"]], ["materials", ["material"]], ["atoms", ["atom"]]];
-  const groups = $derived(!hits ? [] : GROUPS.map(([key, ents]) => ({ key, hits: hits.filter(h => ents.includes(h.entity)) }))
+  const groups = $derived(!hits ? [] : GROUPS.filter(([key]) => ba || key !== "atoms").map(([key, ents]) => ({ key, hits: hits.filter(h => ents.includes(h.entity)) }))
                                              .filter(g => g.hits.length));
   // The snippet marks matches with \x02…\x03; split it into parts, never into HTML.
   function parts(snippet) {
@@ -545,6 +547,7 @@
               {/each}
             {/if}
           </div>
+          {#if ba}
           <div class="links uses">
             <h4>{t("lib.used_in")}{#if uses && uses.atoms.length + uses.documents.length}{" · " + (uses.atoms.length + uses.documents.length)}{/if}</h4>
             {#if uses}
@@ -559,6 +562,7 @@
               {#if !uses.atoms.length && !uses.documents.length}<p class="t3 small">{t("lib.used_none")}</p>{/if}
             {/if}
           </div>
+          {/if}
         </div>
         <div class="panel-foot">
           <button class="btn lg tonal" onclick={openMaterial}><Icon name="pencil" size={14} /> {t("lib.open")}</button>

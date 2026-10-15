@@ -170,7 +170,7 @@ CREATE TABLE IF NOT EXISTS usage (
 CREATE INDEX IF NOT EXISTS usage_by_time ON usage(at);
 """
 
-PROJECT_FIELDS = ("id", "name", "local_only", "archived", "language", "jira_quotes", "auto_extract",
+PROJECT_FIELDS = ("id", "name", "local_only", "archived", "language", "jira_quotes", "auto_extract", "analysis",
                   "created_at", "created_by", "updated_at", "updated_by")
 OUTPUT_LANGUAGES = ("auto", "ru", "en")
 SOURCE_FIELDS = ("id", "project_id", "kind", "title", "original_filename", "status", "error", "duration",
@@ -239,7 +239,10 @@ class Store:
                             ("atoms", ("live INTEGER NOT NULL DEFAULT 0", "stale_evidence INTEGER NOT NULL DEFAULT 0")),
                             # v9 part 5 (5.0 C5 index): a deleted label that still holds removal tombstones is kept
                             # hidden, so recreating it by name never puts back what the BA took off.
-                            ("labels", ("deleted_at REAL",))):
+                            ("labels", ("deleted_at REAL",)),
+                            # v9 part 6 (5.0.4): business analysis can be switched off per project (a meeting
+                            # recorder); on by default, so projects made before it keep everything.
+                            ("projects", ("analysis INTEGER NOT NULL DEFAULT 1",))):
             have = {r["name"] for r in c.execute(f"PRAGMA table_info({table})")}
             for col in cols:
                 if col.split()[0] not in have:
@@ -293,7 +296,7 @@ class Store:
         if "meta_json" in d:
             raw = d.pop("meta_json")
             d["meta"] = json.loads(raw) if raw else None
-        for flag in ("local_only", "archived", "diarized", "auto_extract"):
+        for flag in ("local_only", "archived", "diarized", "auto_extract", "analysis"):
             if flag in d and d[flag] is not None:
                 d[flag] = bool(d[flag])
         return d
@@ -325,19 +328,20 @@ class Store:
             raise StoreError(f"a project called “{name}” already exists")
         return name
 
-    def create_project(self, name, local_only=False):
+    def create_project(self, name, local_only=False, analysis=True):
         with self._write() as c:
             name = self._check_name(c, name)
             now, by = self._stamp()
             pid = str(uuid.uuid4())
-            c.execute("INSERT INTO projects (id, name, local_only, archived, created_at, created_by, updated_at, updated_by) "
-                      "VALUES (?,?,?,?,?,?,?,?)", (pid, name, int(local_only), 0, now, by, now, by))
+            c.execute("INSERT INTO projects (id, name, local_only, archived, analysis, created_at, created_by, updated_at, "
+                      "updated_by) VALUES (?,?,?,?,?,?,?,?,?)",
+                      (pid, name, int(local_only), 0, int(bool(analysis)), now, by, now, by))
             project = self._row(c.execute("SELECT * FROM projects WHERE id = ?", (pid,)).fetchone(), PROJECT_FIELDS)
             self._audit(c, "project", pid, "create", after=project)
         return project
 
     def update_project(self, project_id, **changes):
-        allowed = {"name", "local_only", "archived", "language", "jira_quotes", "auto_extract"}
+        allowed = {"name", "local_only", "archived", "language", "jira_quotes", "auto_extract", "analysis"}
         unknown = set(changes) - allowed
         if unknown:
             raise StoreError(f"cannot change {sorted(unknown)}")
@@ -351,7 +355,7 @@ class Store:
                 raise StoreError("project not found")
             if "name" in changes:
                 changes["name"] = self._check_name(c, changes["name"], exclude_id=project_id)
-            for flag in ("local_only", "archived", "auto_extract"):
+            for flag in ("local_only", "archived", "auto_extract", "analysis"):
                 if flag in changes:
                     changes[flag] = int(bool(changes[flag]))
             if changes:
