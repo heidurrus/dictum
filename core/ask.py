@@ -104,7 +104,7 @@ def _keyword_hits(store, project_id, question, context_only, materials_only, lim
         elif materials_only:
             continue
         elif h["entity"] == "segment":
-            segs = store.transcript(h["source_id"])[0]
+            segs = store.transcript(h["source_id"], final=True)[0]
             seg = next((s for s in segs if s["idx"] == h["idx"]), None)
             if seg is None:
                 continue
@@ -243,7 +243,7 @@ def parse_citations(text, sources):
 def _evidence(store, source):
     """One evidence row for an atom created from an answer: a quote from the cited source's own text."""
     if source["entity"] == "segment":
-        segs = store.transcript(source["entity_id"])[0]
+        segs = store.transcript(source["entity_id"], final=True)[0]
         seg = next((s for s in segs if s["idx"] == source["locator"]), None)
         if seg is None:
             return None
@@ -251,7 +251,7 @@ def _evidence(store, source):
                 "speaker": seg.get("speaker"), "quote": _first_sentence(seg["text"], QUOTE_CHARS * 2)}
     if source["entity"] == "material":
         quote = _first_sentence(source["text"])
-        segs = store.transcript(source["entity_id"])[0]
+        segs = store.transcript(source["entity_id"], final=True)[0]
         seg = next((s for s in segs if quote in " ".join(s["text"].split())), None)
         return {"source_id": source["entity_id"], "segment_idx": seg["idx"] if seg else None, "start": None,
                 "speaker": None, "quote": quote}

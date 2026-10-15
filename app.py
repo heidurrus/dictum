@@ -717,7 +717,8 @@ def _finish_recording(opts, title=None, expect_source=None):
     """The Stop path, shared by the Stop button and the auto-stop on silence: stop the recorder and the live
     helpers, finalise the meeting's source (mic.wav / sys.wav stay where they were written, a mixed WAV is made
     for playback) and, given transcription options, start the full transcription, which replaces the live
-    pass's provisional lines. Returns (body, status)."""
+    pass's provisional lines once it lands (they stay on the page until then, and stay as the rough version if the
+    full pass fails). Returns (body, status)."""
     with _recorder_lock:
         if _recorder is None or not _recorder.recording:
             return {"error": "No recording in progress"}, 409
@@ -753,7 +754,6 @@ def _finish_recording(opts, title=None, expect_source=None):
 
     job_id = None
     if opts:
-        library.delete_provisional_segments(source_id)      # the full pass owns the transcript from here
         library.update_source(source_id, status="processing", asr_model=opts["model_name"], error=None)
         job_id = _start_transcription(source, playback_path, opts)
 
@@ -763,8 +763,8 @@ def _finish_recording(opts, title=None, expect_source=None):
 @app.route("/desktop-record/stop", methods=["POST"])
 def desktop_record_stop():
     """Stop recording and finalise the meeting's source: mic.wav / sys.wav stay where they were written, a mixed
-    WAV is made for playback. With transcription options in the body the full transcription starts on it; it
-    replaces the live pass's provisional lines."""
+    WAV is made for playback. With transcription options in the body the full transcription starts on it; when it
+    lands it replaces the live pass's provisional lines in the same write."""
     data = request.get_json(silent=True) or {}
     opts = None
     if data.get("model"):

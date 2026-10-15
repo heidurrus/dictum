@@ -212,7 +212,7 @@ def index_project(store, project_id, progress=lambda done, total: None, force_ma
         done += 1
         progress(done, total)
     for s in meetings:
-        segs = [x for x in store.transcript(s["id"])[0] if not x.get("provisional")]
+        segs = store.transcript(s["id"], final=True)[0]
         if _index_entity(store, "segment", s["id"], segment_windows(segs)):
             out["meetings"] += 1
         done += 1

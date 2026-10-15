@@ -233,7 +233,7 @@ class Store:
                             # v9 (5.0 C3): meeting notes and recap styles, one summary row per style.
                             ("sources", ("notes TEXT", "recap_style TEXT")),
                             ("summaries", ("style TEXT NOT NULL DEFAULT 'brief'", "through_idx INTEGER")),
-                            # v9 part 2 (5.0 C4.1): lines from the live pass while recording, replaced on stop.
+                            # v9 part 2 (5.0 C4.1): lines from the live pass while recording, replaced when the full pass lands.
                             ("segments", ("provisional INTEGER NOT NULL DEFAULT 0",)),
                             # v9 part 3 (5.0 C4.2, removed in 5.0.3): no longer written or read, kept so old databases open.
                             ("atoms", ("live INTEGER NOT NULL DEFAULT 0", "stale_evidence INTEGER NOT NULL DEFAULT 0")),
@@ -467,7 +467,8 @@ class Store:
         where += " AND s.kind != 'note'"              # the hidden Шепнуть source is never a meeting
         if needle:
             where += """ AND (ci_has(s.title, ?) OR ci_has(s.text, ?)
-                         OR EXISTS (SELECT 1 FROM segments g WHERE g.source_id = s.id AND ci_has(g.text, ?)))"""
+                         OR EXISTS (SELECT 1 FROM segments g WHERE g.source_id = s.id AND g.provisional = 0
+                                    AND ci_has(g.text, ?)))"""
             args += [needle] * 3
         with self._conn() as c:
             c.create_function("ci_has", 2, lambda hay, n: int(bool(hay) and n in hay.casefold()), deterministic=True)
@@ -560,14 +561,15 @@ class Store:
 
     def save_transcript(self, source_id, result, asr_model=None):
         """Store a transcription or import result (the shape produced by app._transcribe
-        and core.transcripts) and mark the source ready."""
+        and core.transcripts) and mark the source ready. It replaces every line of the source, the live pass's
+        provisional ones included, in one transaction: a reader sees the live lines or the final ones, never neither."""
         segments = result.get("segments") or []
         if not segments and result.get("text"):
             segments = [{"text": result["text"]}]
         ends = [s["end"] for s in segments if s.get("end") is not None]
         speakers = {s.get("speaker") for s in segments if s.get("speaker")}
         with self._write() as c:
-            c.execute("DELETE FROM segments WHERE source_id = ?", (source_id,))
+            c.execute("DELETE FROM segments WHERE source_id = ?", (source_id,))        # provisional lines too
             c.executemany('INSERT INTO segments (source_id, idx, speaker, start, "end", text) VALUES (?,?,?,?,?,?)',
                           [(source_id, i, s.get("speaker"), s.get("start"), s.get("end"), s.get("text", ""))
                            for i, s in enumerate(segments)])
@@ -674,22 +676,21 @@ class Store:
                 nxt += 1
         return out
 
-    def delete_provisional_segments(self, source_id):
-        with self._write() as c:
-            return c.execute("DELETE FROM segments WHERE source_id = ? AND provisional = 1", (source_id,)).rowcount
-
     def fail_source(self, source_id, error):
         return self.update_source(source_id, status="failed", error=str(error)[:1000])
 
-    def transcript(self, source_id):
-        """Segments with display names applied, plus the speaker map."""
+    def transcript(self, source_id, final=False):
+        """Segments with display names applied, plus the speaker map. The live pass's provisional lines are included
+        (they are shown while recording, while the full pass runs and, if it failed, as the rough version) unless
+        `final`: whatever reads the meeting's content (recap, extraction, Ask) asks for the final lines only."""
         with self._conn() as c:
             names = {r["label"]: r["name"] for r in c.execute(
                 "SELECT label, name FROM speakers WHERE source_id = ?", (source_id,))}
             segs = [dict(idx=r["idx"], speaker=r["speaker"], start=r["start"], end=r["end"], text=r["text"],
                          corrected=r["original_text"] is not None, provisional=bool(r["provisional"]))
                     for r in c.execute('SELECT idx, speaker, start, "end", text, original_text, provisional FROM segments '
-                                       'WHERE source_id = ? ORDER BY idx', (source_id,))]
+                                       'WHERE source_id = ?' + (' AND provisional = 0' if final else '') +
+                                       ' ORDER BY idx', (source_id,))]
         for s in segs:
             s["speaker_name"] = names.get(s["speaker"], s["speaker"])
         return segs, names
@@ -712,9 +713,10 @@ class Store:
                         {"name": old["name"] if old else label}, {"name": name or label})
 
     def transcript_text(self, source_id, after_idx=None):
-        """Plain text for summaries, with renamed speakers and timestamps (only the lines after `after_idx` if given)."""
+        """Plain text for summaries, with renamed speakers and timestamps (only the lines after `after_idx` if given).
+        The final lines only: the live pass's provisional lines are never summarised."""
         from core.transcripts import format_time
-        segs, _ = self.transcript(source_id)
+        segs, _ = self.transcript(source_id, final=True)
         lines = []
         for s in segs:
             if after_idx is not None and s["idx"] <= after_idx:
@@ -763,7 +765,8 @@ class Store:
 
     def last_segment_idx(self, source_id):
         with self._conn() as c:
-            r = c.execute("SELECT MAX(idx) AS m FROM segments WHERE source_id = ?", (source_id,)).fetchone()
+            r = c.execute("SELECT MAX(idx) AS m FROM segments WHERE source_id = ? AND provisional = 0",
+                          (source_id,)).fetchone()
         return r["m"]
 
     # ── meeting notes (5.0 C3) ───────────────────────────────────────────────
@@ -872,7 +875,7 @@ class Store:
 
     @classmethod
     def _fts_segments(cls, c, source_id):
-        """A meeting's lines (the final ones: the live pass's provisional lines are replaced on stop)."""
+        """A meeting's lines (the final ones: the live pass's provisional lines are replaced when the full pass lands)."""
         s = c.execute("SELECT project_id, kind FROM sources WHERE id = ?", (source_id,)).fetchone()
         cls._fts_drop(c, "segment", prefix=source_id + ":")
         if s is None or s["kind"] == "material":         # a material is indexed whole, as one "material" row

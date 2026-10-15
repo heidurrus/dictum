@@ -32,6 +32,7 @@ depends on an unmerged one.
 | 17 | Hand-test feedback 1: system-audio Allow no longer hangs, consent reminder toggle, calm record panel, archive in the project picker | C8, C9, C2 | 5.0.2 | merged |
 | 18 | Hand-test feedback 2: remove Ollama and requirements on the fly | C4.2, C9 | 5.0.3 | merged |
 | 19 | Per-project switch: business analysis off makes Dictum a meeting recorder | C9, C2 | 5.0.4 | merged |
+| 20 | The live transcript stays until the full one replaces it; project picker without the privacy row | C4.1, C2 | 5.0.5 | merged |
 | 22 | Audio devices re-read before a recording starts (whisper errors after AirPods/iPhone/Teams changed the list); app log file | C2, C7 | 5.0.5 | merged |
 
 ## Log
@@ -59,3 +60,4 @@ depends on an unmerged one.
 - 2026-10-15 · docs sweep merged (082c808): README rewritten for 5.0.3, stale 4.x docs deleted, specs and comments scrubbed of the old names; code identifiers kept for compatibility. 692 tests.
 - 2026-10-15 · 19 merged. 699 tests, i18n 1732, 15 suites by the agent; notes_mode.mjs (20 steps, ru+en) re-run here; backend guards reviewed (auto-extract, whisper question 409, Ask intent dropped); screenshots ru/en OK. Beyond the brief, accepted: Ask never creates a question in a notes-only project; the whole pipeline strip is hidden, not three rings; a checkbox at project creation. 5.0.4 dmg built.
 - 2026-10-15 · 22 merged (orchestrator fix, no agent). Whispers failed after the audio devices changed: PortAudio's list is read once, the unified log showed 'no object with given ID'; jobs.log was empty because the recorder's errors went to a terminal the packaged app has not got. Device list refreshed when idle, microphone matched by name, logs/dictum.log added. 705 tests. 20 and 21 running in parallel.
+- 2026-10-15 · 20 merged. 703 tests in the worktree, i18n 1733, 16 suites by the agent; stop path and the store's single-transaction replace reviewed; screenshot ru OK (progress banner, note, lighter live lines). Deviation accepted: status flips to ready in a separate write right after the segments land (one 2 s poll at most shows the banner over final lines). Picker privacy row removed.

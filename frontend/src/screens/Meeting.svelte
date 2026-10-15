@@ -102,6 +102,9 @@
   const liveSeconds = $derived(cap.recording && cap.sourceId === id ? cap.elapsed : Math.floor(liveSt?.elapsed || 0));
   const liveChannel = l => (l === "BA" ? "mic" : "sys");
   const liveName = l => (l === "BA" || l === "OTHER" ? t(l === "BA" ? "mt.ch.mic" : "mt.ch.sys") : speakerDisplay(l, null, t));
+  // After stop the live lines stay until the full transcript replaces them, and stay as the rough version when the
+  // full pass failed or has not run (5.0.5).
+  const rough = $derived(source && source.status !== "ready" && !isLive ? source.segments.filter(s => s.provisional) : []);
   function onLiveScroll(e) {
     const el = e.currentTarget;
     stick = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
@@ -465,11 +468,24 @@
           <div class="banner info"><span class="spinner"></span><span class="grow">
             {app.jobs[id]?.message || t("tr.processing")}{#if app.jobs[id]} · {Math.round(app.jobs[id].progress || 0)}%{#if app.jobs[id].eta} · {app.jobs[id].eta}{/if}{/if}
             · {t("tr.keep_working")}</span></div>
-          <div class="skeleton">{#each [72, 90, 64, 84, 58, 88, 70] as w, i (i)}<i style="width: {w}%"></i>{/each}</div>
+          {#if !rough.length}
+            <div class="skeleton">{#each [72, 90, 64, 84, 58, 88, 70] as w, i (i)}<i style="width: {w}%"></i>{/each}</div>
+          {/if}
         {:else if source.status === "recorded"}
           <div class="banner warn"><Icon name="clock" /><span class="grow">{t("tr.recorded")}</span></div>
         {:else if source.status === "failed"}
           <div class="banner danger"><Icon name="warn" /><span class="grow">{t("tr.failed", { error: source.error || "" })}</span></div>
+        {/if}
+        {#if rough.length}
+          <p class="rough-note">{t(source.status === "processing" ? "live.kept_processing" : "live.kept_rough")}</p>
+          <div class="transcript live-lines rough-lines">
+            {#each rough as seg (seg.idx)}
+              <div class="seg-line line seg-row live-row provisional" id="seg-{seg.idx}">
+                <span class="time mono">{seg.start != null ? fmtTime(seg.start) : ""}</span>
+                <div class="seg-text"><p>{#if seg.speaker}<span class="spk {liveChannel(seg.speaker)}">{liveName(seg.speaker)}</span>{" "}{/if}{seg.text}</p></div>
+              </div>
+            {/each}
+          </div>
         {/if}
       </div>
     {:else}
@@ -761,6 +777,8 @@
   .timer { font: 600 18px/1 var(--mono); color: var(--text-2); letter-spacing: .02em; flex: none; }
   .live-row .time { cursor: default; }
   .live-row.provisional .seg-text p { color: var(--text-2); }
+  .rough-note { margin: var(--s-5) 0 0; color: var(--text-3); font-size: 13px; font-style: italic; }
+  .rough-lines { max-width: 80ch; }
   .listening { display: flex; gap: 10px; align-items: center; color: var(--text-3); padding: 10px 6px; font-style: italic; }
   .live-req { border-top: 1px solid var(--outline-2); display: flex; flex-direction: column; min-height: 0; max-height: 45%; flex: none; }
   .live-req .col-head { border-bottom: 0; }

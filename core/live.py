@@ -9,8 +9,9 @@ logged; it never stops, pauses or alters the recording, which keeps going untouc
 Every `window` seconds the transcriber reads the new samples of each channel (the WAV data region after the
 44-byte header: mono 16 kHz int16, as core.recorder writes it), cuts at the last pause inside the window
 (the rest waits in memory for the next pass, so no byte is read twice), runs speech recognition on what it
-cut and appends the lines to the source as provisional segments with absolute timestamps. On stop the
-normal full transcription replaces them.
+cut and appends the lines to the source as provisional segments with absolute timestamps. They stay after stop
+until the normal full transcription lands and replaces them in one write; if it fails they remain as the rough
+version.
 """
 import logging
 import os

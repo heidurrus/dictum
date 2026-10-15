@@ -4,6 +4,8 @@
 
 - **Whispers and meetings record again after your audio devices change.** Dictum read the list of microphones once, at start; when AirPods, an iPhone microphone or Teams appeared or disappeared later, it tried to open a device macOS no longer had and the whisper failed with an error. The list is now re-read every time a recording starts, and if the chosen microphone is gone, the default one is used. The microphone is remembered by name as well as by number, so it stays the same when devices renumber.
 - **A log file for the app.** Warnings and errors from every part of Dictum go to `logs/dictum.log` in the data folder (next to `jobs.log`), so a failure like the one above leaves a trace.
+- **The live transcript stays after you stop.** The lines written while recording no longer vanish when the full transcription starts: the meeting page and the Meetings panel keep them, lighter, under a line saying the full transcript is being made, and the full transcript replaces them in one step when it is ready. If the full transcription fails, the live lines stay as the rough version and "Transcribe" runs it again. Recaps, requirement extraction, search, Ask and the index still read only the full transcript.
+- The project menu no longer shows the "Local only" / "Claude · cloud" row that only opened Settings. A local-only project still has the lock next to its name; the setting itself is in Settings → Privacy.
 
 ## 5.0.4 (2026-10-15)
 

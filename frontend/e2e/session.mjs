@@ -1,7 +1,8 @@
 // Live session (spec 5.0 C4.1, C4.3): record from Встречи → the meeting page opens at once with the audio pill →
 // provisional lines appear → with `live_questions` on, the question card answers the question heard from a material
 // "в контексте" and "Добавить в заметки" puts it into the notes → pause shows the paused state → resume → stop →
-// the final transcript replaces the provisional lines, "Требования из встречи" is shown and the meeting is processed.
+// the live lines stay with "the full transcript is being made" until the final transcript replaces them,
+// "Требования из встречи" is shown and the meeting is processed.
 // Runs once per interface language.
 // Run: FAKE_RECORDER=1 DICTUM_DATA_DIR=$(mktemp -d) python frontend/e2e/fake_llm_server.py 5312 &
 //      node frontend/e2e/session.mjs http://127.0.0.1:5312
@@ -11,12 +12,12 @@ const base = process.argv[2] || "http://127.0.0.1:5098";
 const L = {
   ru: { locale: "ru-RU", heading: "Встречи", record: "Записать встречу", consent: "Да, записывать", recording: "Идёт запись",
         pause: "Пауза", resume: "Продолжить", stop: "Завершить и расшифровать", listening: "Слушаю…",
-        paused: "На паузе — звук не пишется", title: /^Встреча /, ready: "Разобран",
+        paused: "На паузе — звук не пишется", title: /^Встреча /, ready: "Разобран", kept: "Полная расшифровка готовится",
         reqs: "Требования из встречи",
         qTitle: "В разговоре прозвучал вопрос", qAdd: "Добавить в заметки", qNote: "- Вопрос: ", qAnswer: "Статус утверждает руководитель" },
   en: { locale: "en-US", heading: "Meetings", record: "Record a meeting", consent: "Yes, record", recording: "Recording",
         pause: "Pause", resume: "Resume", stop: "Stop and transcribe", listening: "Listening…",
-        paused: "Paused: no audio is being recorded", title: /^Meeting /, ready: "Processed",
+        paused: "Paused: no audio is being recorded", title: /^Meeting /, ready: "Processed", kept: "The full transcript is being made",
         reqs: "Requirements from the meeting",
         qTitle: "A question came up in the call", qAdd: "Add to notes", qNote: "- Question: ", qAnswer: "Статус утверждает руководитель" },
 };
@@ -111,6 +112,13 @@ for (const [lang, s] of Object.entries(L)) {
   step("resume continues the recording");
 
   await pill.getByRole("button", { name: s.stop, exact: true }).click();
+  await page.locator(".rough-note", { hasText: s.kept }).waitFor({ timeout: 8000 });
+  for (const text of LIVE) await page.locator(".rough-lines .live-row.provisional", { hasText: text }).waitFor({ timeout: 1000 });
+  const processing = await json(`/api/sources/${id}`);
+  if (processing.status !== "processing" || processing.segments.length !== 4 || !processing.segments.every(x => x.provisional))
+    throw new Error("processing source: " + JSON.stringify({ status: processing.status, segments: processing.segments }));
+  step("after stop the live lines stay, lighter, under “the full transcript is being made”");
+
   await page.locator(".seg-row", { hasText: FINAL }).first().waitFor({ timeout: 20000 });
   if (await page.locator(".live-row").count()) throw new Error("provisional lines are still shown");
   const done = await json(`/api/sources/${id}`);
