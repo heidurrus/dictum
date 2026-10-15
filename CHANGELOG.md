@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.0.5 (2026-10-15)
+
+- **Choose the meeting's language, not the model.** The record panel on Meetings has a "Meeting language" row, Russian or Multilingual (English and other languages), in place of the model line. It opens with the project's language and remembers the last choice, so a project with English-speaking people starts on Multilingual next time while the other projects stay Russian. If the model behind the language is not downloaded, the row offers its download with the size. The live transcript and the full transcription use the language the recording started with, and the meeting's panel shows a Multilingual tag when that is how it was transcribed.
+- Import has the same choice: the arrow next to Import opens the language row and the file picker. Audio and video are transcribed in that language; transcripts and documents come in as before.
+- **Settings → Models picks a model per language**: "Model for Russian" and "Model for other languages", each listing only the models for it, with the download and delete cards as before. The model chosen in earlier versions is kept as the model of its language.
+- Multilingual transcripts come out in lower case without punctuation: that is what the multilingual GigaAM models produce. The Russian models keep punctuation.
+
 ## 5.0.4 (2026-10-15)
 
 - **Business analysis can be switched off per project.** Settings → Project has a new "Business analysis" switch, on by default, so existing projects do not change. Off, the project is a meeting recorder: record, transcribe, recaps, notes, the library, Ask, Whisper and Settings stay; Requirements, Documents and Backlog leave the rail, Export leaves More, and the ⌘K palette, ⌘3–⌘5, the pipeline strip and requirement counts on Meetings, the Requirements tab, Extract requirements, the requirements panel on the meeting page, the Jira section in Settings and the Jira line in Privacy are gone with them. Nothing is deleted: switch it back on and everything that was there is back.
