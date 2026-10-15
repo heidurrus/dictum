@@ -11,6 +11,8 @@
 
   let menuOpen = $state(false);
   let showArchive = $state(false);
+  let archiveAsk = $state(null);   // the project the confirm sheet asks about
+  let archiving = $state(false);
   let newName = $state("");
   let creating = $state(false);
   let query = $state("");
@@ -24,6 +26,7 @@
 
   function onKey(e) {
     const key = keyOf(e);
+    if (key === "Escape" && archiveAsk) { archiveAsk = null; return; }
     if (key === "Escape" && helpOpen) { helpOpen = false; return; }
     if (key === "Escape" && menuOpen) { menuOpen = false; return; }
     if ((e.metaKey || e.ctrlKey) && !e.altKey && e.shiftKey && (key === "p" || key === "P")) { e.preventDefault(); menuOpen = !menuOpen; }
@@ -76,6 +79,23 @@
   }
   function openSettings() { menuOpen = false; go("/settings"); }
 
+  // Archive the current project (5.0.2: moved here from Settings → Проект). The last open project stays.
+  function askArchive() { if (project && app.projects.length > 1) { archiveAsk = project; menuOpen = false; } }
+  async function archive() {
+    const p = archiveAsk;
+    if (!p) return;
+    archiving = true;
+    try {
+      await api(`/api/projects/${p.id}`, { method: "PATCH", body: { archived: true } });
+      await loadProjects();
+      const next = app.projects.find(x => x.id !== p.id);
+      if (next && app.currentProjectId !== next.id) await switchProject(next.id);
+      archiveAsk = null;
+      toast(t("project.archived_done", { name: p.name }));
+    } catch (err) { toast(err.message, { kind: "danger" }); }
+    finally { archiving = false; }
+  }
+
   const shown = $derived(app.projects.filter(p => p.name.toLowerCase().includes(query.trim().toLowerCase())));
   const project = $derived(currentProject());
   const hk = $derived({ ...DEFAULT_HOTKEYS, ...(app.settings?.hotkeys || {}) });
@@ -110,6 +130,9 @@
             {#if project.local_only}<Icon name="lock" size={12} /><span class="grow">{t("project.local_only")}</span>
             {:else}<Icon name="cloud" size={12} /><span class="grow">{t("project.cloud_ok")}</span>{/if}
           </button>
+          <button class="menu-item archive-it" role="menuitem" onclick={askArchive} disabled={app.projects.length < 2}
+                  title={app.projects.length < 2 ? t("project.archive_last") : ""}>
+            <span class="tick"></span><Icon name="trash" size={12} /><span class="grow">{t("project.archive")}</span></button>
         {/if}
         <hr />
         <p class="menu-label">{t("project.new")}</p>
@@ -154,6 +177,22 @@
   </div>
 </div>
 
+{#if archiveAsk}
+  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+  <div class="scrim" onclick={e => e.target === e.currentTarget && !archiving && (archiveAsk = null)}>
+    <div class="sheet archive-sheet" role="dialog" aria-modal="true" aria-labelledby="archive-h">
+      <h2 id="archive-h">{t("project.archive_q", { name: archiveAsk.name })}</h2>
+      <p>{t("project.archive_body")}</p>
+      <div class="acts">
+        <!-- svelte-ignore a11y_autofocus -->
+        <button class="btn" autofocus onclick={() => (archiveAsk = null)} disabled={archiving}>{t("at.cancel")}</button>
+        <button class="btn danger-fill" onclick={archive} disabled={archiving}>
+          {#if archiving}<span class="spinner"></span>{/if}{t("project.archive")}</button>
+      </div>
+    </div>
+  </div>
+{/if}
+
 <style>
   .topbar { display: flex; align-items: center; gap: 10px; height: 40px; margin-bottom: 8px; flex: none; min-width: 0; }
   .proj-wrap { position: relative; min-width: 0; }
@@ -166,6 +205,8 @@
   .menu-new { display: flex; gap: var(--s-3); padding: 0 var(--s-2) var(--s-3); }
   .menu-new .input { height: var(--h-ctl-sm); font-size: var(--size-foot); min-width: 0; flex: 1; }
   .mode { color: var(--text-2); }
+  .menu-item.archive-it:not(:hover):not(:focus-visible) { color: var(--danger); }
+  .menu-item.archive-it:disabled { color: var(--text-3); background: none; cursor: default; }
   .arch { display: flex; align-items: center; gap: var(--s-4); padding: var(--s-1) var(--s-4) var(--s-1) 28px; }
   .icon-btn-m { width: 36px; height: 36px; border: 0; border-radius: 18px; display: grid; place-items: center; background: none;
     color: var(--text-2); cursor: pointer; flex: none; }

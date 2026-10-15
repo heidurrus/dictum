@@ -133,6 +133,26 @@ for (const [lang, s] of Object.entries(L)) {
   await page.getByText(s.storage, { exact: true }).first().waitFor();
   step("storage card shows " + storage.path);
 
+  // The project picker → "Архивировать" asks first, archives this project and switches to another; Restore brings it back.
+  await page.request.post(base + "/api/projects", { data: { name: `Запасной e2e ${lang}` } });   // archiving needs another
+  await page.reload();
+  await page.locator(".project-chip", { hasText: made.name }).click();
+  await page.locator(".proj-menu .archive-it:enabled").click();
+  const sheet = page.locator(".archive-sheet");
+  await sheet.locator("h2", { hasText: made.name }).waitFor();
+  await sheet.locator(".btn.danger-fill").click();
+  await sheet.waitFor({ state: "detached" });
+  await until(async () => {
+    const all = await json("/api/projects?archived=1");
+    return all.current_project_id !== made.id && all.projects.find(p => p.id === made.id)?.archived;
+  }, "project archived and another one current");
+  await page.locator(".project-chip").click();
+  await page.locator(".proj-menu .menu-item[aria-expanded]").click();             // Архив / Archived
+  await page.locator(".proj-menu .arch", { hasText: made.name }).getByRole("button").click();
+  await until(async () => !(await json("/api/projects")).projects.every(p => p.id !== made.id), "project restored");
+  await page.keyboard.press("Escape");
+  step("archive from the project picker, then restore");
+
   await ctx.close();
 }
 await browser.close();
