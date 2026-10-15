@@ -145,6 +145,7 @@
     finally { busy = null; }
   }
   const indent = { epic: 0, story: 1, nfr: 1, subtask: 2 };
+  const badge = { epic: "br", story: "fr", subtask: "as", nfr: "nfr" };     // the backlog's E/S badges
   const glyph = { epic: "E", story: "S", subtask: "T", nfr: "N" };
   const site = u => (u || "").replace("https://", "");
   const pushCounts = $derived({ create: pushable.filter(r => r.action === "create").length,
@@ -218,7 +219,7 @@
 
 <svelte:window onkeydown={onKey} />
 
-<Page title={t("nav.export")} {sub}>
+<Page title={t("nav.export")} {sub} headClass="m" card={false}>
   {#snippet actions()}
     {#if dest === "jira" && connected && target && !editingTarget}
       <button class="btn" disabled={!!busy} onclick={runPreview}>
@@ -235,6 +236,7 @@
     {/if}
   {/snippet}
 
+  <div class="pane-cards">
   <Panes wideOutline>
     {#snippet outline()}
       <div class="pane-head"><h2>{t("ex.where")}</h2></div>
@@ -363,7 +365,7 @@
               {#if result}
                 <div class="result">
                   <div class="banner ok"><Icon name="check" /><span class="grow"><b>{t("jr.result", { n: result.done.length })}</b></span></div>
-                  <table class="table"><tbody>
+                  <table class="rtable"><tbody>
                     {#each result.done as d (d.item_id)}
                       <tr><td class="w1"><span class="status ok">{t("jr.did." + d.action)}</span></td>
                         <td class="w1"><a href={d.url} target="_blank" rel="noreferrer" class="mono">{d.key}</a></td>
@@ -386,7 +388,7 @@
                     {#if preview.counts[a]}<div><b>{preview.counts[a]}</b><span>{t("jr.action." + a)}: {preview.counts[a]}</span></div>{/if}
                   {/each}
                 </div>
-                <table class="table pv">
+                <div class="card-in"><table class="rtable pv">
                   <thead><tr>
                     <th class="w1"><span class="sr">{t("bl.to_jira")}</span></th><th>{t("bl.col.item")}</th>
                     <th class="c-wide">{t("bl.col.refs")}</th><th class="c-wide">{t("at.priority")}</th>
@@ -398,7 +400,7 @@
                         <td class="w1"><input type="checkbox" disabled={!["create", "update", "unchanged"].includes(r.action)}
                                               bind:checked={selected[r.item_id]} aria-label={r.title} /></td>
                         <td><div class="ttl" style="padding-left: calc({indent[r.kind]} * 20px)">
-                          <span class="glyph-k {r.kind}" title={t("bl.kind_full." + r.kind)}>{glyph[r.kind]}</span>
+                          <span class="type idb {badge[r.kind]}" title={t("bl.kind_full." + r.kind)}>{glyph[r.kind]}</span>
                           <span class="grow">
                             <span class="tt">{r.title}</span>
                             {#if r.reason || r.flags.length}
@@ -409,11 +411,11 @@
                         <td class="c-wide mono t3">{(r.refs || []).map(x => x.id || x).join(", ")}</td>
                         <td class="c-wide t2">{r.priority ? t("at.prio." + r.priority) : ""}</td>
                         <td class="nowrap">{#if r.key}<a href={r.url} target="_blank" rel="noreferrer" class="mono">{r.key}</a>{:else}<span class="t3">—</span>{/if}</td>
-                        <td class="nowrap"><span class="status" class:ok={r.action === "create"} class:accent={r.action === "update"} class:danger={r.action === "blocked"}>{t("jr.act." + r.action)}</span></td>
+                        <td class="nowrap"><span class="tag-m" class:ok={r.action === "create"} class:prim={r.action === "update"} class:danger={r.action === "blocked"}>{t("jr.act." + r.action)}</span></td>
                       </tr>
                     {/each}
                   </tbody>
-                </table>
+                </table></div>
                 <p class="hint note-line">{t("jr.target_note", { key: target.project_key })}</p>
               {:else if !busy && !result}
                 <div class="empty"><div class="glyph"><Icon name="export" size={20} /></div>
@@ -443,14 +445,14 @@
           <div class="empty"><div class="glyph"><Icon name="word" size={20} /></div><h3>{t("ex.word_none")}</h3><p>{t("ex.word_none_d")}</p>
             <button class="btn lg primary" onclick={() => go("/document")}>{t("bl.to_doc")} <Icon name="arrow" size={14} /></button></div>
         {:else}
-          <table class="table">
+          <table class="rtable">
             <thead><tr><th>{t("ex.col.doc")}</th><th>{t("doc.version")}</th><th>{t("doc.status")}</th><th>{t("doc.template")}</th><th></th></tr></thead>
             <tbody>
               {#each docs as d (d.id)}
                 <tr>
                   <td><button class="link-t trunc" onclick={() => go(`/document/${d.id}`)}>{d.title}</button><span class="sub trunc">{d.type}</span></td>
                   <td class="num nowrap">v{d.version}{#if d.stale} <span class="status warn">{t("nav.st.stale")}</span>{/if}</td>
-                  <td class="nowrap"><span class="status" class:ok={d.status === "approved"} class:accent={d.status === "review"}>{t("doc.st." + (d.status || "draft"))}</span></td>
+                  <td class="nowrap"><span class="tag-m" class:ok={d.status === "approved"} class:prim={d.status === "review"}>{t("doc.st." + (d.status || "draft"))}</span></td>
                   <td><PopMenu value={d.template} ariaLabel={t("doc.template")} items={templates.map(s => ({ value: s.name, label: s.title }))} onpick={v => setTemplate(d, v)} /></td>
                   <td class="w1"><button class="btn" onclick={() => exportDoc(d)}><Icon name="word" size={14} /> {t("ex.word_one")}</button></td>
                 </tr>
@@ -485,6 +487,7 @@
       </div>
     {/if}
   </Panes>
+  </div>
 </Page>
 
 {#if confirming && target}
@@ -508,57 +511,73 @@
 {/if}
 
 <style>
-  .dests { padding: var(--s-4); display: grid; gap: 1px; }
-  .dest { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 0 var(--s-5); align-items: center; padding: var(--s-5); border: 0;
-    background: none; border-radius: var(--r-m); text-align: left; width: 100%; cursor: pointer; }
-  .dest:hover { background: var(--surface-2); } .dest[aria-current="true"] { background: var(--surface-3); }
-  .dest b { font-weight: var(--w-medium); }
-  .dest .sub { grid-column: 2 / span 2; font-size: var(--size-foot); color: var(--text-3); }
-  .dest .kind { grid-row: 1 / span 2; align-self: start; }
-  .kind { width: 28px; height: 28px; border-radius: 7px; background: var(--surface-3); color: var(--text-2); display: grid; place-items: center; flex: none; }
-  .detail { padding: var(--s-6) var(--gutter) var(--s-11); display: grid; gap: var(--s-6); grid-template-columns: minmax(0, 1fr); align-content: start; }
-  .detail .table { margin: 0 calc(var(--gutter) * -1); width: calc(100% + 2 * var(--gutter)); }
-  .table th:first-child, .table td:first-child { padding-left: var(--gutter); }
-  .table th:last-child, .table td:last-child { padding-right: var(--gutter); }
+  /* 5.0: the destinations and the detail as cards; tonal connection card, count tiles, tables of the prototype */
+  .pane-cards :global(.pane-head) { height: 56px; padding: 0 20px; border-bottom-color: var(--outline-2); }
+  .dests { padding: 8px; display: grid; gap: 2px; }
+  .dest { display: grid; grid-template-columns: 36px minmax(0, 1fr) auto; gap: 0 12px; align-items: center; padding: 10px 12px; border: 0;
+    background: none; border-radius: 16px; text-align: left; width: 100%; cursor: pointer; color: var(--text); }
+  .dest:hover { background: var(--surface-2); } .dest[aria-current="true"] { background: var(--secondary-c); color: var(--on-secondary-c); }
+  .dest b { font-weight: 600; }
+  .dest .sub { grid-column: 2 / span 2; font-size: 12px; color: var(--text-3); }
+  .dest[aria-current="true"] .sub { color: inherit; opacity: .75; }
+  .dest .kind { grid-row: 1 / span 2; align-self: center; }
+  .kind { width: 36px; height: 36px; border-radius: 12px; background: var(--surface-2); color: var(--text-2); display: grid; place-items: center; flex: none; }
+  .dest[aria-current="true"] .kind { background: var(--surface); }
+  .detail { padding: 20px 20px 56px; display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); align-content: start; }
+  .rtable td { vertical-align: middle; }
+  .rtable th:first-child, .rtable td:first-child { padding-left: 20px; }
+  .rtable th:last-child, .rtable td:last-child { padding-right: 20px; }
+  .detail .rtable th:first-child, .detail .rtable td:first-child { padding-left: 14px; }
+  .detail .rtable th:last-child, .detail .rtable td:last-child { padding-right: 14px; }
+  .card-in { border-radius: 16px; box-shadow: inset 0 0 0 1px var(--outline-2); overflow: hidden; }
+  .card-in .rtable tbody tr:last-child td { border-bottom: 0; }
   .w1 { width: 1%; white-space: nowrap; }
   .nowrap { white-space: nowrap; }
   .progress.w { width: 120px; flex: none; }
-  .conn { border-radius: var(--r-l); box-shadow: inset 0 0 0 1px var(--outline-2); background: var(--surface-2); }
-  .conn-head { display: flex; align-items: center; gap: var(--s-4); width: 100%; min-height: 44px; padding: 0 var(--s-6); border: 0; background: none;
-    text-align: left; cursor: pointer; border-radius: var(--r-l); min-width: 0; }
-  .conn-head b { font-weight: var(--w-semibold); }
+  .banner { border-radius: 16px; }
+  .conn { border-radius: 20px; background: var(--surface-2); }
+  .conn-head { display: flex; align-items: center; gap: var(--s-4); width: 100%; min-height: 52px; padding: 0 18px; border: 0; background: none;
+    text-align: left; cursor: pointer; border-radius: 20px; min-width: 0; color: var(--text); }
+  .conn-head b { font-weight: 600; }
   .twist { width: 16px; height: 16px; color: var(--text-3); display: grid; place-items: center; transition: transform var(--d-base) var(--ease-out); flex: none; }
   .twist.open { transform: rotate(90deg); }
   .conn-body { border-top: 1px solid var(--outline-2); }
-  .form-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--s-2) var(--s-8); align-items: center; padding: var(--s-5) var(--s-6); }
+  .form-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--s-2) var(--s-8); align-items: center; padding: 14px 18px; }
   .form-row + .form-row, .form-row + .form-block { border-top: 1px solid var(--outline-2); }
-  .form-block { padding: var(--s-5) var(--s-6) var(--s-6); display: grid; gap: var(--s-5); grid-template-columns: minmax(0, 1fr); }
-  .lab { font-weight: var(--w-medium); }
-  .form-row p { font-size: var(--size-foot); line-height: var(--lh-foot); color: var(--text-3); margin-top: 2px; }
+  .form-block { padding: 14px 18px 18px; display: grid; gap: var(--s-5); grid-template-columns: minmax(0, 1fr); }
+  .conn .btn { border-radius: 16px; box-shadow: none; background: var(--surface); }
+  .conn .btn.primary { background: var(--primary); }
+  .conn .btn.ghost { background: none; }
+  .conn .input, .conn .select { background-color: var(--surface); border-radius: 12px; }
+  .lab { font-weight: 500; }
+  .form-row p { font-size: 12px; line-height: var(--lh-foot); color: var(--text-3); margin-top: 2px; }
   .grid2 { display: grid; gap: var(--s-5); grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); }
   .types { display: grid; gap: var(--s-5); grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
-  .counts { display: flex; gap: var(--s-9); flex-wrap: wrap; }
-  .counts div { display: grid; }
-  .counts b { font: var(--w-semibold) var(--size-title-1)/var(--lh-title-1) var(--font); letter-spacing: -.016em; font-variant-numeric: tabular-nums; }
-  .counts span { font-size: var(--size-foot); color: var(--text-3); }
-  .ttl { display: flex; align-items: flex-start; gap: var(--s-4); min-width: 0; }
-  .tt { font-weight: var(--w-medium); display: block; }
-  .why { display: block; font-size: var(--size-foot); color: var(--text-3); }
+  .counts { display: flex; gap: 10px; flex-wrap: wrap; }
+  .counts div { display: grid; padding: 12px 18px; border-radius: 16px; background: var(--surface-2); min-width: 120px; }
+  .counts b { font: 600 24px/30px var(--font); letter-spacing: -.016em; font-variant-numeric: tabular-nums; }
+  .counts span { font-size: 12px; color: var(--text-3); }
+  .ttl { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+  .tt { font-weight: 500; display: block; }
+  .why { display: block; font-size: 12px; color: var(--text-3); }
   .warn-t { color: var(--warn); }
-  tr.skip .tt { color: var(--text-3); font-weight: var(--w-regular); }
-  .glyph-k { width: 16px; height: 16px; border-radius: 4px; display: grid; place-items: center; font: var(--w-bold) 10px/1 var(--font); color: #fff; flex: none; margin-top: 2px; }
-  .glyph-k.epic { background: #7A5AC8; } .glyph-k.story { background: #2F8F55; } .glyph-k.subtask { background: #3F7DC0; } .glyph-k.nfr { background: #0C6F68; }
+  tr.skip .tt { color: var(--text-3); font-weight: 400; }
+  .type.idb { flex: none; min-width: 20px; justify-content: center; margin-top: 1px; }
   .note-line { max-width: var(--w-measure); }
   .result { display: grid; gap: var(--s-4); grid-template-columns: minmax(0, 1fr); }
   .result ul { margin: var(--s-2) 0 0; padding-left: var(--s-6); }
   .sec-title { padding-bottom: var(--s-3); border-bottom: 1px solid var(--outline-2); }
-  .sec-title h3 { font: var(--w-semibold) var(--size-title-3)/var(--lh-title-3) var(--font); }
+  .sec-title h3 { font: 600 16px/22px var(--font); }
   .orphans { display: grid; gap: var(--s-3); }
   .orph-row { display: flex; align-items: center; gap: var(--s-5); padding: var(--s-3) 0; border-bottom: 1px solid var(--outline-2); }
-  .link-t { border: 0; background: none; padding: 0; font: var(--w-medium) var(--size-item)/var(--lh-item) var(--font); color: var(--text); cursor: pointer; text-align: left;
+  .orph-row .btn { border-radius: 14px; }
+  .link-t { border: 0; background: none; padding: 0; font: 500 14px/20px var(--font); color: var(--text); cursor: pointer; text-align: left;
     display: block; max-width: 100%; }
   .link-t:hover { color: var(--primary); }
-  .sub { font-size: var(--size-foot); color: var(--text-3); display: block; }
+  .sub { font-size: 12px; color: var(--text-3); display: block; }
+  .rtable :global(.popbtn) { border-radius: 14px; }
+  .rtable .btn { border-radius: 16px; box-shadow: none; background: var(--surface-2); }
   .letter { max-width: 880px; }
-  .letter textarea { font: var(--w-regular) var(--size-item)/22px var(--font); padding: var(--s-6); }
+  .letter textarea { font: 400 14px/22px var(--font); padding: 16px; border-radius: 16px; }
+  .letter .btn { border-radius: 16px; }
 </style>
