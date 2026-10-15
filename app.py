@@ -417,7 +417,14 @@ asr_downloads = asr_models.Downloader(models_dir("gigaam"))
 
 @app.route("/api/asr/models")
 def api_asr_models():
-    return jsonify({"models": asr_models.list_models(models_dir("gigaam"), asr_downloads), "download": asr_downloads.status()})
+    return jsonify({"models": asr_models.list_models(models_dir("gigaam"), asr_downloads), "download": asr_downloads.status(),
+                    "langs": _asr_langs()})
+
+
+def _asr_langs(prefs=None):
+    """Meeting language → the speech model it records with (Settings → Models, 5.0.5)."""
+    prefs = prefs if prefs is not None else settings.load_settings()
+    return {lang: settings.asr_model_for(lang, prefs) for lang in settings.ASR_LANG_DEFAULTS}
 
 
 @app.route("/api/asr/models/<model_id>/download", methods=["POST"])
@@ -630,7 +637,7 @@ def desktop_record_start():
     if _whisper_listening():
         return jsonify({"error": WHISPER_BUSY, "busy": "whisper"}), 409
     opts = None
-    if data.get("model"):
+    if data.get("model") or data.get("asr_lang"):
         opts, error = _transcription_options(data)
         if error:
             return jsonify({"error": error}), 400
@@ -1129,6 +1136,9 @@ def _settings_payload():
         "recap_style": prefs["recap_style"],
         "notes_style": prefs["notes_style"],
         "tuning": prefs["tuning"],
+        "asr_model_ru": prefs["asr_model_ru"],
+        "asr_model_multi": prefs["asr_model_multi"],
+        "asr_langs": _asr_langs(prefs),
         "claude_models": [{"id": m, "label": label} for m, label in settings.CLAUDE_MODELS],
     }
 
@@ -1146,7 +1156,7 @@ def save_settings():
     prefs = {k: data[k] for k in ("llm_provider", "claude_model", "local_model", "hotkeys",
                                  "live_transcription", "live_questions",
                                  "silence_stop_minutes", "menubar", "consent_reminder", "embed_model", "recap_style",
-                                 "notes_style", "tuning") if k in data}
+                                 "notes_style", "tuning", "asr_model_ru", "asr_model_multi", "model") if k in data}
     try:
         if prefs:
             settings.save_settings(prefs)
@@ -1327,7 +1337,9 @@ def _request_project():
 
 def _transcription_options(values):
     """Validate model / device / flags from a form or JSON body; returns (options, error)."""
-    model_name = values.get("model", "v3_e2e_rnnt")
+    # The UI sends the model of the meeting's language; a client that sends only the language gets the mapped model.
+    lang = values.get("asr_lang")
+    model_name = values.get("model") or (settings.asr_model_for(lang) if lang else "v3_e2e_rnnt")
     if model_name not in AVAILABLE_MODELS:
         return None, f"Unknown model: {model_name}"
     device = values.get("device", "cpu")
@@ -1650,7 +1662,7 @@ def api_update_project(project_id):
     data = request.get_json(silent=True) or {}
     return _store_call(library.update_project, project_id,
                        **{k: data[k] for k in ("name", "local_only", "archived", "language", "jira_quotes", "auto_extract",
-                                                "analysis") if k in data})
+                                                "analysis", "asr_lang") if k in data})
 
 
 @app.route("/api/projects/<project_id>/current", methods=["POST"])

@@ -31,6 +31,10 @@ DEFAULTS = {
     "embed_model": "",                 # the index's embedding model id; empty = the downloaded one (5.0 C5)
     "recap_style": "brief",            # the recap style a meeting opens with until one is chosen there (5.0 C9)
     "notes_style": "standard",         # "standard" | "concise": how much a recap says (5.0 C9)
+    # The speech model behind each meeting language (5.0.5): a meeting picks Russian or Multilingual, Settings →
+    # Models picks the model for each. Empty = not chosen yet: the recommended one (ASR_LANG_DEFAULTS).
+    "asr_model_ru": "",
+    "asr_model_multi": "",
     # Index thresholds (spec §9 A4): cosine for auto labels and graph edges, chunks retrieved per question.
     # Starting points, kept out of the UI; settings.json can override them.
     "tuning": {"label_assign": 0.45, "graph_edge": 0.30, "retrieve_k": 12},
@@ -45,6 +49,7 @@ CLAUDE_MODELS = [
     ("claude-haiku-4-5", "Claude Haiku 4.5 (fastest, cheapest)"),
 ]
 PROVIDERS = {"claude", "local"}
+ASR_LANG_DEFAULTS = {"ru": "v3_e2e_rnnt", "multi": "multilingual_ctc"}
 RECAP_STYLES = ("brief", "bullets", "actions")
 NOTES_STYLES = ("standard", "concise")
 # Taken by macOS for every app: never offered as a binding (spec 5.0 C9).
@@ -135,6 +140,30 @@ def load_settings():
     return data
 
 
+def asr_model_for(lang, data=None):
+    """The speech model for a meeting language ("ru" | "multi"): the one chosen in Settings → Models, else the
+    recommended one. Anything else is Russian, as every meeting was before 5.0.5."""
+    lang = lang if lang in ASR_LANG_DEFAULTS else "ru"
+    data = data if data is not None else load_settings()
+    return data.get(f"asr_model_{lang}") or ASR_LANG_DEFAULTS[lang]
+
+
+def _asr_model(key, value):
+    from core.asr_models import BY_ID
+    lang = key.rsplit("_", 1)[1]
+    if value and (value not in BY_ID or BY_ID[value]["langs"] != lang):
+        raise ValueError(f"{value} is not a {'Russian' if lang == 'ru' else 'multilingual'} speech model")
+    return value
+
+
+def _legacy_model(data, value):
+    """Before 5.0.5 one speech model served every meeting (the UI's `model` option). Sent once by the UI: it becomes
+    the model of its language, unless a model was already chosen for either language."""
+    from core.asr_models import BY_ID
+    if value in BY_ID and not data["asr_model_ru"] and not data["asr_model_multi"]:
+        data[f"asr_model_{BY_ID[value]['langs']}"] = value
+
+
 def normalize_combo(combo):
     """"Shift+Cmd+L" → "cmd+shift+l": modifiers in one order and spelling, then the key. ValueError when it has no
     key, repeats a modifier, or is a plain key (only F-keys may go without a modifier)."""
@@ -183,6 +212,9 @@ def save_settings(updates):
     """Validate and persist preference changes; returns the full settings."""
     data = load_settings()
     for key, value in updates.items():
+        if key == "model":
+            _legacy_model(data, str(value or "").strip())
+            continue
         if key not in DEFAULTS:
             raise ValueError(f"unknown setting {key}")
         if key == "hotkeys":
@@ -220,6 +252,8 @@ def save_settings(updates):
             from core.local_llm import MODELS_BY_ID
             if value not in MODELS_BY_ID:
                 raise ValueError(f"unknown local model {value}")
+        if key in ("asr_model_ru", "asr_model_multi"):
+            value = _asr_model(key, value)
         if key == "embed_model" and value:
             from core.local_llm import EMBED_MODELS_BY_ID
             if value not in EMBED_MODELS_BY_ID:

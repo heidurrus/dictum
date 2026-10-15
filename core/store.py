@@ -171,7 +171,8 @@ CREATE INDEX IF NOT EXISTS usage_by_time ON usage(at);
 """
 
 PROJECT_FIELDS = ("id", "name", "local_only", "archived", "language", "jira_quotes", "auto_extract", "analysis",
-                  "created_at", "created_by", "updated_at", "updated_by")
+                  "asr_lang", "created_at", "created_by", "updated_at", "updated_by")
+ASR_LANGS = ("ru", "multi")      # a project's meeting language: the Russian speech model or the multilingual one (5.0.5)
 OUTPUT_LANGUAGES = ("auto", "ru", "en")
 SOURCE_FIELDS = ("id", "project_id", "kind", "title", "original_filename", "status", "error", "duration",
                  "speakers", "asr_model", "diarized", "import_format", "audio_file", "meta_json", "deleted_at",
@@ -242,7 +243,10 @@ class Store:
                             ("labels", ("deleted_at REAL",)),
                             # v9 part 6 (5.0.4): business analysis can be switched off per project (a meeting
                             # recorder); on by default, so projects made before it keep everything.
-                            ("projects", ("analysis INTEGER NOT NULL DEFAULT 1",))):
+                            ("projects", ("analysis INTEGER NOT NULL DEFAULT 1",)),
+                            # v9 part 7 (5.0.5): the meetings' language per project ("ru" | "multi"); the record
+                            # panel opens with it and keeps the last choice. Russian for projects made before it.
+                            ("projects", ("asr_lang TEXT NOT NULL DEFAULT 'ru'",))):
             have = {r["name"] for r in c.execute(f"PRAGMA table_info({table})")}
             for col in cols:
                 if col.split()[0] not in have:
@@ -341,12 +345,15 @@ class Store:
         return project
 
     def update_project(self, project_id, **changes):
-        allowed = {"name", "local_only", "archived", "language", "jira_quotes", "auto_extract", "analysis"}
+        allowed = {"name", "local_only", "archived", "language", "jira_quotes", "auto_extract", "analysis",
+                   "asr_lang"}
         unknown = set(changes) - allowed
         if unknown:
             raise StoreError(f"cannot change {sorted(unknown)}")
         if "language" in changes and changes["language"] not in OUTPUT_LANGUAGES:
             raise StoreError(f"language must be one of {OUTPUT_LANGUAGES}")
+        if "asr_lang" in changes and changes["asr_lang"] not in ASR_LANGS:
+            raise StoreError(f"asr_lang must be one of {list(ASR_LANGS)}")
         if "jira_quotes" in changes and changes["jira_quotes"] not in JIRA_QUOTES:
             raise StoreError(f"jira_quotes must be one of {sorted(JIRA_QUOTES)}")
         with self._write() as c:
