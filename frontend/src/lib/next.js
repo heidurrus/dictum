@@ -1,4 +1,4 @@
-// The one next step of the pipeline, from the project's status (redesign §8.1).
+// The one next step of the pipeline, from the project's status.
 // Used by the pipeline strip on Встречи; screens name their own primary button from the same state.
 import { app, t } from "./state.svelte.js";
 

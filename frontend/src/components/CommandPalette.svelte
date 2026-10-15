@@ -1,6 +1,6 @@
 <script>
   import { keyOf } from "../lib/keys.js";
-  // ⌘K: every screen, source, document, requirement and command, by name (redesign §5.15).
+  // ⌘K: every screen, source, document, requirement and command, by name.
   import Icon from "./Icon.svelte";
   import { api } from "../lib/api.js";
   import { app, t, go, setTheme, isDark, switchProject } from "../lib/state.svelte.js";

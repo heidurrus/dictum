@@ -1,5 +1,5 @@
 <script>
-  // The context pane (redesign §5.19): the source around one line, so a requirement can be read
+  // The context pane: the source around one line, so a requirement can be read
   // where it was said without leaving the screen.
   import Icon from "./Icon.svelte";
   import { api } from "../lib/api.js";

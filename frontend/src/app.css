@@ -1,5 +1,5 @@
 @import "./tokens-m.css";
-/* Dictum: global styles (docs/design/redesign.md §4–5). Every token lives in tokens-m.css (the 5.0 names). */
+/* Dictum: global styles. Every token lives in tokens-m.css (the 5.0 names). */
 
 /* Inter, bundled (OFL, see assets/fonts/LICENSE.txt): nothing loads from the network. */
 @font-face { font-family: "Inter"; font-style: normal; font-weight: 100 900; font-display: swap;
@@ -130,7 +130,7 @@ a:hover { text-decoration: underline; text-underline-offset: 2px; }
 @container ws (max-width: 1100px) { .opt { display: none !important; } }
 @media (max-width: 1400px) { .tb-opt { display: none !important; } }
 
-/* Screens written before the redesign scroll as one page inside the main area. */
+/* Screens written before 4.0 scroll as one page inside the main area. */
 .legacy { overflow: auto; padding: 0 var(--gutter) var(--s-11); min-width: 0; grid-row: 1 / -1; }
 .screen-inner { width: min(var(--content-w), 100%); margin: 0 auto; animation: fadein var(--d-base) var(--ease-out); }
 .screen-inner.narrow { width: min(var(--narrow-w), 100%); }

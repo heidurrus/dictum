@@ -1,5 +1,5 @@
 <script>
-  // While a call is being recorded, this pill is on every screen (redesign §8.2).
+  // While a call is being recorded, this pill is on every screen.
   // On the page of the meeting being recorded, that page's own pill takes over.
   // After the recording stopped itself on a long silence (5.0 C4.3) it says so, with a link to the meeting.
   import { cap, clock, stopRecording, togglePause } from "../lib/capture.svelte.js";

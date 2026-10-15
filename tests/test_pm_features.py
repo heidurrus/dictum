@@ -1,4 +1,4 @@
-"""Features added after the PM review (docs/product/pm-review.md)."""
+"""Features added after a product review."""
 import io
 import zipfile
 

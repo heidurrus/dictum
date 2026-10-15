@@ -1,5 +1,5 @@
 <script>
-  // The selected requirement (redesign §8.4): statement, conflict, evidence in context, properties,
+  // The selected requirement: statement, conflict, evidence in context, properties,
   // history, and the actions with their keys printed on them. Editing happens here.
   import Icon from "./Icon.svelte";
   import PopMenu from "./PopMenu.svelte";
