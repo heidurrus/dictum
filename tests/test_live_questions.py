@@ -175,7 +175,7 @@ def test_a_busy_pass_is_skipped_and_errors_are_logged_not_raised(lib, recording)
 # ── the app ──────────────────────────────────────────────────────────────────
 
 def test_the_setting_is_off_by_default_and_round_trips(client, monkeypatch, tmp_path):
-    monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DICTUM_DATA_DIR", str(tmp_path))
     assert settings.DEFAULTS["live_questions"] is False
     assert client.get("/settings").get_json()["live_questions"] is False
     assert client.post("/settings", json={"live_questions": True}).get_json()["live_questions"] is True

@@ -21,7 +21,7 @@ def state(tmp_path):
 
 @pytest.fixture()
 def data_dir(monkeypatch, tmp_path):
-    monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DICTUM_DATA_DIR", str(tmp_path))
     return tmp_path
 
 

@@ -1,7 +1,7 @@
 // Screenshots for the site (getdictum.app): nine screens of one realistic English project, light and dark, 1440×900 @2x,
 // against e2e/fake_llm_server.py on a fresh data folder. The fake server is switched to its site mode first
 // (POST /__fake/site): realistic English recaps, answers, requirements, document and backlog.
-// Run: WORKBENCH_DATA_DIR=$(mktemp -d) FAKE_RECORDER=1 .venv/bin/python frontend/e2e/fake_llm_server.py 5098 &
+// Run: DICTUM_DATA_DIR=$(mktemp -d) FAKE_RECORDER=1 .venv/bin/python frontend/e2e/fake_llm_server.py 5098 &
 //      cd frontend && node e2e/site_shots.mjs http://127.0.0.1:5098 [out dir, or OUT=…; default site/img]
 import { chromium } from "playwright-core";
 import { mkdirSync, statSync } from "node:fs";

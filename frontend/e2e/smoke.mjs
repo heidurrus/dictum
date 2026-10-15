@@ -1,12 +1,12 @@
 // End-to-end smoke test of the new UI against a running app (default http://127.0.0.1:5097).
-// Uses the installed Google Chrome, headless. Run: node e2e/smoke.mjs [baseUrl]
+// Uses the installed Chrome, headless. Run: node e2e/smoke.mjs [baseUrl]
 import { chromium } from "playwright-core";
 import { writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const base = process.argv[2] || "http://127.0.0.1:5097";
-const vttPath = join(mkdtempSync(join(tmpdir(), "wb-")), "Встреча с заказчиком.vtt");
+const vttPath = join(mkdtempSync(join(tmpdir(), "dictum-")), "Встреча с заказчиком.vtt");
 writeFileSync(vttPath, "WEBVTT\n\n00:00:01.000 --> 00:00:04.000\n<v SPEAKER_00>Нужна карточка клиента до ответа</v>\n\n" +
   "00:00:05.000 --> 00:00:08.000\n<v SPEAKER_01>Не дольше двух секунд</v>\n");
 
@@ -60,7 +60,7 @@ await row.waitFor();
 step("delete + undo restores the source");
 
 // Import an email: it opens as a letter with sender details and paragraphs.
-const emlPath = join(mkdtempSync(join(tmpdir(), "wb-")), "letter.eml");
+const emlPath = join(mkdtempSync(join(tmpdir(), "dictum-")), "letter.eml");
 writeFileSync(emlPath, "From: Ivan Petrov <ivan@client.ru>\nTo: Anna <anna@us.example>\nSubject: Card requirements\n" +
   "Content-Type: text/plain; charset=utf-8\n\nКарточка клиента должна открываться до ответа.\n\nСпасибо, Иван\n");
 await page.locator('input[type=file]').setInputFiles(emlPath);            // already on Встречи
@@ -81,7 +81,7 @@ step("new project is created and empty");
 // Status chip: "Готово" when idle, the job while a transcription runs (the fake server takes ~3 s), then "Готово" again.
 const chip = page.locator(".topbar .status-chip");
 await chip.filter({ hasText: "Готово" }).waitFor();
-const wavPath = join(mkdtempSync(join(tmpdir(), "wb-")), "Созвон.wav");
+const wavPath = join(mkdtempSync(join(tmpdir(), "dictum-")), "Созвон.wav");
 const samples = 16000, wav = Buffer.alloc(44 + samples * 2);
 wav.write("RIFF", 0); wav.writeUInt32LE(36 + samples * 2, 4); wav.write("WAVEfmt ", 8); wav.writeUInt32LE(16, 16);
 wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22); wav.writeUInt32LE(16000, 24); wav.writeUInt32LE(32000, 28);

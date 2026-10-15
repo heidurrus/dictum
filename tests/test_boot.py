@@ -32,7 +32,7 @@ def test_current_venv_is_reused(tmp_path):
 
 def test_venv_from_another_python_is_rebuilt(tmp_path):
     root = str(tmp_path / "rt")
-    write_cfg(root, "/Volumes/Old Disk Image/GigaAM Transcriber.app/Contents/Resources/python/bin")
+    write_cfg(root, "/Volumes/Old Disk Image/Dictum.app/Contents/Resources/python/bin")
     assert not boot.venv_is_current(root)
     calls = []
     boot.ensure_venv(root, run=lambda cmd, **k: calls.append(cmd))

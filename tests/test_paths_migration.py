@@ -1,4 +1,4 @@
-"""C0: the 4.x RequirementsWorkbench data folder becomes Dictum on first start."""
+"""C0: the 4.x data folder becomes Dictum on first start."""
 import errno
 import os
 

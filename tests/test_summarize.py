@@ -16,7 +16,7 @@ from core.summarize import SummaryError, _ThinkFilter, summarize_with_claude
 
 @pytest.fixture()
 def data_dir(tmp_path, monkeypatch):
-    monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DICTUM_DATA_DIR", str(tmp_path))
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     return tmp_path
 

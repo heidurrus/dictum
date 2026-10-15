@@ -52,7 +52,7 @@ def test_the_embedding_model_is_pinned_like_the_chat_models():
 
 
 def test_status_lists_the_embedding_model_and_downloads_it(client, app_module, monkeypatch, tmp_path):
-    monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DICTUM_DATA_DIR", str(tmp_path))
     body = client.get("/api/local-llm").get_json()
     assert [m["id"] for m in body["embed_models"]] == ["qwen3-embedding-0.6b"]
     assert body["embed_models"][0]["installed"] is False
@@ -65,7 +65,7 @@ def test_status_lists_the_embedding_model_and_downloads_it(client, app_module, m
 
 
 def test_the_embedding_server_runs_with_its_own_flags_port_and_pid_file(tmp_path, monkeypatch):
-    monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DICTUM_DATA_DIR", str(tmp_path))
     started = []
 
     class Proc:
@@ -100,7 +100,7 @@ def test_the_embedding_server_runs_with_its_own_flags_port_and_pid_file(tmp_path
 
 
 def test_unavailable_without_the_model(tmp_path, monkeypatch):
-    monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DICTUM_DATA_DIR", str(tmp_path))
     assert index.model_id() is None and index.available() is False
     assert index.info()["model"] == "qwen3-embedding-0.6b"
     with pytest.raises(index.IndexUnavailable):
@@ -108,7 +108,7 @@ def test_unavailable_without_the_model(tmp_path, monkeypatch):
 
 
 def test_tuning_defaults_and_overrides(tmp_path, monkeypatch):
-    monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DICTUM_DATA_DIR", str(tmp_path))
     assert settings.load_settings()["tuning"] == {"label_assign": 0.45, "graph_edge": 0.30, "retrieve_k": 12}
     settings.save_settings({"tuning": {"graph_edge": 0.5}})
     assert index.tuning() == {"label_assign": 0.45, "graph_edge": 0.5, "retrieve_k": 12}
@@ -130,7 +130,7 @@ class _Resp(io.BytesIO):
 
 def test_embed_batches_16_and_normalises_and_never_leaves_the_machine(tmp_path, monkeypatch):
     """Indexing with the local model only ever talks to 127.0.0.1: every other connection fails the test."""
-    monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DICTUM_DATA_DIR", str(tmp_path))
     monkeypatch.setattr(index, "model_id", lambda: "qwen3-embedding-0.6b")
     monkeypatch.setattr(local_llm.embed_runtime, "acquire", lambda mid: ("http://127.0.0.1:9", "k"))
     monkeypatch.setattr(local_llm.embed_runtime, "release", lambda: None)

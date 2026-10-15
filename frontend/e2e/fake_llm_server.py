@@ -1,9 +1,9 @@
 """Run the app with a deterministic stand-in for the AI model (for e2e/atoms.mjs).
 
-Usage: WORKBENCH_DATA_DIR=<tmp> .venv/bin/python frontend/e2e/fake_llm_server.py [port]
+Usage: DICTUM_DATA_DIR=<tmp> .venv/bin/python frontend/e2e/fake_llm_server.py [port]
 Extraction turns every transcript line into an atom quoting that line; the
-duplicate check reports the first two new atoms as conflicting. torch and GigaAM
-are stubbed (tests/conftest.py); speech recognition returns one fixed line after ~3 s.
+duplicate check reports the first two new atoms as conflicting. torch and the speech
+package are stubbed (tests/conftest.py); speech recognition returns one fixed line after ~3 s.
 """
 import functools
 import json
@@ -15,10 +15,10 @@ import time
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-_data_dir = os.environ.get("WORKBENCH_DATA_DIR")
-import tests.conftest  # noqa: E402,F401  stubs torch and gigaam (it also points the data dir at a temp folder)
+_data_dir = os.environ.get("DICTUM_DATA_DIR")
+import tests.conftest  # noqa: E402,F401  stubs torch and the speech package (it also points the data dir at a temp folder)
 if _data_dir:
-    os.environ["WORKBENCH_DATA_DIR"] = _data_dir                  # keep the folder the caller chose
+    os.environ["DICTUM_DATA_DIR"] = _data_dir                  # keep the folder the caller chose
 
 import app as app_module  # noqa: E402
 from core import atoms  # noqa: E402

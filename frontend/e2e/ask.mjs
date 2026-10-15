@@ -1,7 +1,7 @@
 // Спросить (spec 5.0 C6): a material and a meeting, indexed by the fake index → ask → the answer streams in with two
 // citation chips and the status line → a chip opens the material → ask for a client question → "Создано Q-n" and the
 // Q atom is in Требования → the history lists both questions → delete one. Runs once per interface language.
-// Run: WORKBENCH_DATA_DIR=$(mktemp -d) python frontend/e2e/fake_llm_server.py 5312 & node frontend/e2e/ask.mjs http://127.0.0.1:5312
+// Run: DICTUM_DATA_DIR=$(mktemp -d) python frontend/e2e/fake_llm_server.py 5312 & node frontend/e2e/ask.mjs http://127.0.0.1:5312
 import { chromium } from "playwright-core";
 
 const base = process.argv[2] || "http://127.0.0.1:5098";

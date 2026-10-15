@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 const base = process.argv[2] || "http://127.0.0.1:5098";
 const out = process.env.OUT || process.argv[3] || join(dirname(fileURLToPath(import.meta.url)), "../../docs/design/5.0");
 mkdirSync(out, { recursive: true });
-const dir = mkdtempSync(join(tmpdir(), "wb-"));
+const dir = mkdtempSync(join(tmpdir(), "dictum-"));
 const call1 = join(dir, "Созвон по карточке.vtt");
 writeFileSync(call1, "WEBVTT\n\n00:00:01.000 --> 00:00:04.000\n<v SPEAKER_00>Карточка открывается не дольше двух секунд</v>\n\n" +
   "00:00:05.000 --> 00:00:08.000\n<v SPEAKER_01>Оператор видит историю заказов</v>\n\n" +

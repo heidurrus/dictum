@@ -1,7 +1,7 @@
 // The meeting page (spec 5.0 C3): notes that save themselves and survive a reload, show in the Встречи panel's
 // Заметки tab; recap styles (the update button is off when nothing is new); transcript search with a hit counter.
 // Runs once per interface language.
-// Run: WORKBENCH_DATA_DIR=$(mktemp -d) python frontend/e2e/fake_llm_server.py 5312 & node frontend/e2e/meeting.mjs http://127.0.0.1:5312
+// Run: DICTUM_DATA_DIR=$(mktemp -d) python frontend/e2e/fake_llm_server.py 5312 & node frontend/e2e/meeting.mjs http://127.0.0.1:5312
 import { chromium } from "playwright-core";
 import { writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -25,7 +25,7 @@ const VTT = "WEBVTT\n\n" + [
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 const errors = [];
 for (const [lang, s] of Object.entries(L)) {
-  const dir = mkdtempSync(join(tmpdir(), "wb-"));
+  const dir = mkdtempSync(join(tmpdir(), "dictum-"));
   const vtt = join(dir, `${s.title}.vtt`);
   writeFileSync(vtt, VTT);
 

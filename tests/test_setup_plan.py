@@ -44,7 +44,7 @@ def test_repo_requirements_are_parseable():
     assert "torch" not in names, "torch is installed by setup, per hardware"
 
 
-def test_gigaam_is_pinned_to_an_archive_not_git():
+def test_speech_package_is_pinned_to_an_archive_not_git():
     assert GIGAAM_SPEC.endswith(f"/archive/{GIGAAM_COMMIT}.zip")
     assert "git+" not in GIGAAM_SPEC
 
@@ -104,7 +104,7 @@ def test_wrong_torch_build_is_reinstalled(tmp_path, monkeypatch):
     assert inst.calls[0][-1] == "--reinstall"
 
 
-def test_gigaam_and_ffmpeg_install_commands(tmp_path, monkeypatch):
+def test_speech_package_and_ffmpeg_install_commands(tmp_path, monkeypatch):
     steps, inst = _plan(tmp_path, Hardware("darwin", "arm64"), monkeypatch)
     steps["gigaam"].install(lambda line: None)
     steps["ffmpeg"].install(lambda line: None)

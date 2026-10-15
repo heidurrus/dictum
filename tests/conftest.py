@@ -1,4 +1,4 @@
-"""Test setup: stub the heavy ML stack (torch, gigaam) so the Flask app imports
+"""Test setup: stub the heavy ML stack (torch and the speech package) so the Flask app imports
 anywhere, including CI machines without a GPU or model weights."""
 import os
 import sys
@@ -38,7 +38,7 @@ def _install_stubs():
 
 
 _install_stubs()
-os.environ["WORKBENCH_DATA_DIR"] = tempfile.mkdtemp(prefix="workbench-test-")
+os.environ["DICTUM_DATA_DIR"] = tempfile.mkdtemp(prefix="dictum-test-")
 
 
 @pytest.fixture()

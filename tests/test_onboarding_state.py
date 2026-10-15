@@ -4,7 +4,7 @@ import os
 
 
 def test_fresh_install_starts_at_step_one_and_resumes(client, monkeypatch, tmp_path):
-    monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DICTUM_DATA_DIR", str(tmp_path))
     assert client.get("/api/onboarding").get_json() == {"done": False, "step": 1}
     assert client.post("/api/onboarding", json={"step": 4}).get_json() == {"done": False, "step": 4}
     assert client.get("/api/onboarding").get_json() == {"done": False, "step": 4}        # a restart resumes here
@@ -17,7 +17,7 @@ def test_fresh_install_starts_at_step_one_and_resumes(client, monkeypatch, tmp_p
 
 
 def test_other_setup_state_is_kept(client, monkeypatch, tmp_path):
-    monkeypatch.setenv("WORKBENCH_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("DICTUM_DATA_DIR", str(tmp_path))
     with open(os.path.join(tmp_path, "setup-state.json"), "w", encoding="utf-8") as f:
         json.dump({"model:v3_e2e_rnnt": True}, f)
     client.post("/api/onboarding", json={"done": True})

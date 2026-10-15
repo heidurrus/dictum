@@ -1,7 +1,7 @@
 // Settings as sections (spec 5.0 C9): open each section → the consent reminder off and on, round-tripping through
 // /settings → rebind ⌥Space to ⌥D and back (a conflict is refused) → the stats row counts a recap that ran → the
 // storage card shows the data folder. Runs once per interface language.
-// Run: WORKBENCH_DATA_DIR=$(mktemp -d) python frontend/e2e/fake_llm_server.py 5312 & node frontend/e2e/settings.mjs http://127.0.0.1:5312
+// Run: DICTUM_DATA_DIR=$(mktemp -d) python frontend/e2e/fake_llm_server.py 5312 & node frontend/e2e/settings.mjs http://127.0.0.1:5312
 import { chromium } from "playwright-core";
 
 const base = process.argv[2] || "http://127.0.0.1:5098";
