@@ -112,3 +112,16 @@ def test_migration_refuses_once_the_server_runs(root, monkeypatch):
     monkeypatch.setattr(paths, "_server_started", True)
     with pytest.raises(AssertionError):
         paths.app_data_dir()
+
+
+def test_tree_size_skips_a_file_that_vanishes_while_walking(tmp_path, monkeypatch):
+    (tmp_path / "keep.bin").write_bytes(b"x" * 10)
+    (tmp_path / "workbench.db-wal").write_bytes(b"y" * 5)
+    real = os.path.getsize
+
+    def getsize(path):
+        if path.endswith("-wal"):
+            raise FileNotFoundError(path)      # SQLite checkpointed it between the listing and the stat
+        return real(path)
+    monkeypatch.setattr(paths.os.path, "getsize", getsize)
+    assert paths._tree_size(str(tmp_path)) == (1, 10)

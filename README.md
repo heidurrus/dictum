@@ -72,6 +72,7 @@ run it. The registry is in [`core/asr_models.py`](core/asr_models.py) and [`core
 |---|---|---|---|
 | Speech | `v3_e2e_rnnt`, the built-in Russian model (default) | 450 MB | Apple silicon GPU, NVIDIA CUDA or CPU |
 | | `multilingual_ctc` for English and other languages; `multilingual_large_ctc` is the larger variant | 880 MB; 2.3 GB | |
+| | Each meeting is recorded or imported in Russian or Multilingual (kept per project); Settings → Models picks the model behind each | | |
 | Language | Qwen 3.6 35B-A3B | 17.7 GB | 32 GB of RAM |
 | | Qwen 3.8 27B | 16.5 GB | 32 GB of RAM |
 | | Gemma 4 12B | 7.0 GB | 16 GB of RAM |

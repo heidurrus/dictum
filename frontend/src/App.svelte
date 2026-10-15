@@ -110,7 +110,12 @@
       app.device = device;
       app.models = models;
       app.health = health;
-      api("/settings").then(s => (app.settings = s)).catch(() => {});   // hotkeys; the defaults work meanwhile
+      api("/settings").then(async s => {                                 // hotkeys; the defaults work meanwhile
+        app.settings = s;
+        // 5.0.5: the one speech model of earlier versions (kept in this browser) becomes its language's model, once.
+        if (s.asr_model_ru === "" && s.asr_model_multi === "" && app.options.model)
+          app.settings = await api("/settings", { method: "POST", body: { model: app.options.model } });
+      }).catch(() => {});
       if (!models.includes(app.options.model)) app.options.model = models[0];
       if (app.options.device !== "cpu" && !device.cuda && !device.mps) app.options.device = "cpu";
       if (app.options.device === "cuda" && !device.cuda && device.mps) app.options.device = "mps";
