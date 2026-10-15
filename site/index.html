@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Dictum</title>
+<meta name="description" content="Dictum records any meeting on your Mac, transcribes it on your machine and turns the talk into recaps, requirements, documents and tickets.">
+<meta property="og:title" content="Dictum">
+<meta property="og:description" content="The meeting, on record. Records any call, transcribes on your machine, turns talk into work.">
+<meta property="og:url" content="https://getdictum.app/">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1024 1024'%3E%3Crect width='1024' height='1024' rx='224' fill='%23245E92'/%3E%3Cg stroke='%23fff' stroke-width='60' stroke-linecap='round' fill='none'%3E%3Cline x1='208' y1='424' x2='208' y2='600'/%3E%3Cline x1='304' y1='352' x2='304' y2='672'/%3E%3Cline x1='400' y1='388' x2='400' y2='636'/%3E%3Cline x1='496' y1='416' x2='816' y2='416'/%3E%3Cline x1='496' y1='512' x2='816' y2='512'/%3E%3Cline x1='496' y1='608' x2='816' y2='608'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<style>
+  /* Layout: Apple-style full-bleed bands, one idea per band, product mockups drawn in HTML. Dictum blue on white and on ink. */
+  :root {
+    --bg: #FFFFFF; --bg-2: #F3F2F8; --ink: #121216; --ink-2: #4A4A55; --ink-3: #7B7B88; --line: #E2E0EA;
+    --blue: #245E92; --blue-2: #0B57D0; --blue-soft: #D3E3FD; --blue-ink: #041E49;
+    --dark: #0F1116; --dark-2: #171A21; --on-dark: #F4F4F8; --on-dark-2: #A9ACB8; --line-dark: #2A2E38;
+    --mic: #0B57D0; --sys: #1E8E3E; --warn: #B0471B; --ok: #1E8E3E;
+    --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --gutter-l: max(16px, env(safe-area-inset-left, 0px)); --gutter-r: max(16px, env(safe-area-inset-right, 0px));
+    --max: 1120px; --r: 22px;
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.5 var(--font); -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+  img, svg { max-width: 100%; }
+  a { color: inherit; }
+  h1, h2, h3, p { margin: 0; }
+  h1, h2, h3 { text-wrap: balance; letter-spacing: -0.02em; }
+  :focus-visible { outline: 3px solid var(--blue-2); outline-offset: 3px; border-radius: 6px; }
+  .wrap { max-width: var(--max); margin: 0 auto; padding-left: var(--gutter-l); padding-right: var(--gutter-r); }
+
+  /* ── nav ─────────────────────────────────────────────────────────────── */
+  .nav { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; backdrop-filter: saturate(180%) blur(18px); -webkit-backdrop-filter: saturate(180%) blur(18px);
+         background: color-mix(in srgb, var(--bg) 78%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent); }
+  .nav .wrap { display: flex; align-items: center; gap: 22px; height: 52px; }
+  .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; text-decoration: none; letter-spacing: -0.01em; }
+  .brand .mark { width: 26px; height: 26px; border-radius: 7px; }
+  .nav nav { display: flex; gap: 22px; margin-left: auto; font-size: 14px; color: var(--ink-2); }
+  .nav nav a { text-decoration: none; }
+  .nav nav a:hover { color: var(--ink); }
+  .nav .cta { font-size: 13px; font-weight: 600; color: #fff; background: var(--blue-2); padding: 7px 14px; border-radius: 999px; text-decoration: none; }
+  @media (max-width: 720px) { .nav nav a.opt { display: none; } }
+
+  /* ── hero ────────────────────────────────────────────────────────────── */
+  .hero { text-align: center; padding-block: 76px 20px; }
+  .hero .mark-lg { width: 92px; height: 92px; border-radius: 24px; box-shadow: 0 20px 50px rgba(36, 94, 146, .28); }
+  .hero h1 { font-size: clamp(44px, 8vw, 92px); font-weight: 800; letter-spacing: -0.045em; line-height: 1; margin-top: 28px; }
+  .hero .sub { font-size: clamp(19px, 2.6vw, 27px); color: var(--ink-2); max-width: 34ch; margin: 18px auto 0; font-weight: 500; letter-spacing: -0.01em; }
+  .btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 30px; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; height: 48px; padding: 0 22px; border-radius: 999px; font-weight: 600; font-size: 16px; text-decoration: none; border: 1.5px solid transparent; transition: transform .15s ease, background .15s ease; }
+  .btn:hover { transform: translateY(-1px); }
+  .btn.primary { background: var(--blue-2); color: #fff; }
+  .btn.secondary { background: transparent; color: var(--blue-2); border-color: color-mix(in srgb, var(--blue-2) 40%, transparent); }
+  .btn.ghost { color: var(--ink-2); border-color: var(--line); }
+  .fine { font-size: 13px; color: var(--ink-3); margin-top: 14px; }
+  .fine a { color: var(--blue-2); }
+
+  /* ── product shot: the meeting page ──────────────────────────────────── */
+  .shot { margin: 54px auto 0; max-width: 1040px; border-radius: var(--r); background: var(--bg-2); border: 1px solid var(--line); overflow: hidden;
+          box-shadow: 0 40px 100px -30px rgba(18, 18, 22, .35); font-size: 13px; }
+  .shot .bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #fff; border-bottom: 1px solid var(--line); }
+  .shot .dots i { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 6px; background: #E2E0EA; }
+  .shot .dots i:nth-child(1) { background: #FF5F57; } .shot .dots i:nth-child(2) { background: #FEBC2E; } .shot .dots i:nth-child(3) { background: #28C840; }
+  .shot .crumb { color: var(--ink-3); margin-left: 8px; }
+  .shot .rec { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; color: #C62828; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .shot .rec i { width: 9px; height: 9px; border-radius: 50%; background: #E53935; animation: pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .35; } }
+  .shot .body { display: grid; grid-template-columns: 1.5fr 1fr; gap: 14px; padding: 14px; min-height: 360px; }
+  .shot .pane { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; min-width: 0; }
+  .shot .pane h4 { margin: 0 0 10px; font-size: 12px; font-weight: 600; color: var(--ink-3); letter-spacing: .04em; text-transform: uppercase; }
+  .line { display: grid; grid-template-columns: 44px 1fr; gap: 10px; padding: 7px 0; border-top: 1px solid #F0EFF5; line-height: 1.45; }
+  .line:first-of-type { border-top: 0; }
+  .line .t { color: var(--ink-3); font-variant-numeric: tabular-nums; font-size: 12px; padding-top: 2px; }
+  .line b { display: block; font-size: 12px; font-weight: 600; }
+  .line.s1 b { color: var(--mic); } .line.s2 b { color: var(--sys); } .line.s3 b { color: #9A5A00; }
+  .line.live { color: var(--ink-3); }
+  .line.live span::after { content: "▍"; animation: pulse 1s steps(2) infinite; color: var(--blue-2); }
+  .shot .recap p { margin: 0 0 10px; line-height: 1.5; }
+  .shot .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .chip { font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: var(--bg-2); color: var(--ink-2); }
+  .chip.on { background: var(--blue-soft); color: var(--blue-ink); }
+  .req { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-top: 8px; }
+  .req .k { font-size: 11px; font-weight: 700; color: var(--blue-2); letter-spacing: .04em; }
+  .req q { display: block; color: var(--ink-3); font-size: 12px; margin-top: 4px; }
+  .req q::before, .req q::after { content: "«"; } .req q::after { content: "»"; }
+  @media (max-width: 760px) { .shot .body { grid-template-columns: 1fr; } .shot .pane.recap { display: none; } }
+
+  /* ── bands ───────────────────────────────────────────────────────────── */
+  .band { padding-block: 110px; }
+  .band.dark { background: var(--dark); color: var(--on-dark); }
+  .band.soft { background: var(--bg-2); }
+  .eyebrow { font-size: 14px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--blue-2); }
+  .dark .eyebrow { color: #8AB4F8; }
+  .band h2 { font-size: clamp(34px, 5.6vw, 64px); font-weight: 800; letter-spacing: -0.04em; line-height: 1.02; margin-top: 12px; max-width: 16ch; }
+  .band .lead { font-size: clamp(18px, 2.2vw, 23px); color: var(--ink-2); max-width: 46ch; margin-top: 20px; font-weight: 500; }
+  .dark .lead { color: var(--on-dark-2); }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; }
+  @media (max-width: 860px) { .two { grid-template-columns: 1fr; gap: 36px; } }
+  .facts { display: grid; gap: 18px; margin-top: 34px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  .fact b { display: block; font-size: 17px; font-weight: 700; }
+  .fact span { color: var(--ink-2); font-size: 15px; }
+  .dark .fact span { color: var(--on-dark-2); }
+
+  /* tracks illustration */
+  .tracks { background: var(--dark-2); border: 1px solid var(--line-dark); border-radius: var(--r); padding: 22px; display: grid; gap: 14px; }
+  .track { display: grid; grid-template-columns: 110px 1fr; gap: 14px; align-items: center; }
+  .track b { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .track b i { width: 8px; height: 8px; border-radius: 50%; }
+  .track.mic b i { background: #8AB4F8; } .track.sys b i { background: #81C995; }
+  .wave { height: 46px; display: flex; align-items: center; gap: 3px; overflow: hidden; }
+  .wave i { flex: 1; min-width: 2px; border-radius: 2px; background: #8AB4F8; opacity: .9; height: var(--h); }
+  .track.sys .wave i { background: #81C995; }
+  .track .apps { grid-column: 2; display: flex; gap: 8px; flex-wrap: wrap; }
+  .apps span { font-size: 12px; color: var(--on-dark-2); border: 1px solid var(--line-dark); padding: 4px 10px; border-radius: 999px; }
+
+  /* privacy illustration */
+  .mac { background: #fff; border: 1px solid var(--line); border-radius: var(--r); padding: 24px; display: grid; gap: 14px; }
+  .mac .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; background: var(--bg-2); font-size: 14px; }
+  .mac .row b { font-weight: 600; }
+  .mac .row .st { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: #E6F4EA; color: #137333; }
+  .mac .row .st.no { background: #FCE8E6; color: #C5221F; }
+  .mac .sum { text-align: center; font-size: 13px; color: var(--ink-3); padding-top: 4px; }
+
+  /* tiles */
+  .tiles { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; margin-top: 48px; }
+  .tile { grid-column: span 4; background: var(--bg); border: 1px solid var(--line); border-radius: var(--r); padding: 26px; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+  .tile.w { grid-column: span 6; } .tile.x { grid-column: span 12; }
+  .tile h3 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+  .tile p { color: var(--ink-2); font-size: 15px; line-height: 1.5; }
+  .tile .kbd { align-self: flex-start; font: 600 12px/1 var(--mono); border: 1px solid var(--line); border-bottom-width: 2px; padding: 5px 8px; border-radius: 7px; color: var(--ink-2); }
+  .tile .ill { margin-top: auto; padding-top: 14px; }
+  @media (max-width: 980px) { .tile, .tile.w { grid-column: span 6; } }
+  @media (max-width: 620px) { .tile, .tile.w, .tile.x { grid-column: span 12; } }
+
+  /* small illustrations inside tiles */
+  .cite { font-size: 13px; background: var(--bg-2); border-radius: 12px; padding: 12px 14px; line-height: 1.5; }
+  .cite sup { color: var(--blue-2); font-weight: 700; }
+  .cite small { display: block; color: var(--ink-3); margin-top: 6px; font-size: 12px; }
+  .graph { width: 100%; height: auto; display: block; }
+  .whisper { display: flex; align-items: center; gap: 12px; background: var(--bg-2); border-radius: 12px; padding: 12px 14px; font-size: 13px; }
+  .whisper .mic { width: 34px; height: 34px; border-radius: 50%; background: var(--blue-2); display: grid; place-items: center; flex: none; }
+  .whisper .mic i { width: 10px; height: 10px; border-radius: 50%; background: #fff; }
+  .whisper .out { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; flex: 1; min-width: 0; }
+  .whisper .out b { display: block; font-size: 11px; color: var(--blue-2); letter-spacing: .04em; }
+  .tickets { display: grid; gap: 8px; font-size: 13px; }
+  .tickets div { display: flex; align-items: center; gap: 10px; background: var(--bg-2); border-radius: 10px; padding: 9px 12px; }
+  .tickets .key { font: 600 11px/1 var(--mono); color: var(--blue-2); background: var(--blue-soft); padding: 4px 7px; border-radius: 6px; }
+  .tickets .tag { margin-left: auto; font-size: 11px; color: var(--ink-3); }
+  .styles { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* specs */
+  .specs { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; margin-top: 44px; }
+  .spec { border-top: 1px solid var(--line-dark); padding-top: 18px; }
+  .spec b { display: block; font-size: 14px; letter-spacing: .06em; text-transform: uppercase; color: var(--on-dark-2); font-weight: 700; margin-bottom: 8px; }
+  .spec p { font-size: 16px; line-height: 1.55; }
+  .spec p + p { margin-top: 6px; }
+
+  /* footer */
+  footer { padding-block: 44px; font-size: 13px; color: var(--ink-3); }
+  footer .wrap { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; }
+  footer a { color: var(--ink-2); text-decoration: none; }
+  footer .sp { margin-left: auto; }
+
+  /* ── the meeting from hell (opener) ──────────────────────────────────── */
+  .game { position: fixed; inset: 0; z-index: 50; background: var(--dark); color: var(--on-dark); display: grid; place-items: center;
+          padding: max(16px, env(safe-area-inset-top, 0px)) var(--gutter-r) max(16px, env(safe-area-inset-bottom, 0px)) var(--gutter-l); overflow: hidden; }
+  .game[hidden] { display: none; }
+  .game .skip { position: absolute; top: max(14px, env(safe-area-inset-top, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); background: transparent; color: var(--on-dark-2);
+                border: 1px solid var(--line-dark); border-radius: 999px; padding: 7px 14px; font: 600 13px var(--font); cursor: pointer; z-index: 3; }
+  .game .skip:hover { color: var(--on-dark); }
+  .call { width: min(760px, 100%); background: var(--dark-2); border: 1px solid var(--line-dark); border-radius: 20px; overflow: hidden; box-shadow: 0 50px 120px -40px rgba(0,0,0,.8); position: relative; }
+  .call .top { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line-dark); font-size: 13px; color: var(--on-dark-2); }
+  .call .top b { color: var(--on-dark); font-weight: 600; }
+  .call .top .clock { margin-left: auto; font-variant-numeric: tabular-nums; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 14px; }
+  .tile-p { aspect-ratio: 4 / 3; border-radius: 12px; background: #23262F; display: grid; place-items: center; position: relative; font-size: 12px; color: var(--on-dark-2); overflow: hidden; }
+  .tile-p .av { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; color: #fff; font-size: 16px; }
+  .tile-p .nm { position: absolute; left: 10px; bottom: 8px; font-size: 12px; color: var(--on-dark); background: rgba(0,0,0,.35); padding: 3px 8px; border-radius: 999px; }
+  .tile-p.host .nm::after { content: " · host"; color: #FDD663; }
+  .tile-p .muted { position: absolute; right: 10px; top: 8px; font-size: 11px; color: #F28B82; }
+  @media (max-width: 560px) { .grid { grid-template-columns: repeat(2, 1fr); } .tile-p:nth-child(n+5) { display: none; } }
+  .ctrl { display: flex; gap: 10px; justify-content: center; padding: 10px 14px 16px; flex-wrap: wrap; }
+  .ctrl button { font: 600 13px var(--font); color: var(--on-dark); background: #2B2F3A; border: 1px solid var(--line-dark); border-radius: 999px; padding: 10px 16px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+  .ctrl button:hover { background: #343947; }
+  .ctrl button.want { background: #C62828; border-color: #C62828; box-shadow: 0 0 0 0 rgba(198,40,40,.6); animation: want 1.6s ease-out infinite; }
+  .ctrl button.want.dl { background: var(--blue-2); border-color: var(--blue-2); box-shadow: 0 0 0 0 rgba(11,87,208,.6); animation: want-b 1.6s ease-out infinite; }
+  .ctrl button.leave { background: #C62828; border-color: #C62828; }
+  @keyframes want { 70% { box-shadow: 0 0 0 14px rgba(198,40,40,0); } 100% { box-shadow: 0 0 0 0 rgba(198,40,40,0); } }
+  @keyframes want-b { 70% { box-shadow: 0 0 0 14px rgba(11,87,208,0); } 100% { box-shadow: 0 0 0 0 rgba(11,87,208,0); } }
+  .shake { animation: shake .4s ease; }
+  @keyframes shake { 20% { transform: translateX(-6px); } 40% { transform: translateX(6px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(4px); } }
+  .hint { text-align: center; color: var(--on-dark-2); font-size: 15px; margin-bottom: 14px; min-height: 1.5em; }
+  .hint b { color: var(--on-dark); font-weight: 600; }
+  .toast-g { position: absolute; left: 50%; bottom: 72px; transform: translate(-50%, 10px); background: #FCE8E6; color: #7A1C19; font-size: 13px; font-weight: 600; padding: 10px 16px; border-radius: 12px; opacity: 0; transition: opacity .25s, transform .25s; pointer-events: none; max-width: calc(100% - 32px); text-align: center; }
+  .toast-g.show { opacity: 1; transform: translate(-50%, 0); }
+  .ended { position: absolute; inset: 0; background: rgba(15,17,22,.78); display: grid; place-items: center; text-align: center; padding: 20px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  .ended h3 { font-size: 26px; font-weight: 800; letter-spacing: -0.03em; }
+  .ended p { color: var(--on-dark-2); margin-top: 8px; font-size: 15px; }
+  .ended .ctrl { padding-top: 18px; }
+  .ended .act { font: 600 13px var(--font); color: var(--on-dark); background: #2B2F3A; border: 1px solid var(--line-dark); border-radius: 999px; padding: 10px 16px; cursor: pointer; }
+  .stage { position: relative; width: min(760px, 100%); }
+  .pile { position: absolute; inset: -40px; pointer-events: none; }
+  .todo { position: absolute; width: 230px; background: #fff; color: var(--ink); border-radius: 12px; padding: 10px 12px; font-size: 13px; box-shadow: 0 16px 40px -10px rgba(0,0,0,.6); transform: translateY(-40px) rotate(var(--rot)); opacity: 0;
+          animation: drop .45s cubic-bezier(.2,.9,.3,1.2) forwards; animation-delay: var(--d); border-left: 4px solid var(--c, var(--blue-2)); }
+  .todo b { display: block; font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); }
+  @keyframes drop { to { opacity: 1; transform: translateY(0) rotate(var(--rot)); } }
+  .count { position: absolute; left: 50%; bottom: -70px; transform: translateX(-50%); font: 800 clamp(22px, 4vw, 34px)/1 var(--font); letter-spacing: -0.03em; color: var(--on-dark); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .finale { text-align: center; max-width: 640px; }
+  .finale .mark-lg { width: 96px; height: 96px; border-radius: 26px; box-shadow: 0 30px 80px rgba(36,94,146,.5); animation: pop .6s cubic-bezier(.2,.9,.3,1.3) both; }
+  @keyframes pop { from { transform: scale(.4); opacity: 0; } }
+  .finale h3 { font-size: clamp(34px, 6vw, 60px); font-weight: 800; letter-spacing: -0.04em; line-height: 1.02; margin-top: 26px; }
+  .finale p { color: var(--on-dark-2); font-size: clamp(16px, 2vw, 20px); margin-top: 14px; }
+  .finale .btns { margin-top: 28px; }
+  .finale .btn.primary { background: #fff; color: var(--blue-ink); }
+  .finale .btn.ghost { color: var(--on-dark-2); border-color: var(--line-dark); }
+  .fade-out { animation: fade .5s ease forwards; }
+  @keyframes fade { to { opacity: 0; transform: scale(.98); } }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    html { scroll-behavior: auto; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ───────────────────────── The meeting from hell ───────────────────────── -->
+<div class="game" id="game" role="dialog" aria-label="A short game before the site" hidden>
+  <button class="skip" id="skip" type="button">Skip to the site</button>
+
+  <div class="stage" id="stage">
+    <p class="hint" id="hint">Thursday, 14:02. You're in a meeting. <b>Record it.</b></p>
+    <div class="call" id="call">
+      <div class="top"><b>Weekly sync</b> · 6 people <span class="clock" id="clock">00:00</span></div>
+      <div class="grid" aria-hidden="true">
+        <div class="tile-p host"><span class="av" style="background:#5B45C9">S</span><span class="nm">Sergey</span></div>
+        <div class="tile-p"><span class="av" style="background:#0B57D0">A</span><span class="nm">Anna</span><span class="muted">muted</span></div>
+        <div class="tile-p"><span class="av" style="background:#1E8E3E">M</span><span class="nm">Maxim</span></div>
+        <div class="tile-p"><span class="av" style="background:#9A3A9E">O</span><span class="nm">Olga</span><span class="muted">muted</span></div>
+        <div class="tile-p"><span class="av" style="background:#B0471B">D</span><span class="nm">Dmitry</span></div>
+        <div class="tile-p"><span class="av" style="background:#245E92">You</span><span class="nm">You</span></div>
+      </div>
+      <div class="ctrl" id="ctrl">
+        <button type="button" id="b-mic">🎙 Mute</button>
+        <button type="button" id="b-cam">📷 Camera</button>
+        <button type="button" id="b-rec" class="want">⏺ Record</button>
+        <button type="button" id="b-chat">💬 Chat</button>
+        <button type="button" id="b-leave" class="leave" hidden>Leave</button>
+      </div>
+      <div class="toast-g" id="toast" role="status" aria-live="polite"></div>
+    </div>
+    <div class="pile" id="pile" aria-hidden="true"></div>
+    <div class="count" id="count" hidden></div>
+  </div>
+
+  <div class="finale" id="finale" hidden>
+    <svg class="mark-lg" viewBox="0 0 1024 1024" aria-hidden="true"><rect width="1024" height="1024" rx="224" fill="#245E92"/><g stroke="#fff" stroke-width="60" stroke-linecap="round" fill="none"><line x1="208" y1="424" x2="208" y2="600"/><line x1="304" y1="352" x2="304" y2="672"/><line x1="400" y1="388" x2="400" y2="636"/><line x1="496" y1="416" x2="816" y2="416"/><line x1="496" y1="512" x2="816" y2="512"/><line x1="496" y1="608" x2="816" y2="608"/></g></svg>
+    <h3>Or press one button.</h3>
+    <p>Dictum records any call on your Mac, transcribes it on your machine, and writes the recap, the requirements, the document and the tickets. No host. No policy. No tabs.</p>
+    <div class="btns">
+      <button class="btn primary" id="meet" type="button">Meet Dictum</button>
+      <button class="btn ghost" id="replay" type="button">Play it again</button>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────────────────── Site ───────────────────────── -->
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="#top">
+      <svg class="mark" viewBox="0 0 1024 1024" aria-hidden="true"><rect width="1024" height="1024" rx="224" fill="#245E92"/><g stroke="#fff" stroke-width="60" stroke-linecap="round" fill="none"><line x1="208" y1="424" x2="208" y2="600"/><line x1="304" y1="352" x2="304" y2="672"/><line x1="400" y1="388" x2="400" y2="636"/><line x1="496" y1="416" x2="816" y2="416"/><line x1="496" y1="512" x2="816" y2="512"/><line x1="496" y1="608" x2="816" y2="608"/></g></svg>
+      Dictum
+    </a>
+    <nav>
+      <a class="opt" href="#record">Record</a>
+      <a class="opt" href="#private">Private</a>
+      <a class="opt" href="#work">Work</a>
+      <a class="opt" href="#specs">Specs</a>
+      <a class="opt" href="#top" id="replay-nav">The meeting</a>
+      <a class="cta" href="https://github.com/heidurrus/dictum/releases/latest">Download</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero wrap">
+    <svg class="mark-lg" viewBox="0 0 1024 1024" aria-hidden="true"><rect width="1024" height="1024" rx="224" fill="#245E92"/><g stroke="#fff" stroke-width="60" stroke-linecap="round" fill="none"><line x1="208" y1="424" x2="208" y2="600"/><line x1="304" y1="352" x2="304" y2="672"/><line x1="400" y1="388" x2="400" y2="636"/><line x1="496" y1="416" x2="816" y2="416"/><line x1="496" y1="512" x2="816" y2="512"/><line x1="496" y1="608" x2="816" y2="608"/></g></svg>
+    <h1>The meeting, on record.</h1>
+    <p class="sub">Records any call on your Mac. Transcribes on your machine. Turns the talk into requirements, documents and tickets.</p>
+    <div class="btns">
+      <a class="btn primary" href="https://github.com/heidurrus/dictum/releases/latest">Download for Mac</a>
+      <a class="btn secondary" href="https://github.com/heidurrus/dictum/releases/latest">Windows</a>
+    </div>
+    <p class="fine">Free. macOS 14.2 or later on Apple silicon, Windows 10 or later. <a href="https://github.com/heidurrus/dictum">Source on GitHub</a>.</p>
+
+    <div class="shot" aria-label="The meeting page in Dictum: a live transcript on the left, a recap and a requirement on the right">
+      <div class="bar"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><b>Discovery call · Contact-centre CRM</b><span class="crumb">Meetings</span>
+        <span class="rec"><i></i>REC 27:14</span></div>
+      <div class="body">
+        <div class="pane">
+          <h4>Transcript · live</h4>
+          <div class="line s1"><span class="t">26:02</span><span><b>You</b>So the agent sees the client card before answering, and the card has to come up in under two seconds.</span></div>
+          <div class="line s2"><span class="t">26:19</span><span><b>Anna · client</b>Two seconds, yes. Longer than that and they pick up without context, which is the complaint we hear most.</span></div>
+          <div class="line s3"><span class="t">26:41</span><span><b>Maxim</b>Then the lookup runs on ring, not on answer. We'd need the number from the PBX before the call connects.</span></div>
+          <div class="line s2"><span class="t">27:03</span><span><b>Anna · client</b>And supervisors must be able to listen in without the agent noticing. That's a compliance thing.</span></div>
+          <div class="line live"><span class="t">27:14</span><span>Okay, let me write that down as a separate requirement because</span></div>
+        </div>
+        <div class="pane recap">
+          <h4>Recap</h4>
+          <div class="chips"><span class="chip on">Brief</span><span class="chip">Bullets</span><span class="chip">Actions</span></div>
+          <p>The client wants agents to see the caller's card before they answer. The card must appear within two seconds, so the lookup starts on ring using the PBX number. Supervisors need silent listen-in for compliance.</p>
+          <div class="req"><span class="k">FR · pending review</span><div>The client card opens within 2 s of an incoming call, before the agent answers.</div>
+            <q>the card has to come up in under two seconds</q></div>
+          <div class="req"><span class="k">NFR · pending review</span><div>Supervisors can listen to a live call without any indication to the agent.</div>
+            <q>without the agent noticing</q></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Record -->
+  <section class="band dark" id="record">
+    <div class="wrap two">
+      <div>
+        <p class="eyebrow">Record</p>
+        <h2>Anything that makes a sound.</h2>
+        <p class="lead">Dictum records what comes out of your speakers and what goes into your microphone, on two separate tracks. Teams, Zoom, Meet, a browser tab, a phone on the desk. No host permission. No plan tier. No bot joining the call.</p>
+        <div class="facts">
+          <div class="fact"><b>Two tracks</b><span>Who said what stays clear even when people talk over each other.</span></div>
+          <div class="fact"><b>Pause and resume</b><span>Step out of the call; the recording waits.</span></div>
+          <div class="fact"><b>Stops itself</b><span>Ten minutes of silence after the call ends and it stops and transcribes.</span></div>
+          <div class="fact"><b>Never loses audio</b><span>A crash or a force quit keeps every second recorded so far.</span></div>
+        </div>
+      </div>
+      <div class="tracks" aria-hidden="true">
+        <div class="track mic"><b><i></i>Microphone</b><div class="wave" id="wave-mic"></div></div>
+        <div class="track sys"><b><i></i>System audio</b><div class="wave" id="wave-sys"></div>
+          <div class="apps"><span>Teams</span><span>Zoom</span><span>Google Meet</span><span>Discord</span><span>Safari</span><span>Chrome</span><span>Anything</span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Private -->
+  <section class="band" id="private">
+    <div class="wrap two">
+      <div class="mac" aria-hidden="true">
+        <div class="row"><b>Speech recognition</b><span>GigaAM v3, on this Mac</span><span class="st">local</span></div>
+        <div class="row"><b>Recaps and requirements</b><span>Gemma 4 12B, on this Mac</span><span class="st">local</span></div>
+        <div class="row"><b>Library index</b><span>Qwen3 Embedding, on this Mac</span><span class="st">local</span></div>
+        <div class="row"><b>Cloud</b><span>Claude with your own key</span><span class="st no">off for this project</span></div>
+        <div class="sum">Nothing left this computer today.</div>
+      </div>
+      <div>
+        <p class="eyebrow">Private</p>
+        <h2>Transcribed on your Mac. Nothing leaves.</h2>
+        <p class="lead">Speech recognition runs on your machine with GigaAM, the best model there is for Russian, plus a multilingual one. Recaps, requirements and answers come from a local model, Gemma 4 or Qwen 3, that Dictum downloads and runs for you. Mark a project local-only and the cloud is simply not an option for it.</p>
+        <div class="facts">
+          <div class="fact"><b>Works offline</b><span>On a plane, at a client site, behind a corporate firewall.</span></div>
+          <div class="fact"><b>Your key, if you want it</b><span>Claude for the heavy lifting, billed to you, never on by default.</span></div>
+          <div class="fact"><b>One folder</b><span>Recordings, transcripts, models. Move it, back it up, delete it.</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Work -->
+  <section class="band soft" id="work">
+    <div class="wrap">
+      <p class="eyebrow">Work</p>
+      <h2>From talk to work. Same afternoon.</h2>
+      <p class="lead">Dictum is built for the person who leaves the meeting with the homework. Everything it produces points back to the exact second someone said it.</p>
+      <div class="tiles">
+        <div class="tile w">
+          <h3>Recaps that match the meeting.</h3>
+          <p>Brief, bullets or action items, your choice per meeting. Rewrites itself as the recording grows, so the recap is ready when the call ends.</p>
+          <div class="ill styles"><span class="chip on">Brief</span><span class="chip">Bullets</span><span class="chip">Actions</span><span class="chip">+ your own style</span></div>
+        </div>
+        <div class="tile w">
+          <h3>Requirements with evidence.</h3>
+          <p>Functional, non-functional, risks, assumptions and open questions, each with the quote and the timestamp it came from. Review, merge, reject. Nothing invented.</p>
+          <div class="ill req"><span class="k">FR · reviewed</span><div>Incoming calls show the client card within 2 s, before the agent answers.</div><q>26:02 · the card has to come up in under two seconds</q></div>
+        </div>
+        <div class="tile">
+          <h3>Documents that stay current.</h3>
+          <p>An SRS, a BRD, a one-pager. Built from the reviewed requirements and marked out of date the moment a new meeting changes them.</p>
+        </div>
+        <div class="tile">
+          <h3>Backlog, straight to Jira.</h3>
+          <p>Stories and acceptance criteria from the requirements, pushed to your board through a browser sign-in. Nothing stored in a keychain.</p>
+          <div class="ill tickets"><div><span class="key">CRM-41</span>Client card on ring<span class="tag">story</span></div><div><span class="key">CRM-42</span>Silent listen-in<span class="tag">story</span></div></div>
+        </div>
+        <div class="tile">
+          <h3>Ask the meetings.</h3>
+          <p>"What did the client say about response time?" Answers cite the source; a click opens the line in the transcript.</p>
+          <div class="ill cite">Under two seconds, measured from ring to card<sup>1</sup>; the lookup uses the PBX number<sup>2</sup>.<small>1 Discovery call, 26:02 · 2 Discovery call, 26:41</small></div>
+        </div>
+        <div class="tile w">
+          <h3>A library that organises itself.</h3>
+          <p>Drop in the PDFs, the email threads, the old spec. Dictum indexes them on your machine, links what is related and files them under labels you create. New material lands under the right label on its own.</p>
+          <div class="ill">
+            <svg class="graph" viewBox="0 0 520 150" aria-hidden="true">
+              <g stroke="#C9CBDC" stroke-width="1.5"><line x1="110" y1="75" x2="230" y2="40"/><line x1="110" y1="75" x2="240" y2="112"/><line x1="230" y1="40" x2="360" y2="60"/><line x1="240" y1="112" x2="360" y2="60"/><line x1="360" y1="60" x2="460" y2="100"/><line x1="230" y1="40" x2="240" y2="112"/></g>
+              <g font-family="Inter, system-ui, sans-serif" font-size="11" fill="#121216">
+                <circle cx="110" cy="75" r="22" fill="#D3E3FD"/><text x="110" y="79" text-anchor="middle" font-weight="600">Spec v2</text>
+                <circle cx="230" cy="40" r="18" fill="#E6F4EA"/><text x="230" y="44" text-anchor="middle">Email</text>
+                <circle cx="240" cy="112" r="20" fill="#FEF7E0"/><text x="240" y="116" text-anchor="middle">PBX API</text>
+                <circle cx="360" cy="60" r="24" fill="#D3E3FD"/><text x="360" y="64" text-anchor="middle" font-weight="600">Discovery</text>
+                <circle cx="460" cy="100" r="18" fill="#F3E8FD"/><text x="460" y="104" text-anchor="middle">Risks</text>
+              </g>
+              <g font-family="Inter, system-ui, sans-serif" font-size="10" fill="#7B7B88"><text x="6" y="14">labels · CRM · telephony · compliance</text></g>
+            </svg>
+          </div>
+        </div>
+        <div class="tile w">
+          <h3>Whisper. A voice inbox for yourself.</h3>
+          <p>Press ⌥ Space from any app, say "remind me Friday to send Anna the PBX question", and it becomes a reminder. Tasks, notes and ideas land in a personal inbox, kept apart from the project.</p>
+          <span class="kbd">⌥ Space</span>
+          <div class="ill whisper"><span class="mic"><i></i></span><span class="out"><b>REMINDER · FRI 10:00</b>Send Anna the PBX question</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Specs -->
+  <section class="band dark" id="specs">
+    <div class="wrap">
+      <p class="eyebrow">Specs</p>
+      <h2>A desktop app, not a tab.</h2>
+      <p class="lead">One installer. The first run downloads the models it needs for your machine and asks for the two permissions it uses: the microphone and system audio.</p>
+      <div class="specs">
+        <div class="spec"><b>Mac</b><p>macOS 14.2 or later, Apple silicon.</p><p>16 GB of memory runs everything locally. 32 GB unlocks the larger Qwen models.</p></div>
+        <div class="spec"><b>Windows</b><p>Windows 10 or later, 64-bit.</p><p>A GPU speeds transcription up; it is not required.</p></div>
+        <div class="spec"><b>Speech</b><p>GigaAM v3 for Russian, 0.4 GB. GigaAM multilingual, 2.2 GB.</p><p>Speaker separation with pyannote.</p></div>
+        <div class="spec"><b>Language models</b><p>Gemma 4 12B, Qwen 3.5 4B and 9B, Qwen 3.6 35B, Qwen 3.8 27B, all run locally.</p><p>Claude in the cloud with your own key.</p></div>
+        <div class="spec"><b>Integrations</b><p>Jira and Confluence over a browser sign-in. Word, Markdown and ZIP exports. Project files that move between machines.</p></div>
+        <div class="spec"><b>Price</b><p>Free. The source is on GitHub.</p><p>No account, no telemetry, no seat.</p></div>
+      </div>
+      <div class="btns" style="justify-content:flex-start; margin-top: 44px">
+        <a class="btn primary" style="background:#fff;color:var(--blue-ink)" href="https://github.com/heidurrus/dictum/releases/latest">Download for Mac</a>
+        <a class="btn ghost" style="color:var(--on-dark);border-color:var(--line-dark)" href="https://github.com/heidurrus/dictum/releases/latest">Windows</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 Dictum</span>
+    <a href="https://github.com/heidurrus/dictum">GitHub</a>
+    <a href="https://github.com/heidurrus/dictum/releases">Releases</a>
+    <a href="https://github.com/heidurrus/dictum/issues">Report a problem</a>
+    <span class="sp">getdictum.app</span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  // Waveforms on the Record band: deterministic bars, no library.
+  function wave(id, seed, calm) {
+    var el = document.getElementById(id); if (!el) return;
+    var n = 64, s = seed, html = "";
+    for (var i = 0; i < n; i++) {
+      s = (s * 9301 + 49297) % 233280; var r = s / 233280;
+      var env = calm ? 0.35 + 0.35 * Math.sin(i / 5) : 0.55 + 0.45 * Math.sin(i / 3.3);
+      html += '<i style="--h:' + Math.max(8, Math.round(100 * r * env)) + '%"></i>';
+    }
+    el.innerHTML = html;
+  }
+  wave("wave-mic", 7, false); wave("wave-sys", 31, true);
+
+  // ── The meeting from hell ──────────────────────────────────────────────
+  var game = document.getElementById("game"), stage = document.getElementById("stage"), call = document.getElementById("call");
+  var hint = document.getElementById("hint"), toast = document.getElementById("toast"), ctrl = document.getElementById("ctrl");
+  var rec = document.getElementById("b-rec"), leave = document.getElementById("b-leave"), pile = document.getElementById("pile"), count = document.getElementById("count");
+  var finale = document.getElementById("finale"), clock = document.getElementById("clock");
+  var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var timers = [], step = 0, seconds = 27 * 60 + 14, tick = null;
+  function later(fn, ms) { timers.push(setTimeout(fn, reduced ? Math.min(ms, 60) : ms)); }
+  function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+  function showClock() { clock.textContent = pad(Math.floor(seconds / 60)) + ":" + pad(seconds % 60); }
+  function say(msg) { toast.textContent = msg; toast.classList.add("show"); later(function () { toast.classList.remove("show"); }, 2600); }
+  function wobble(el) { el.classList.remove("shake"); void el.offsetWidth; el.classList.add("shake"); }
+  function seen(v) { try { if (v === undefined) return localStorage.getItem("dictum.meeting") === "1"; localStorage.setItem("dictum.meeting", v ? "1" : "0"); } catch (_) { return false; } }
+
+  var TODOS = [
+    ["Word", "Write the meeting summary", "#2B579A"], ["Confluence", "Update the requirements page", "#0052CC"],
+    ["Jira", "Create 9 tickets by hand", "#0052CC"], ["Excel", "Rebuild the backlog sheet", "#217346"],
+    ["Outlook", "Send 4 follow-up emails", "#0078D4"], ["Teams", "Ask who said the thing about PBX", "#6264A7"],
+    ["Notion", "Log the decisions", "#121216"], ["Miro", "Redraw the call flow", "#FFD02F"],
+    ["Your memory", "Remember what the client actually wanted", "#C62828"], ["Figma", "Comment on 12 frames", "#A259FF"],
+    ["Slack", "Reply to 'any notes from the call?'", "#4A154B"], ["Google Docs", "Paste it all again", "#4285F4"],
+    ["Calendar", "Book the follow-up you forgot", "#0B57D0"], ["Sticky notes", "The one that fell off the monitor", "#F9AB00"],
+    ["PowerPoint", "Three slides for the steering committee", "#B7472A"], ["Trello", "Move the cards you never moved", "#0079BF"]
+  ];
+
+  function reset() {
+    clearTimers(); clearInterval(tick); step = 0; seconds = 27 * 60 + 14; showClock();
+    finale.hidden = true; stage.hidden = false; pile.innerHTML = ""; count.hidden = true; count.textContent = "";
+    var ended = call.querySelector(".ended"); if (ended) ended.remove();
+    call.classList.remove("fade-out"); stage.classList.remove("fade-out");
+    hint.innerHTML = "Thursday, 14:02. You're in a meeting. <b>Record it.</b>";
+    rec.hidden = false; rec.className = "want"; rec.textContent = "⏺ Record"; rec.disabled = false; leave.hidden = true;
+    tick = setInterval(function () { seconds++; showClock(); }, 1000);
+    rec.focus();
+  }
+
+  function start() { game.hidden = false; document.body.style.overflow = "hidden"; reset(); }
+  function end(toSite) {
+    clearTimers(); clearInterval(tick); game.hidden = true; document.body.style.overflow = ""; seen(true);
+    if (toSite) { var top = document.getElementById("top"); if (top) top.scrollIntoView({ block: "start" }); }
+  }
+
+  rec.addEventListener("click", function () {
+    if (step !== 0) return; step = 1;
+    wobble(call); say("Only the host can record. Ask Sergey.");
+    rec.classList.remove("want"); rec.disabled = true; rec.textContent = "⏺ Record (host only)";
+    later(function () { hint.innerHTML = "Sergey is in another meeting. <b>Fine. Get the transcript afterwards.</b>"; leave.hidden = false; leave.classList.add("want"); leave.focus(); }, 2300);
+  });
+  ["b-mic", "b-cam", "b-chat"].forEach(function (id) {
+    document.getElementById(id).addEventListener("click", function () { say(id === "b-chat" ? "Chat: 'any notes from the call?'" : "That works. That's not the problem."); });
+  });
+  leave.addEventListener("click", function () {
+    if (step !== 1) return; step = 2;
+    clearInterval(tick);
+    var ended = document.createElement("div"); ended.className = "ended";
+    ended.innerHTML = '<div><h3>Meeting ended · 41:07</h3><p>Six people. One decision. Nobody wrote it down.</p><div class="ctrl"><button type="button" class="act want dl" id="b-dl">⬇ Download transcript</button></div></div>';
+    call.appendChild(ended);
+    hint.innerHTML = "The meeting is over. <b>Download the transcript.</b>";
+    var dl = document.getElementById("b-dl"); dl.focus();
+    dl.addEventListener("click", function () {
+      if (step !== 2) return; step = 3;
+      wobble(call); say("Transcripts are disabled by your organisation's policy.");
+      dl.classList.remove("want", "dl"); dl.disabled = true; dl.textContent = "⬇ Download transcript (disabled)";
+      later(function () {
+        hint.innerHTML = "Right. <b>You'll do it by hand, then.</b>";
+        later(flood, 900);
+      }, 2000);
+    });
+  });
+
+  function flood() {
+    var w = stage.clientWidth, h = stage.clientHeight, n = 0;
+    hint.innerHTML = "Your action items, arriving now.";
+    TODOS.forEach(function (t, i) {
+      var d = document.createElement("div"); d.className = "todo";
+      var x = Math.round(Math.random() * Math.max(40, w - 230)), y = Math.round(Math.random() * Math.max(60, h - 70));
+      d.style.left = x + "px"; d.style.top = y + "px";
+      d.style.setProperty("--rot", (Math.random() * 14 - 7).toFixed(1) + "deg");
+      d.style.setProperty("--d", (reduced ? 0 : i * 0.28) + "s");
+      d.style.setProperty("--c", t[2]);
+      d.innerHTML = "<b>Open " + t[0] + "</b>" + t[1];
+      pile.appendChild(d);
+    });
+    var total = TODOS.length, shown = 0;
+    count.hidden = false;
+    function bump() {
+      shown++;
+      count.textContent = shown <= total ? shown + " of " + total + " things to do" : "…and " + (shown - total).toLocaleString("en-US") + " more";
+      if (shown < total) later(bump, 280);
+      else if (shown < total + 1) later(function () { race(1000000, 0); }, 500);
+    }
+    function race(target, cur) {
+      var stepN = Math.max(1, Math.round((target - cur) / 7)); cur = Math.min(target, cur + stepN);
+      count.textContent = "…and " + cur.toLocaleString("en-US") + " more";
+      if (cur < target) later(function () { race(target, cur); }, 70);
+      else later(finish, 1400);
+    }
+    later(bump, 300);
+  }
+
+  function finish() {
+    stage.classList.add("fade-out");
+    later(function () { stage.hidden = true; finale.hidden = false; document.getElementById("meet").focus(); }, 500);
+  }
+
+  document.getElementById("skip").addEventListener("click", function () { end(true); });
+  document.getElementById("meet").addEventListener("click", function () { end(true); });
+  document.getElementById("replay").addEventListener("click", function () { reset(); });
+  document.getElementById("replay-nav").addEventListener("click", function (e) { e.preventDefault(); start(); });
+  game.addEventListener("keydown", function (e) { if (e.key === "Escape") end(true); });
+
+  if (!seen()) start();
+})();
+</script>
+</body>
+</html>
