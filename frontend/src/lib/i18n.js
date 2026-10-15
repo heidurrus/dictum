@@ -500,6 +500,10 @@ const ru = {
   "bl.moved_into": "Перенесено в критерии «{title}»",
   "bl.findings_hint": "Есть замечания INVEST — поправьте истории или примените предложения.",
   "bl.to_export": "К выгрузке в Jira",
+  "bl.h.stories": ["{n} история", "{n} истории", "{n} историй"],
+  "bl.h.epics": ["{n} эпик", "{n} эпика", "{n} эпиков"],
+  "bl.h.invest": ["INVEST: {n} замечание", "INVEST: {n} замечания", "INVEST: {n} замечаний"],
+  "bl.to_jira_n": "В Jira · {n}",
 
   "jr.title": "Выгрузка в Jira",
   "jr.sub_empty": "Бэклог → задачи Jira Cloud через Atlassian MCP",
@@ -2250,6 +2254,10 @@ const en = {
   "bl.moved_into": "Moved into the criteria of “{title}”",
   "bl.findings_hint": "There are INVEST findings: fix the stories or apply the suggestions.",
   "bl.to_export": "To Jira export",
+  "bl.h.stories": ["{n} story", "{n} stories"],
+  "bl.h.epics": ["{n} epic", "{n} epics"],
+  "bl.h.invest": ["INVEST: {n} remark", "INVEST: {n} remarks"],
+  "bl.to_jira_n": "To Jira · {n}",
 
   "jr.title": "Jira export",
   "jr.sub_empty": "Backlog → Jira Cloud issues through the Atlassian MCP",

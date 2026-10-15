@@ -12,6 +12,7 @@
   const collapsed = new SvelteSet();          // item ids folded in this session
   const fold = id => (collapsed.has(id) ? collapsed.delete(id) : collapsed.add(id));
   const glyph = { epic: "E", story: "S", subtask: "T", nfr: "N" };
+  const badge = { epic: "br", story: "fr", subtask: "as", nfr: "nfr" };     // prototype-v5: E and S as type badges
 
   let body = $state(null);
   let error = $state("");
@@ -195,22 +196,25 @@
     e.preventDefault();
     requestAnimationFrame(() => document.getElementById(`bl-${selectedId}`)?.scrollIntoView({ block: "nearest" }));
   }
-  const sub = $derived(body && items.length ? t("bl.sub", { e: body.counts.epic, s: body.counts.story, t: body.counts.subtask, n: body.included }) : t("bl.sub_empty"));
+  // Headline (prototype-v5 pageBacklog): stories · epics · INVEST remarks.
+  const investN = $derived(items.reduce((n, i) => n + (i.invest?.length || 0), 0));
+  const sub = $derived(body && items.length ? [t("bl.h.stories", { n: body.counts.story }), t("bl.h.epics", { n: body.counts.epic }),
+    investN ? t("bl.h.invest", { n: investN }) : ""].filter(Boolean).join(" · ") : t("bl.sub_empty"));
 </script>
 
 <svelte:window onkeydown={onKey} />
 
-<Page title={t("nav.decomposition")} {sub} inspector={items.length ? "backlog" : ""}>
+<Page title={t("nav.decomposition")} {sub} inspector={items.length ? "backlog" : ""} headClass="m" card={false}>
   {#snippet actions()}
     {#if body && body.latest}
       {#if items.length}
         <PopMenu cls="btn ghost" text={t("tr.more")} ariaLabel={t("tr.more")} align="right"
                  items={[{ value: "refine", label: t("bl.refine"), icon: "spark" }]} onpick={() => { refineNote = ""; refineOpen = true; }} />
-        <button class="btn" disabled={!!job} onclick={() => run("invest")}><Icon name="check" size={14} /> {t("bl.invest")}</button>
+        <button class="btn" disabled={!!job} onclick={() => run("invest")}><Icon name="check" size={16} /> {t("bl.invest")}</button>
         <button class="btn" class:primary={body.stale} disabled={!!job} onclick={() => run("build")}>
-          <Icon name="refresh" size={14} /> {t("bl.rebuild")}</button>
+          <Icon name="refresh" size={16} /> {t("bl.rebuild")}</button>
         {#if !body.stale}
-          <button class="btn primary" onclick={() => go("/export")}>{t("bl.to_export")} · {body.included} <Icon name="arrow" size={14} /></button>
+          <button class="btn primary" onclick={() => go("/export")}>{t("bl.to_jira_n", { n: body.included })} <Icon name="arrow" size={16} /></button>
         {/if}
       {:else}
         <button class="btn primary" disabled={!!job} onclick={() => run("build")}>{t("bl.build")}</button>
@@ -222,7 +226,7 @@
     <button class="btn sm" onclick={load}>{t("ov.retry")}</button></div></div>{/if}
 
   {#if body && !items.length}
-    <div class="page scroll">
+    <div class="page scroll card-m">
       {#if job}
         <div class="pad"><div class="banner info"><span class="spinner"></span><span class="grow num">{job.message}</span>
           <span class="progress w"><i style="width: {job.progress}%"></i></span></div>
@@ -243,6 +247,7 @@
       {/if}
     </div>
   {:else if body}
+    <div class="pane-cards">
     <Panes screen="backlog">
       <div class="notices">
         {#if job}
@@ -257,7 +262,7 @@
       </div>
       <div class="pane-body scroll">
         <div class="tree" role="tree" aria-label={t("nav.decomposition")}>
-          <div class="tree-head cap">
+          <div class="tree-head">
             <span></span><span>{t("bl.col.item")}</span>
             <span class="col-x">{t("at.priority")}</span><span class="col-x">INVEST</span><span class="col-x">{t("bl.col.refs")}</span><span class="col-x">Jira</span>
             <span class="col-s">{t("bl.col.state")}</span>
@@ -286,7 +291,7 @@
         {#if selected}
           {@const item = selected}
           <div class="pane-head">
-            <span class="glyph-k {item.kind}">{glyph[item.kind]}</span>
+            <span class="type idb {badge[item.kind]}">{glyph[item.kind]}</span>
             <h2 class="grow trunc">{t("bl.kind_full." + item.kind)}</h2>
             {#if item.jira_key}<a class="chip mono" href={item.jira_url} target="_blank" rel="noreferrer" title={t("bl.in_jira")}>{item.jira_key}</a>{/if}
           </div>
@@ -415,6 +420,7 @@
         </div>
       {/snippet}
     </Panes>
+    </div>
   {/if}
 </Page>
 
@@ -447,7 +453,7 @@
           <button class="twist" class:open={!collapsed.has(item.id)} onclick={e => { e.stopPropagation(); fold(item.id); }}
                   aria-label={item.title} aria-expanded={!collapsed.has(item.id)}><Icon name="chevron" size={12} /></button>
         {:else}<span class="twist"></span>{/if}
-        <span class="glyph-k {item.kind}" title={t("bl.kind_full." + item.kind)}>{glyph[item.kind]}</span>
+        <span class="type idb {badge[item.kind]}" title={t("bl.kind_full." + item.kind)}>{glyph[item.kind]}</span>
         <span class="t trunc">{item.title}</span>
         {#if item.kind === "epic" && item.goal}<span class="goal t3 trunc opt">{t("bl.goal_label")}: {item.goal}</span>{/if}
       </div>
@@ -464,52 +470,58 @@
 {/snippet}
 
 <style>
+  /* prototype-v5 pageBacklog(): the tree table in a card, E/S badges */
   .page { height: 100%; }
+  .pane-cards :global(.pane-head) { height: 56px; padding: 0 20px; border-bottom-color: var(--outline-2); }
   .pad { padding: var(--s-6) var(--gutter); display: grid; gap: var(--s-6); }
   .skeleton { display: grid; gap: var(--s-5); }
   .skeleton i { height: 12px; border-radius: var(--r-xs); background: var(--surface-3); animation: breathe 1.6s ease-in-out infinite; }
   @keyframes breathe { 50% { opacity: .45; } }
-  .notices:not(:empty) { padding: var(--s-4) var(--gutter) 0; }
+  .notices:not(:empty) { padding: 12px 14px 0; }
+  .notices .banner { flex-wrap: wrap; }
   .progress.w { width: 120px; flex: none; }
 
   .tree { container-type: inline-size; container-name: list; padding-bottom: var(--s-11); }
-  .tree-head, .row-line { display: grid; align-items: center; column-gap: var(--s-5); padding: 0 var(--gutter); grid-template-columns: 20px minmax(0, 1fr) 112px; }
-  .tree-head { position: sticky; top: 0; z-index: 2; height: 28px; background: var(--surface); border-bottom: 1px solid var(--outline-2); }
+  .tree-head, .row-line { display: grid; align-items: center; column-gap: 14px; padding: 0 14px; grid-template-columns: 18px minmax(0, 1fr) 112px; }
+  .tree-head { position: sticky; top: 0; z-index: 2; min-height: 38px; background: var(--surface); border-bottom: 1px solid var(--outline-2);
+    font-size: 12px; font-weight: 600; color: var(--text-3); white-space: nowrap; }
   .node { position: relative; cursor: default; transition: background var(--d-fast); scroll-margin: 40px 0; }
-  .row-line { min-height: 40px; }
-  .node::after { content: ""; position: absolute; left: calc(var(--gutter) + 32px); right: 0; bottom: 0; height: 1px; background: var(--outline-2); }
+  .row-line { min-height: 46px; }
+  .node { border-bottom: 1px solid var(--outline-2); }
   .node:hover { background: var(--surface-2); }
-  .node[aria-selected="true"] { background: var(--primary-c); }
-  .node[aria-selected="true"]::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--primary); }
-  .node-title { display: flex; align-items: center; gap: var(--s-4); min-width: 0; padding: var(--s-4) 0; }
+  .node[aria-selected="true"] { background: var(--secondary-c); }
+  .node[aria-selected="true"]::before { content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px; border-radius: 0 3px 3px 0; background: var(--primary); }
+  .node-title { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 10px 0; }
   .node.epic .node-title { font: var(--w-semibold) var(--size-item)/var(--lh-item) var(--font); }
   .node.story .node-title, .node.nfr .node-title { font: var(--w-medium) var(--size-item)/var(--lh-item) var(--font); }
-  .node.l1 .node-title { padding-left: 24px; }
-  .node.l2 .node-title { padding-left: 48px; color: var(--text-2); }
+  .node.l1 .node-title { padding-left: 28px; }
+  .node.l2 .node-title { padding-left: 56px; color: var(--text-2); }
+  .node.epic .node-title { font-size: 14px; }
   .node.sub .row-line { min-height: 32px; }
   .node.off .t { color: var(--text-3); }
   .goal { font-weight: var(--w-regular); font-size: var(--size-foot); flex: 0 1 auto; }
   .col-x { display: none; font-size: var(--size-foot); color: var(--text-2); min-width: 0; }
-  .tree-head .col-x { font-size: var(--size-caption); color: var(--text-3); }
+  .tree-head .col-x { font-size: 12px; color: var(--text-3); }
   .col-s { justify-self: end; font-size: var(--size-foot); display: inline-flex; gap: var(--s-4); align-items: center; white-space: nowrap; }
   .twist { width: 16px; height: 16px; color: var(--text-3); display: grid; place-items: center; transition: transform var(--d-base) var(--ease-out);
     flex: none; border: 0; background: none; padding: 0; cursor: pointer; border-radius: var(--r-xs); }
   .twist.open { transform: rotate(90deg); }
-  .glyph-k { width: 16px; height: 16px; border-radius: 4px; display: grid; place-items: center; font: var(--w-bold) 10px/1 var(--font); color: #fff; flex: none; }
-  .glyph-k.epic { background: #7A5AC8; } .glyph-k.story { background: #2F8F55; } .glyph-k.subtask { background: #3F7DC0; } .glyph-k.nfr { background: #0C6F68; }
+  .type.idb { flex: none; min-width: 20px; justify-content: center; }
   @container list (min-width: 900px) {
-    .tree-head, .row-line { grid-template-columns: 20px minmax(0, 1fr) 80px 72px minmax(80px, 140px) 88px 112px; }
+    .tree-head, .row-line { grid-template-columns: 18px minmax(0, 1fr) 80px 72px minmax(80px, 140px) 88px 112px; }
     .col-x { display: block; }
     .narrow-only { display: none; }
   }
-  .adds { display: flex; gap: var(--s-3); padding: var(--s-4) var(--gutter); flex-wrap: wrap; }
-  .group-head { display: flex; align-items: center; gap: var(--s-4); height: 28px; padding: 0 var(--gutter); background: var(--surface-2);
-    border-block: 1px solid var(--outline-2); font-size: var(--size-foot); color: var(--text-2); margin-top: var(--s-6); }
+  .adds { display: flex; gap: var(--s-3); padding: 10px 14px; flex-wrap: wrap; }
+  .adds .btn { border-radius: 14px; }
+  .group-head { display: flex; align-items: center; gap: var(--s-4); height: 30px; padding: 0 14px; background: var(--surface-2);
+    font-size: 12px; color: var(--text-2); margin-top: var(--s-6); }
   .group-head b { font-weight: var(--w-semibold); }
 
   .insp-empty { padding-top: 20vh; } .insp-empty p { font-size: var(--size-body); color: var(--text-3); }
   .insp-body.node::after, .insp-body.node::before { display: none; }
   .insp-body.node:hover { background: none; }
+  .insp-body.node { border-bottom: 0; }
   .tags { display: flex; gap: var(--s-3); flex-wrap: wrap; }
   .tags:empty { display: none; }
   .story-text { font: var(--w-regular) var(--size-read)/var(--lh-read) var(--font); letter-spacing: -.005em; text-wrap: pretty; }
@@ -518,18 +530,23 @@
   .ac-item + .ac-item { border-top: 1px solid var(--outline-2); }
   .ac-row { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: var(--s-2) var(--s-4); padding: 2px var(--s-5); }
   .ac-row b { font-weight: var(--w-medium); color: var(--text-3); font-size: var(--size-foot); line-height: var(--lh-body); }
-  .invest { border-radius: var(--r-m); background: var(--warn-c); padding: var(--s-5); display: grid; gap: var(--s-3); grid-template-columns: minmax(0, 1fr); }
+  .invest { border-radius: 16px; background: var(--warn-c); padding: var(--s-5); display: grid; gap: var(--s-3); grid-template-columns: minmax(0, 1fr); }
   .invest .fix { padding: var(--s-4); }
   .moves { display: flex; gap: var(--s-3); flex-wrap: wrap; }
   .edit { gap: var(--s-3); }
   .edit .label { margin-top: var(--s-3); }
-  .ac-edit { display: grid; gap: var(--s-2); padding: var(--s-4); border-radius: var(--r-m); background: var(--surface-2); justify-items: start; }
+  .ac-edit { display: grid; gap: var(--s-2); padding: var(--s-4); border-radius: 16px; background: var(--surface-2); justify-items: start; }
+  .acs { border-radius: 16px; box-shadow: none; background: var(--surface-2); }
+  .pane-foot { background: var(--surface); border-top-color: var(--outline-2); padding: 12px 16px; }
+  .pane-foot .btn { height: 36px; padding: 0 16px; border-radius: 18px; background: var(--surface-2); box-shadow: none; font-weight: 600; }
+  .pane-foot .btn.primary { background: var(--primary); color: var(--on-primary); }
+  .pane-foot .btn.ghost { background: none; }
   .ac-edit .input { width: 100%; }
   .refs { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-5); }
   .link { border: 0; background: none; padding: 0; font: inherit; color: var(--primary); cursor: pointer; }
   .link:hover { text-decoration: underline; }
   .manage { display: flex; gap: var(--s-2); flex-wrap: wrap; }
-  .ctx-req { padding: var(--s-5) var(--s-6); border-bottom: 1px solid var(--outline-2); display: grid; gap: var(--s-3); justify-items: start; grid-template-columns: minmax(0, 1fr); }
+  .ctx-req { padding: 14px 20px; border-bottom: 1px solid var(--outline-2); display: grid; gap: var(--s-3); justify-items: start; grid-template-columns: minmax(0, 1fr); }
   .ctx-req .txt { font: var(--w-regular) var(--size-item)/22px var(--font); text-wrap: pretty; }
   .ctx-req .chip { max-width: 100%; }
   .ctx-none { padding: var(--s-9) var(--s-7); color: var(--text-3); text-align: center; }

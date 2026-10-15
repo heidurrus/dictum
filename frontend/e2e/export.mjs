@@ -39,8 +39,8 @@ await page.locator(".screen-head").getByRole("button", { name: "Собрать �
 await sub.filter({ hasText: "версия 1" }).waitFor({ timeout: 15000 });
 await page.goto(base + "/#/backlog");
 await page.locator(".screen-head").getByRole("button", { name: "Собрать бэклог" }).click();
-await sub.filter({ hasText: "историй: 2" }).waitFor({ timeout: 15000 });
-await page.locator(".screen-head").getByRole("button", { name: /К выгрузке в Jira/ }).click();
+await sub.filter({ hasText: "2 истории" }).waitFor({ timeout: 15000 });
+await page.locator(".screen-head").getByRole("button", { name: /В Jira/ }).click();
 step("backlog → export screen");
 
 // Connect: the sign-in opens in a browser tab, the app notices.

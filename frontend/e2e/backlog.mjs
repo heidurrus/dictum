@@ -44,7 +44,7 @@ await page.getByText("Можно собирать бэклог из докуме
 step("document → decomposition");
 
 await page.getByRole("button", { name: "Собрать бэклог" }).click();
-await sub.filter({ hasText: "эпиков: 1 · историй: 2" }).waitFor({ timeout: 15000 });
+await sub.filter({ hasText: "2 истории · 1 эпик" }).waitFor({ timeout: 15000 });
 await page.locator(".epic .t", { hasText: "Работа оператора" }).waitFor();
 await page.locator(".inspector").getByText("Цель: Быстрее обслуживать звонки").waitFor();
 await page.locator(".tree .node.story").first().locator(".t").click();        // details of a story are in the inspector
@@ -60,7 +60,7 @@ step("epics, stories with criteria and FRD links; sub-tasks and NFR unticked");
 
 // Untick the epic → its stories go too.
 await page.locator(".tree .node.epic > .row-line .inc").uncheck();
-await sub.filter({ hasText: "к выгрузке отмечено: 0" }).waitFor();          // sub-tasks and NFRs start unticked anyway
+await page.locator(".screen-head").getByRole("button", { name: /В Jira · 0/ }).waitFor();   // sub-tasks and NFRs start unticked anyway
 await page.locator(".tree .node.epic > .row-line .inc").check();
 step("unticking an epic unticks its stories");
 
