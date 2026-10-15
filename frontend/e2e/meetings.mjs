@@ -67,6 +67,30 @@ for (const [lang, s] of Object.entries(L)) {
   await page.locator(".item", { hasText: s.renamed }).dblclick();
   await page.waitForURL(/#\/meeting\//);
   step("double-click opens the meeting");
+
+  // The record panel (5.0.2): microphone, one line each for system audio and the model, who-said-what, Start.
+  // No model list and no CPU/GPU here (those are in Settings → Модели); Escape and an outside click close it.
+  await page.goto(base + "/#/meetings");
+  const chev = page.locator(".rec-wrap .chev");
+  const pop = page.locator(".rec-pop");
+  await chev.click();
+  await pop.locator("#rec-mic").waitFor();
+  await pop.locator(".rp-model[data-installed]:not([data-installed=''])").waitFor();
+  await pop.locator(".rp-sys").waitFor();
+  await pop.locator(".rp-start").waitFor();
+  if (await pop.locator("details, .seg, .models").count()) throw new Error("the record panel still has the model list or CPU/GPU");
+  if (await pop.evaluate(el => getComputedStyle(el).textAlign) !== "left") throw new Error("the record panel is not left-aligned");
+  await pop.locator("#rec-mic").focus();
+  await page.keyboard.press("Escape");
+  await pop.waitFor({ state: "detached" });
+  await chev.click();
+  await pop.waitFor();
+  await page.mouse.click(5, 450);
+  await pop.waitFor({ state: "detached" });
+  await chev.click();
+  await pop.locator(".rp-model .linkish").click();
+  await page.waitForURL(/#\/settings\/models/);
+  step("record panel: calm summary, Escape and outside click close it, Change goes to Settings → Models");
   await ctx.close();
 }
 await browser.close();

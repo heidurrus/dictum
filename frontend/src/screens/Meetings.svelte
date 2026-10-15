@@ -7,7 +7,6 @@
   import Page from "../components/Page.svelte";
   import PopMenu from "../components/PopMenu.svelte";
   import FirstRun from "../components/FirstRun.svelte";
-  import AsrOptions from "../components/AsrOptions.svelte";
   import Recap from "../components/Recap.svelte";
   import { api } from "../lib/api.js";
   import { cap, importFiles, transcribeSaved, loadMics, askThenRecord, confirmConsent, stopRecording } from "../lib/capture.svelte.js";
@@ -15,7 +14,7 @@
   import { nextStep } from "../lib/next.js";
   import { fmtDate, fmtTime, renderMarkdown, speakerClass, speakerDisplay } from "../lib/format.js";
   import { audioLabel, fmtBytes, saveAudio } from "../lib/audio.js";
-  import { app, t, go, loadSources, toast, rememberSource, currentProject } from "../lib/state.svelte.js";
+  import { app, t, go, loadSources, toast, rememberSource, currentProject, saveOptions } from "../lib/state.svelte.js";
 
   let selectedId = $state(null);
   let query = $state("");
@@ -24,6 +23,7 @@
   let tab = $state("summary");
   let recOpen = $state(false);
   let recWrap = $state(null);
+  let recChev = $state(null);
   let fileInput = $state(null);
   let dragging = $state(0);
   let titleEl = $state(null);
@@ -261,6 +261,45 @@
   function onDoc(e) { if (recOpen && recWrap && !recWrap.contains(e.target)) recOpen = false; }
   const hasFiles = e => [...(e.dataTransfer?.types || [])].includes("Files");
   function record() { recOpen = false; askThenRecord(); }
+  function closeRec() { recOpen = false; recChev?.focus(); }
+
+  // ── the record panel: microphone, one line for system audio, one for the speech model, who-said-what ──────
+  // The model list, CPU/GPU and word timestamps live in Settings → Модели only.
+  const macDesktop = $derived(app.device.desktop && app.health?.platform === "darwin");
+  let asr = $state(null);                // /api/asr/models
+  let sysPerm = $state("");              // /api/permissions system_audio, on the macOS desktop only
+  let sysHint = $state("");
+  let sysAsking = $state(false);
+  let asrTimer = null;
+  const dlBusy = d => ["downloading", "verifying"].includes(d?.status);
+  async function loadAsr() {
+    try { asr = await api("/api/asr/models"); } catch (err) { toast(err.message, { kind: "danger" }); return; }
+    clearTimeout(asrTimer);
+    if (recOpen && dlBusy(asr.download)) asrTimer = setTimeout(loadAsr, 1000);
+  }
+  $effect(() => {
+    if (!recOpen) return;
+    loadAsr();
+    if (macDesktop) api("/api/permissions").then(p => (sysPerm = p.system_audio)).catch(() => {});
+    return () => clearTimeout(asrTimer);
+  });
+  const model = $derived(asr?.models.find(m => m.id === app.options.model) || null);
+  const modelDl = $derived(dlBusy(asr?.download) && asr.download.model === app.options.model ? asr.download : null);
+  const mb = n => (n / 1048576 >= 1000 ? (n / 1073741824).toLocaleString(app.lang, { maximumFractionDigits: 1 }) + " " + t("llm.gb")
+                                        : Math.round(n / 1048576).toLocaleString(app.lang) + " " + t("asr.mb"));
+  async function downloadModel() {
+    try { asr = await api(`/api/asr/models/${app.options.model}/download`, { method: "POST" }); loadAsr(); }
+    catch (err) { toast(err.message, { kind: "danger" }); }
+  }
+  async function allowSystemAudio() {
+    sysAsking = true;
+    try {
+      const r = await api("/api/permissions/request/system_audio", { method: "POST" });
+      sysPerm = r.system_audio; sysHint = r.hint || "";
+    } catch (err) { toast(err.message, { kind: "danger" }); }
+    finally { sysAsking = false; }
+  }
+  function openModels() { recOpen = false; go("/settings/models"); }
 </script>
 
 <svelte:window onkeydown={onKey}
@@ -283,12 +322,14 @@
         <button class="btn lg rec" onclick={stopRecording}><i class="recdot sq"></i> {t("rec.stop_save")}</button>
       {:else}
         <button class="btn lg rec rmain" onclick={record}><i class="recdot"></i> {t("shell.record")}</button>
-        <button class="btn lg rec chev" onclick={() => (recOpen = !recOpen)} aria-expanded={recOpen} aria-haspopup="dialog"
+        <button class="btn lg rec chev" bind:this={recChev} onclick={() => (recOpen = !recOpen)} aria-expanded={recOpen} aria-haspopup="dialog"
                 aria-label={t("meet.rec_options")} title={t("meet.rec_options")}><Icon name="chevd" size={14} /></button>
       {/if}
       {#if recOpen}
-        <div class="menu right rec-pop" role="dialog" aria-label={t("meet.rec_options")}>
-          <p class="t2">{app.device.desktop ? t("sources.record.desc") : t("sources.record.desc_browser")}</p>
+        <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+        <div class="menu right rec-pop" role="dialog" aria-labelledby="rec-pop-title" tabindex="-1"
+             onkeydown={e => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeRec(); } }}>
+          <h3 class="rp-title" id="rec-pop-title">{t("shell.record")}</h3>
           <div class="field">
             <label class="label" for="rec-mic">{t("rec.mic")}</label>
             <select class="select" id="rec-mic" bind:value={cap.mic}>
@@ -296,11 +337,47 @@
               {#each cap.mics as m (m.id)}<option value={m.id}>{m.name}</option>{/each}
             </select>
           </div>
-          <details>
-            <summary>{t("sources.options")}</summary>
-            <AsrOptions />
-          </details>
-          <button class="btn lg primary" onclick={record}><i class="recdot"></i> {t("rec.start")}</button>
+          <div class="rp-line rp-sys" data-sys={macDesktop ? sysPerm || "loading" : "info"}>
+            <Icon name="wave" size={16} />
+            {#if !macDesktop}
+              <span class="grow t2">{app.device.desktop ? t("sources.record.desc") : t("sources.record.desc_browser")}</span>
+            {:else if sysPerm === "granted"}
+              <span class="grow">{t("meet.rp.sys_on")}</span>
+            {:else if sysPerm === "unsupported"}
+              <span class="grow t2">{t("meet.rp.sys_na")}</span>
+            {:else if sysPerm}
+              <span class="grow">{t("meet.rp.sys_off")}</span>
+              <button class="linkish" onclick={allowSystemAudio} disabled={sysAsking}>
+                {#if sysAsking}<span class="spinner"></span>{/if}{t("perm.allow")}</button>
+            {:else}
+              <span class="grow t3">{t("meet.rp.sys_checking")}</span>
+            {/if}
+          </div>
+          {#if macDesktop && sysHint === "no_audio" && sysPerm !== "granted"}
+            <p class="hint rp-note" role="status">{t("perm.no_audio_hint")}</p>
+          {:else if macDesktop && sysPerm === "denied"}
+            <p class="hint rp-note">{t("perm.denied_hint")}</p>
+          {/if}
+          <div class="rp-line rp-model" data-installed={model ? String(!!model.installed) : ""}>
+            <Icon name="transcript" size={16} />
+            <span class="grow">{t("meet.rp.model", { name: app.options.model })}{#if model?.installed}{" · "}<span class="t2">{t("meet.rp.installed")}</span>{/if}</span>
+            <button class="linkish" onclick={openModels}>{t("meet.rp.change")}</button>
+          </div>
+          {#if model && !model.installed}
+            <div class="rp-warn" role="status">
+              <span><Icon name="warn" size={14} /> {t("meet.rp.not_installed")}</span>
+              {#if modelDl}
+                <div class="rp-dl"><div class="progress"><i style="width: {Math.round(100 * modelDl.done / Math.max(modelDl.total, 1))}%"></i></div>
+                  <span class="t3 num">{modelDl.status === "verifying" ? t("llm.verifying") : `${mb(modelDl.done)} / ${mb(modelDl.total)}`}</span></div>
+              {:else}
+                <button class="btn sm" disabled={dlBusy(asr?.download)} onclick={downloadModel}>
+                  <Icon name="download" size={14} /> {t("asr.download", { size: mb(model.size) })}</button>
+              {/if}
+            </div>
+          {/if}
+          <label class="rp-switch"><span><b>{t("opt.diarize")}</b><span class="hint">{t("opt.diarize_d")}</span></span>
+            <input type="checkbox" class="switch" bind:checked={app.options.diarize} onchange={saveOptions} /></label>
+          <button class="btn lg primary rp-start" onclick={record}><i class="recdot"></i> {t("rec.start")}</button>
         </div>
       {/if}
     </span>
@@ -577,9 +654,31 @@
   .rec-pop .recdot { background: var(--rec); }
   .recdot.sq { border-radius: 2px; width: 9px; height: 9px; }
   .rec-wrap { position: relative; display: inline-flex; }
-  .rec-pop { top: calc(100% + 6px); width: 320px; max-width: none; padding: var(--s-6); display: grid; gap: var(--s-5); grid-template-columns: minmax(0, 1fr); }
-  .rec-pop details summary { cursor: pointer; color: var(--text-2); font-size: var(--size-foot); }
-  .rec-pop details[open] summary { margin-bottom: var(--s-5); }
+  .rec-pop { top: calc(100% + 6px); width: min(360px, calc(100vw - 32px)); max-width: none; max-height: none; padding: var(--s-6);
+    display: grid; gap: var(--s-5); grid-template-columns: minmax(0, 1fr); text-align: left; justify-items: stretch; color: var(--text); font-weight: var(--w-regular); }
+  .rec-pop:focus { outline: none; }
+  .rp-title { font: var(--w-semibold) var(--size-body)/var(--lh-body) var(--font); margin: 0; color: var(--text); }
+  .rp-line { display: flex; align-items: center; gap: var(--s-4); min-height: var(--h-ctl-sm); font-size: var(--size-foot); color: var(--text); }
+  .rp-line :global(svg) { color: var(--text-3); flex: none; }
+  .rp-line .grow { min-width: 0; }
+  .rp-model { flex-wrap: wrap; row-gap: var(--s-1); }
+  .rp-model .grow { flex: 1 0 auto; }
+  .rp-model .linkish { margin-left: auto; }
+  .rp-line + .rp-note { margin-top: calc(-1 * var(--s-3)); }
+  .linkish { border: 0; background: none; padding: 0; color: var(--primary); font: inherit; cursor: pointer; white-space: nowrap;
+    display: inline-flex; align-items: center; gap: var(--s-2); }
+  .linkish:hover:not(:disabled) { text-decoration: underline; }
+  .linkish:focus-visible { box-shadow: var(--ring); border-radius: var(--r-s); }
+  .linkish:disabled { color: var(--text-3); cursor: default; }
+  .rp-warn { display: grid; gap: var(--s-3); justify-items: start; padding: var(--s-4) var(--s-5); border-radius: var(--r-m);
+    background: var(--warn-c); color: var(--warn); font-size: var(--size-foot); }
+  .rp-warn :global(svg) { vertical-align: -2px; }
+  .rp-dl { display: grid; gap: var(--s-2); width: 100%; }
+  .rp-switch { display: flex; align-items: center; gap: var(--s-6); justify-content: space-between; cursor: pointer;
+    padding-top: var(--s-4); border-top: 1px solid var(--outline-2); }
+  .rp-switch b { font-weight: var(--w-medium); display: block; }
+  .rp-switch .hint { display: block; }
+  .rp-start { width: 100%; justify-content: center; }
 
   .dropzone { position: fixed; inset: 0; z-index: 140; background: color-mix(in srgb, var(--primary) 14%, var(--scrim)); display: grid; place-items: center;
     pointer-events: none; animation: fade var(--d-fast) var(--ease-out); }
