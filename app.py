@@ -24,7 +24,7 @@ from torch.utils.data import DataLoader
 from flask import Flask, request, jsonify, send_file, send_from_directory
 
 from core.ffmpeg import ensure_ffmpeg_on_path
-from core import live as live_mod, macos_audio, settings
+from core import audio_devices, live as live_mod, macos_audio, settings
 from core.summarize import SummaryError, summarize
 from core import notes as meeting_notes, summarize as summarize_mod
 from core import ask as ask_mod, live_questions as live_questions_mod, whisper as whisper_mod
@@ -78,6 +78,7 @@ _diarization_lock = threading.Lock()
 
 jobs = JobStore()
 job_log = make_job_log()                 # tracebacks of failed jobs: <app data>/logs/jobs.log
+paths_mod.install_app_log()              # warnings and errors of every module: <app data>/logs/dictum.log
 library = Store()  # projects, sources, transcripts, summaries (spec increment 1)
 library.reset_stale_processing()      # jobs do not survive a restart; let those sources be transcribed again
 library.recover_interrupted_recordings()   # a recording cut off by a quit or crash: its WAVs stay, offer Расшифровать
@@ -451,16 +452,22 @@ def device_info():
     return jsonify({"cuda": CUDA_AVAILABLE, "gpu_name": GPU_NAME, "mps": MPS_AVAILABLE, "desktop": IS_DESKTOP})
 
 
+def _refresh_mics_if_idle():
+    """Re-read the audio devices (5.0.5: AirPods, an iPhone microphone or Teams change the list while Dictum runs, and
+    a stale index opens a device macOS no longer has) unless a meeting or a whisper is recording: a refresh would cut
+    their streams."""
+    with _recorder_lock:
+        busy = (_recorder is not None and _recorder.recording) or _whisper_listening()
+    if not busy:
+        audio_devices.refresh()
+
+
 @app.route("/audio-devices")
-def audio_devices():
+def api_audio_devices():
     try:
-        import sounddevice as sd
         import soundcard as sc
-        inputs = [
-            {"index": i, "name": d["name"]}
-            for i, d in enumerate(sd.query_devices())
-            if d["max_input_channels"] > 0 and "loopback" not in d["name"].lower()
-        ]
+        _refresh_mics_if_idle()
+        inputs = [{"index": i, "name": name} for i, name in audio_devices.inputs()]
         # Add system audio (loopback) option
         try:
             spk = sc.default_speaker()
@@ -638,6 +645,8 @@ def desktop_record_start():
     # macOS: ask for the microphone first (shows the system prompt once), outside the
     # lock because the user may take a while to answer.
     mic_ok, mic_reason = microphone_access()
+    _refresh_mics_if_idle()
+    mic_index = audio_devices.resolve_input_by_name(mic_index, data.get("mic_name"))
     mic = _mic_source(mic_index) if mic_ok else mic_reason
 
     with _recorder_lock:
@@ -886,7 +895,9 @@ def api_whisper_start():
         if _whisper_listening():
             return jsonify({"error": "Already listening.", "busy": "whisper"}), 409
         _whisper.update(opts=opts, lang=request.args.get("lang") or data.get("lang") or "ru")
-        capture = _new_whisper_capture(_mic_source(data.get("mic_device")), opts)
+        audio_devices.refresh()                 # nothing records (checked above, under the lock)
+        mic_index = audio_devices.resolve_input_by_name(data.get("mic_device"), data.get("mic_name"))
+        capture = _new_whisper_capture(_mic_source(mic_index), opts)
         capture.start()
         _whisper["capture"] = capture
     return jsonify({"ok": True, "id": capture.id, "live": capture.live is not None, "max_seconds": capture.max_seconds})

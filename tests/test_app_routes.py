@@ -294,3 +294,32 @@ def test_recording_gets_the_title_the_ui_sends(client, app_module, monkeypatch):
     assert wait_for(lambda: client.get("/desktop-record/status").get_json()["channels"]["mic"]["frames"] == 2048)
     res = client.post("/desktop-record/stop", json={"title": "Запись 23.09.2026, 10:15"})
     assert app_module.library.get_source(res.headers["X-Source-Id"])["title"] == "Запись 23.09.2026, 10:15"
+
+
+def test_recording_starts_from_a_fresh_device_list_and_a_live_microphone(client, app_module, monkeypatch):
+    """5.0.5: the device list is re-read before the microphone opens, and a saved index that is gone falls back
+    to the default microphone instead of failing with a device macOS no longer has."""
+    from core import audio_devices
+    seen = {}
+    monkeypatch.setattr(audio_devices, "refresh", lambda: seen.setdefault("refreshed", True))
+    monkeypatch.setattr(audio_devices, "resolve_input_by_name", lambda idx, name: seen.update(asked=(idx, name)) or None)
+    monkeypatch.setattr(app_module, "_mic_source", lambda idx: seen.update(opened=idx) or tone_source(1000, 2))
+    monkeypatch.setattr(app_module, "_system_source", lambda: tone_source(2000, 2))
+    monkeypatch.setattr(app_module, "_recorder", None)
+    res = client.post("/desktop-record/start", json={"mic_device": 7, "mic_name": "Old Headset"})
+    assert res.status_code == 200
+    assert seen == {"refreshed": True, "asked": (7, "Old Headset"), "opened": None}
+    time.sleep(0.05)
+    assert client.post("/desktop-record/stop").status_code == 200
+
+
+def test_audio_devices_route_refreshes_when_idle(client, app_module, monkeypatch):
+    import sys
+    from core import audio_devices
+    calls = []
+    monkeypatch.setattr(audio_devices, "refresh", lambda: calls.append("refresh"))
+    monkeypatch.setattr(audio_devices, "inputs", lambda: [(0, "MacBook Pro Microphone")])
+    monkeypatch.setitem(sys.modules, "soundcard", type("SC", (), {"default_speaker": staticmethod(lambda: (_ for _ in ()).throw(RuntimeError()))})())
+    monkeypatch.setattr(app_module, "_recorder", None)
+    body = client.get("/audio-devices").get_json()
+    assert calls == ["refresh"] and body == [{"index": 0, "name": "MacBook Pro Microphone"}]

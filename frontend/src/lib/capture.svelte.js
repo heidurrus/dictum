@@ -107,6 +107,8 @@ let started = 0;
 const channelName = c => t(c === "mic" ? "channel.mic" : "channel.sys");
 
 export function loadMics() { listMicrophones(app.device.desktop).then(m => (cap.mics = m)); }
+// The chosen microphone's name goes with its index: devices renumber when AirPods or a phone come and go (5.0.5).
+export const micName = () => cap.mics.find(m => String(m.id) === String(cap.mic))?.name || null;
 
 // FR-SRC-02 / PM-05: remind about consent once per session, and log the confirmation. Settings → Privacy can turn
 // the reminder off (consent_reminder); then recording starts at once and nothing is logged.
@@ -173,7 +175,7 @@ async function startRecording() {
       recorder = new DesktopRecorder();
       const title = `${t("rec.meeting_title")} ${fmtDate(Date.now() / 1000, app.lang)}`;
       const body = await recorder.start(cap.mic === "" ? null : Number(cap.mic), onRecorderStatus,
-                                        { title, lang: app.lang, ...optionsPayload() });
+                                        { title, lang: app.lang, mic_name: micName(), ...optionsPayload() });
       cap.sourceId = body.source_id || null;
       cap.paused = false;
       cap.recording = true;
