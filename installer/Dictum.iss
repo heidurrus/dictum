@@ -4,12 +4,11 @@
 ; Built by packaging/build.py --target windows-x64, which stages a standalone
 ; Python with the base layer plus the app into StageDir. Nothing needs to be
 ; preinstalled on the user's PC; the app's Setup screen installs PyTorch,
-; GigaAM, ffmpeg and the speech model on first launch (spec FR-PLAT-04/06).
+; the speech package, ffmpeg and the speech model on first launch (spec FR-PLAT-04/06).
 ;
-; The app was called "GigaAM Transcriber" up to 1.0. AppId keeps that old
-; identity (1.0 had no explicit AppId, so Inno used its name), so installing
-; over 1.0 upgrades it in place instead of adding a second copy. Up to 4.2 it
-; was "Requirements Workbench"; 4.9 renamed it to Dictum.
+; AppId keeps the identity of the 1.0 installer (1.0 had no explicit AppId, so
+; Inno used its name), so installing over any earlier version upgrades it in
+; place instead of adding a second copy. Do not change it.
 
 #define AppName "Dictum"
 #ifndef AppVersion
@@ -19,7 +18,7 @@
   #define StageDir "..\build\windows\stage"
 #endif
 #define AppPublisher "heidurrus"
-#define AppURL "https://github.com/heidurrus/gigaam-transcriber"
+#define AppURL "https://getdictum.app"
 ; Per-user data folder used by the app (core/paths.py APP_DIR_NAME)
 #define DataDirName "Dictum"
 #define WebView2Guid "{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
@@ -68,10 +67,10 @@ Type: files; Name: "{app}\launcher-browser.bat"
 Type: files; Name: "{app}\app.py"
 Type: files; Name: "{app}\requirements.txt"
 Type: filesandordirs; Name: "{app}\static"
-; 1.0 shortcuts under the old name
+; shortcuts left by 1.0 (removed on upgrade)
 Type: filesandordirs; Name: "{userprograms}\GigaAM Transcriber"
 Type: files; Name: "{userdesktop}\GigaAM Transcriber.lnk"
-; 2.0–4.2 shortcuts under the old name
+; shortcuts left by 2.0–4.2 (removed on upgrade)
 Type: filesandordirs; Name: "{userprograms}\Requirements Workbench"
 Type: files; Name: "{userdesktop}\Requirements Workbench.lnk"
 
