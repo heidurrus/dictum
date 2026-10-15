@@ -46,7 +46,7 @@ def test_windows_microphone_from_devices_rest_unsupported(state):
 
 def test_request_runs_the_right_call_and_remembers(state):
     calls = []
-    kw = dict(mic_access=lambda: calls.append("mic"), tap_dry_run=lambda: calls.append("tap"),
+    kw = dict(mic_access=lambda: calls.append("mic"), tap_dry_run=lambda: calls.append("tap") or 3,
               send_notification=lambda: calls.append("notify") or True, platform="darwin", support=lambda: (True, None))
     for which in permissions.WHICH:
         permissions.request(which, state, **kw)
@@ -65,9 +65,25 @@ def test_failed_tap_reads_as_denied(state):
         permissions.request("camera", state, None, None, None)
 
 
-def test_dry_run_reads_about_a_second_then_closes_and_keeps_nothing():
+def _request_tap(state, dry_run):
+    hint = permissions.request("system_audio", state, mic_access=None, tap_dry_run=dry_run, send_notification=None,
+                               platform="darwin", support=lambda: (True, None))
+    return hint, permissions.read(state, platform="darwin", av=FakeAV(3), support=lambda: (True, None))["system_audio"]
+
+
+def test_silent_tap_stays_undetermined_with_a_hint(state):
+    assert _request_tap(state, lambda: 0) == ("no_audio", "undetermined")
+    assert _request_tap(state, lambda: 1) == (None, "granted")
+
+
+def test_tap_that_will_not_open_is_denied(state):
+    def fail():
+        raise OSError("tap refused")
+    assert _request_tap(state, fail) == (None, "denied")
+
+
+def test_dry_run_reads_then_closes_and_counts_chunks():
     events = []
-    now = [0.0]
 
     class Tap:
         def open(self):
@@ -77,7 +93,7 @@ def test_dry_run_reads_about_a_second_then_closes_and_keeps_nothing():
         def __call__(self, stop):
             try:
                 while not stop.is_set():
-                    now[0] += 0.25
+                    stop.wait(0.02)
                     yield b"\0" * 32
             finally:
                 events.append("stream closed")
@@ -85,8 +101,40 @@ def test_dry_run_reads_about_a_second_then_closes_and_keeps_nothing():
         def close(self):
             events.append("close")
 
-    macos_audio.dry_run(1.0, tap_factory=Tap, clock=lambda: now[0])
-    assert events == ["open", "stream closed", "close"] and now[0] == pytest.approx(1.0)
+    chunks = macos_audio.dry_run(0.2, tap_factory=Tap)
+    assert chunks >= 1 and events == ["open", "stream closed", "close"]
+
+
+def test_dry_run_returns_in_time_when_the_tap_delivers_nothing():
+    import threading
+    import time
+    forever = threading.Event()
+    closed = []
+
+    class SilentTap:
+        def open(self):
+            return self
+
+        def __call__(self, stop):
+            forever.wait()          # a blocking read that never returns
+            yield b""
+
+        def close(self):
+            closed.append(True)
+
+    started = time.monotonic()
+    try:
+        assert macos_audio.dry_run(0.3, tap_factory=SilentTap, grace=0.3) == 0
+        assert time.monotonic() - started < 0.3 + 2
+        assert closed == []         # still reading: the reader thread closes the tap when the read gives up
+        forever.set()
+        for _ in range(100):
+            if closed:
+                break
+            time.sleep(0.01)
+        assert closed == [True]
+    finally:
+        forever.set()
 
 
 def test_permissions_routes(client, app_module, monkeypatch, data_dir):
@@ -95,17 +143,21 @@ def test_permissions_routes(client, app_module, monkeypatch, data_dir):
     monkeypatch.setattr(permissions, "_support", lambda: (True, None))
     asked = []
     monkeypatch.setattr(app_module, "microphone_access", lambda: asked.append("mic") or (True, None))
-    monkeypatch.setattr(app_module.macos_audio, "dry_run", lambda seconds: asked.append(("tap", seconds)))
+    chunks = [0]
+    monkeypatch.setattr(app_module.macos_audio, "dry_run", lambda seconds: asked.append(("tap", seconds)) or chunks[0])
     monkeypatch.setattr(app_module, "notify", lambda title, text: asked.append((title, text)) or True)
 
     assert client.get("/api/permissions").get_json() == {"microphone": "undetermined", "system_audio": "undetermined",
                                                        "notifications": "undetermined"}
     client.post("/api/permissions/request/microphone")
     r = client.post("/api/permissions/request/system_audio").get_json()
-    assert r["system_audio"] == "granted"
+    assert r["system_audio"] == "undetermined" and r["hint"] == "no_audio"
+    chunks[0] = 5
+    r = client.post("/api/permissions/request/system_audio").get_json()
+    assert r["system_audio"] == "granted" and "hint" not in r
     r = client.post("/api/permissions/request/notifications?lang=ru").get_json()
     assert r["notifications"] == "granted"
-    assert asked == ["mic", ("tap", 1.0), ("Dictum", "Dictum готов")]
+    assert asked == ["mic", ("tap", 1.0), ("tap", 1.0), ("Dictum", "Dictum готов")]
     assert client.post("/api/permissions/request/camera").status_code == 404
 
 
